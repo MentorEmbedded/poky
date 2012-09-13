@@ -13,7 +13,7 @@ DEPENDS = "liburcu popt lttng2-ust"
 
 SRCREV = "98c8c95b0e1afb2dac686338efdf036f6446d790"
 PV = "v2.0.4"
-PR = "r0"
+PR = "r1"
 
 SRC_URI = "git://git.lttng.org/lttng-tools.git;protocol=git"
 
@@ -25,6 +25,11 @@ export KERNELDIR="${STAGING_KERNEL_DIR}"
 
 FILES_${PN} += "${libdir}/lttng/libexec/*"
 FILES_${PN}-dbg += "${libdir}/lttng/libexec/.debug"
+
+# Since files are installed into ${libdir}/lttng/libexec we match 
+# the libexec insane test so skip it.
+INSANE_SKIP_${PN} = "libexec"
+INSANE_SKIP_${PN}-dbg = "libexec"
 
 # Due to liburcu not building for MIPS currently this recipe needs to
 # be limited also.
