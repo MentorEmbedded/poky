@@ -29,7 +29,7 @@ BAD_RECOMMENDATIONS ?= ""
 MULTILIBRE_ALLOW_REP = "${opkglibdir}"
 
 fakeroot rootfs_ipk_do_rootfs () {
-	set -x
+	#set -x
 
 	rm -f ${IPKGCONF_TARGET}
 	touch ${IPKGCONF_TARGET}
