@@ -7,6 +7,7 @@ PV = "1.8+git${SRCPV}"
 FILESEXTRAPATHS_prepend := "${THISDIR}/systemtap:"
 SRC_URI = "git://sourceware.org/git/systemtap.git;protocol=git \
            file://docproc-build-fix.patch \
+           file://obsolete_automake_macros.patch \
           "
 
 SRC_URI[md5sum]    = "cb202866ed704c44a876d041f788bdee"
