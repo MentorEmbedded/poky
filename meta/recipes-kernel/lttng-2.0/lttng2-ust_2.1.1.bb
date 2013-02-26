@@ -21,7 +21,9 @@ SRCREV = "05356aa2a4dca0bc9bfd716d2d6723e3941851dc"
 PV = "2.1.1"
 PR = "r0"
 
-SRC_URI = "git://git.lttng.org/lttng-ust.git;protocol=git"
+SRC_URI = "git://git.lttng.org/lttng-ust.git;protocol=git \
+	   file://depends-liblttng-ust-tracepoin.patch \
+	   "
 
 S = "${WORKDIR}/git"
 
