@@ -12,8 +12,13 @@ inherit autotools
 
 DEPENDS = "liburcu util-linux"
 
-SRCREV = "0c9ad44b7604040dfcd1e67b18afc3dc5d025b19"
-PV = "2.1.0"
+# For backwards compatibility after rename
+RPROVIDES_${PN} = "lttng2-ust"
+RREPLACES_${PN} = "lttng2-ust"
+RCONFLICTS_${PN} = "lttng2-ust"
+
+SRCREV = "05356aa2a4dca0bc9bfd716d2d6723e3941851dc"
+PV = "2.1.1"
 PR = "r0"
 
 SRC_URI = "git://git.lttng.org/lttng-ust.git;protocol=git"
