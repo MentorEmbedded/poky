@@ -1,7 +1,7 @@
 inherit linux-kernel-base module_strip
 
 PROVIDES += "virtual/kernel"
-DEPENDS += "virtual/${TARGET_PREFIX}gcc kmod-native virtual/${TARGET_PREFIX}gcc${KERNEL_CCSUFFIX}"
+DEPENDS += "virtual/${TARGET_PREFIX}gcc kmod-native depmodwrapper-cross virtual/${TARGET_PREFIX}gcc${KERNEL_CCSUFFIX}"
 
 # we include gcc above, we dont need virtual/libc
 INHIBIT_DEFAULT_DEPS = "1"
@@ -278,7 +278,7 @@ if [ ! -e "$D/lib/modules/${KERNEL_VERSION}" ]; then
 	mkdir -p $D/lib/modules/${KERNEL_VERSION}
 fi
 if [ -n "$D" ]; then
-	depmod -a -b $D -F ${STAGING_KERNEL_DIR}/System.map-${KERNEL_VERSION} ${KERNEL_VERSION}
+	depmodwrapper -a -b $D ${KERNEL_VERSION}
 else
 	depmod -a ${KERNEL_VERSION}
 fi
@@ -288,7 +288,7 @@ pkg_postinst_modules () {
 if [ -z "$D" ]; then
 	depmod -a ${KERNEL_VERSION}
 else
-	depmod -a -b $D -F ${STAGING_KERNEL_DIR}/System.map-${KERNEL_VERSION} ${KERNEL_VERSION}
+	depmodwrapper -a -b $D ${KERNEL_VERSION}
 fi
 }
 
@@ -296,7 +296,7 @@ pkg_postrm_modules () {
 if [ -z "$D" ]; then
 	depmod -a ${KERNEL_VERSION}
 else
-	depmod -a -b $D -F ${STAGING_KERNEL_DIR}/System.map-${KERNEL_VERSION} ${KERNEL_VERSION}
+	depmodwrapper -a -b $D ${KERNEL_VERSION}
 fi
 }
 
