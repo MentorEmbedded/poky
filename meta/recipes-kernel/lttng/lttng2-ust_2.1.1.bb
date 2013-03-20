@@ -12,11 +12,6 @@ inherit autotools
 
 DEPENDS = "liburcu util-linux"
 
-# For backwards compatibility after rename
-RPROVIDES_${PN} = "lttng2-ust"
-RREPLACES_${PN} = "lttng2-ust"
-RCONFLICTS_${PN} = "lttng2-ust"
-
 SRCREV = "05356aa2a4dca0bc9bfd716d2d6723e3941851dc"
 PV = "2.1.1"
 PR = "r0"
@@ -32,4 +27,4 @@ do_configure_prepend () {
 # Due to liburcu not building for MIPS currently this recipe needs to
 # be limited also.
 # So here let us first suppport x86/arm/powerpc platforms now.
-COMPATIBLE_HOST = '(x86_64.*|i.86.*|arm.*|powerpc.*)-linux.*'
+COMPATIBLE_HOST = '(x86_64.*|i.86.*|arm.*|powerpc.*)-linux'
