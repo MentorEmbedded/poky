@@ -5,7 +5,7 @@ LICENSE = "PD"
 LIC_FILES_CHKSUM = "file://asia;beginline=2;endline=3;md5=06468c0e84ef4d4c97045a4a29b08234"
 DEPENDS = "tzcode-native"
 
-PR = "r2"
+PR = "r3"
 
 inherit allarch
 
@@ -47,58 +47,40 @@ do_install () {
         cp -pP "${S}/iso3166.tab" ${D}${datadir}/zoneinfo
 
         # Install default timezone
-        install -d ${D}${sysconfdir}
-        echo ${DEFAULT_TIMEZONE} > ${D}${sysconfdir}/timezone
-        ln -s ${datadir}/zoneinfo/${DEFAULT_TIMEZONE} ${D}${sysconfdir}/localtime
+        if [ -e ${D}${datadir}/zoneinfo/${DEFAULT_TIMEZONE} ]; then
+            install -d ${D}${sysconfdir}
+            echo ${DEFAULT_TIMEZONE} > ${D}${sysconfdir}/timezone
+            ln -s ${datadir}/zoneinfo/${DEFAULT_TIMEZONE} ${D}${sysconfdir}/localtime
+        else
+            bberror "DEFAULT_TIMEZONE is set to an invalid value."
+            exit 1
+        fi
 
         chown -R root:root ${D}
 }
 
 pkg_postinst_${PN} () {
-
-# code taken from Gentoo's tzdata ebuild
-
 	etc_lt="$D${sysconfdir}/localtime"
 	src="$D${sysconfdir}/timezone"
 
 	if [ -e ${src} ] ; then
 		tz=$(sed -e 's:#.*::' -e 's:[[:space:]]*::g' -e '/^$/d' "${src}")
-	else
-		tz="FUBAR"
 	fi
 	
 	if [ -z ${tz} ] ; then
 		return 0
 	fi
 	
-	if [ ${tz} = "FUBAR" ] ; then
-		echo "You do not have TIMEZONE set in ${src}."
-
-		if [ ! -e ${etc_lt} ] ; then
-			# if /etc/localtime is a symlink somewhere, assume they
-			# know what they're doing and they're managing it themselves
-			if [ ! -L ${etc_lt} ] ; then
-				cp -f "$D${datadir}/zoneinfo/Universal" "${etc_lt}"
-				echo "Setting ${etc_lt} to Universal."
-			else
-				echo "Assuming your ${etc_lt} symlink is what you want; skipping update."
-			fi
-		else
-			echo "Skipping auto-update of ${etc_lt}."
-		fi
-		return 0
-	fi
-
 	if [ ! -e "$D${datadir}/zoneinfo/${tz}" ] ; then
 		echo "You have an invalid TIMEZONE setting in ${src}"
 		echo "Your ${etc_lt} has been reset to Universal; enjoy!"
 		tz="Universal"
+		echo "Updating ${etc_lt} with $D${datadir}/zoneinfo/${tz}"
+		if [ -L ${etc_lt} ] ; then
+			rm -f "${etc_lt}"
+		fi
+		ln -s "${datadir}/zoneinfo/${tz}" "${etc_lt}"
 	fi
-	echo "Updating ${etc_lt} with $D${datadir}/zoneinfo/${tz}"
-	if [ -L ${etc_lt} ] ; then
-		rm -f "${etc_lt}"
-	fi
-	cp -f "$D${datadir}/zoneinfo/${tz}" "${etc_lt}"
 }
 
 # Packages primarily organized by directory with a major city

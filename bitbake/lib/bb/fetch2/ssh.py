@@ -10,6 +10,12 @@ IETF secsh internet draft:
     Currently does not support the sftp parameters, as this uses scp
     Also does not support the 'fingerprint' connection parameter.
 
+    Please note that '/' is used as host, path separator not ':' as you may 
+    be used to, also '~' can be used to specify user HOME, but again after '/'
+    
+    Example SRC_URI:
+    SRC_URI = "ssh://user@host.example.com/dir/path/file.txt"
+    SRC_URI = "ssh://user@host.example.com/~/file.txt"
 '''
 
 # Copyright (C) 2006  OpenedHand Ltd.
@@ -72,15 +78,19 @@ class SSH(FetchMethod):
     def supports_checksum(self, urldata):
         return False
 
-    def localpath(self, url, urldata, d):
+    def urldata_init(self, urldata, d):
+        if 'protocol' in urldata.parm and urldata.parm['protocol'] == 'git':
+            raise bb.fetch2.ParameterError(
+                "Invalid protocol - if you wish to fetch from a git " +
+                "repository using ssh, you need to use " +
+                "git:// prefix with protocol=ssh", urldata.url)
         m = __pattern__.match(urldata.url)
         path = m.group('path')
         host = m.group('host')
-        lpath = os.path.join(data.getVar('DL_DIR', d, True), host, os.path.basename(path))
-        return lpath
+        urldata.localpath = os.path.join(d.getVar('DL_DIR', True), os.path.basename(path))
 
     def download(self, url, urldata, d):
-        dldir = data.getVar('DL_DIR', d, True)
+        dldir = d.getVar('DL_DIR', True)
 
         m = __pattern__.match(url)
         path = m.group('path')
@@ -89,16 +99,10 @@ class SSH(FetchMethod):
         user = m.group('user')
         password = m.group('pass')
 
-        ldir = os.path.join(dldir, host)
-        lpath = os.path.join(ldir, os.path.basename(path))
-
-        if not os.path.exists(ldir):
-            os.makedirs(ldir)
-
         if port:
-            port = '-P %s' % port
+            portarg = '-P %s' % port
         else:
-            port = ''
+            portarg = ''
 
         if user:
             fr = user
@@ -112,9 +116,9 @@ class SSH(FetchMethod):
 
         import commands
         cmd = 'scp -B -r %s %s %s/' % (
-            port,
+            portarg,
             commands.mkarg(fr),
-            commands.mkarg(ldir)
+            commands.mkarg(dldir)
         )
 
         bb.fetch2.check_network_access(d, cmd, urldata.url)
