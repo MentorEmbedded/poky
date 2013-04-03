@@ -29,6 +29,7 @@ import os
 import sys
 import logging
 import shlex
+import glob
 import bb
 import bb.msg
 import bb.process
@@ -491,9 +492,11 @@ def stamp_cleanmask_internal(taskname, d, file_name):
         extrainfo = d.getVarFlag(taskflagname, 'stamp-extra-info', True) or ""
 
     if not stamp:
-        return
+        return []
 
-    return bb.parse.siggen.stampcleanmask(stamp, file_name, taskname, extrainfo)
+    cleanmask = bb.parse.siggen.stampcleanmask(stamp, file_name, taskname, extrainfo)
+
+    return [cleanmask, cleanmask.replace(taskflagname, taskflagname + "_setscene")]
 
 def make_stamp(task, d, file_name = None):
     """
@@ -501,9 +504,16 @@ def make_stamp(task, d, file_name = None):
     (d can be a data dict or dataCache)
     """
     cleanmask = stamp_cleanmask_internal(task, d, file_name)
-    if cleanmask:
-        bb.utils.remove(cleanmask)
-
+    for mask in cleanmask:
+        for name in glob.glob(mask):
+            # Preserve sigdata files in the stamps directory
+            if "sigdata" in name:
+                continue
+            # Preserve taint files in the stamps directory
+            if name.endswith('.taint'):
+                continue
+            os.unlink(name)
+    
     stamp = stamp_internal(task, d, file_name)
     # Remove the file and recreate to force timestamp
     # change on broken NFS filesystems

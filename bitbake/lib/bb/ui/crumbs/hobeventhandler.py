@@ -101,13 +101,9 @@ class HobHandler(gobject.GObject):
 
     def runCommand(self, commandline):
         try:
-            result = self.server.runCommand(commandline)
-            result_str = str(result)
-            if (result_str.startswith("Busy (") or
-                    result_str == "No such command"):
-                raise Exception('%s has failed with output "%s". ' %
-                        (str(commandline), result_str) +
-                        "We recommend that you restart Hob.")
+            result, error = self.server.runCommand(commandline)
+            if error:
+                raise Exception("Error running command '%s': %s" % (commandline, error))
             return result
         except Exception as e:
             self.commands_async = []
@@ -405,7 +401,7 @@ class HobHandler(gobject.GObject):
         self.build.reset()
 
     def get_logfile(self):
-        return self.server.runCommand(["getVariable", "BB_CONSOLELOG"])
+        return self.server.runCommand(["getVariable", "BB_CONSOLELOG"])[0]
 
     def _remove_redundant(self, string):
         ret = []
