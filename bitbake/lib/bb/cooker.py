@@ -177,6 +177,8 @@ class BBCooker:
 
     def initConfigurationData(self):
         self.configuration.data = bb.data.init()
+        if self.configuration.show_environment:
+            self.configuration.data.enableTracking()
 
         if not self.server_registration_cb:
             self.configuration.data.setVar("BB_WORKERCONTEXT", "1")
@@ -185,13 +187,7 @@ class BBCooker:
         bb.data.inheritFromOS(self.configuration.data, self.savedenv, filtered_keys)
 
     def loadConfigurationData(self):
-        self.configuration.data = bb.data.init()
-
-        if not self.server_registration_cb:
-            self.configuration.data.setVar("BB_WORKERCONTEXT", "1")
-
-        filtered_keys = bb.utils.approved_variables()
-        bb.data.inheritFromOS(self.configuration.data, self.savedenv, filtered_keys)
+        self.initConfigurationData()
 
         try:
             self.parseConfigurationFiles(self.configuration.prefile,
@@ -331,6 +327,11 @@ class BBCooker:
             except Exception as e:
                 parselog.exception("Unable to read %s", fn)
                 raise
+
+        # Display history
+        with closing(StringIO()) as env:
+            self.configuration.data.inchistory.emit(env)
+            logger.plain(env.getvalue())
 
         # emit variables and shell functions
         data.update_data(envdata)
