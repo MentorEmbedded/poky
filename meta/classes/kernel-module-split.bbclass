@@ -109,7 +109,7 @@ python split_kernel_module_packages () {
         # instead is prefixed with /lib/modules/${KERNEL_VERSION}
         file = file.replace("/lib/modules/%s/" % d.getVar('KERNEL_VERSION', True) or '', '', 1)
 
-        if module_deps.has_key(file):
+        if file in module_deps:
             dependencies = []
             for i in module_deps[file]:
                 m = re.match(pattern, os.path.basename(i))
