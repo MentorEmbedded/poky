@@ -370,7 +370,6 @@ def check_sanity(sanity_data):
         def LooseVersion(v):
             print("WARNING: sanity.bbclass can't compare versions without python-distutils")
             return 1
-    import commands
 
     # Check the bitbake version meets minimum requirements
     minversion = sanity_data.getVar('BB_MIN_VERSION', True)
