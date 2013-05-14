@@ -21,7 +21,7 @@ SRC_URI = "http://ftp.acc.umu.se/pub/GNOME/sources/gdk-pixbuf/2.24/gdk-pixbuf-${
 SRC_URI[md5sum] = "72f39b34b20f68148c1609bd27415412"
 SRC_URI[sha256sum] = "da7a3f00db360913716368e19e336402755cafa93769f3cfa28a969303e4bee1"
 
-PR = "r7"
+PR = "r8"
 
 inherit autotools pkgconfig gettext
 
@@ -58,43 +58,41 @@ FILES_${PN}-dbg += " \
 
 postinst_pixbufloader () {
 if [ "x$D" != "x" ]; then
-# Update the target's pixbuf loader's cache. Since the native binary will
-# throw an error if the shared objects do not belong to the same ELF class,
-# we trick the gdk-pixbuf-query-loaders into scanning the native shared
-# objects and then we remove the NATIVE_ROOT prefix from the paths in
-# loaders.cache.
-gdk-pixbuf-query-loaders $(ls -d -1 $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders/*.so |\
-        sed -e "s:$D:$NATIVE_ROOT:g") > \
-        $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.cache \
-        2>$D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err
+    # Update the target's pixbuf loader's cache. Since the native binary will
+    # throw an error if the shared objects do not belong to the same ELF class,
+    # we trick the gdk-pixbuf-query-loaders into scanning the native shared
+    # objects and then we remove the NATIVE_ROOT prefix from the paths in
+    # loaders.cache.
+    gdk-pixbuf-query-loaders $(ls -d -1 $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders/*.so |\
+            sed -e "s:$D:$NATIVE_ROOT:g") > \
+            $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.cache \
+            2>$D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err
 
-# gdk-pixbuf-query-loaders always returns 0, so we need to check if loaders.err
-# has anything in it
-if [ -s $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err ]; then
-	echo "${PN} postinstall scriptlet failed:"
-	cat $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err
-	rm $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err
-	# we've got errors, postpone postinstall for first boot
-	exit 1
-fi
+    # gdk-pixbuf-query-loaders always returns 0, so we need to check if loaders.err
+    # has anything in it
+    if [ -s $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err ]; then
+        echo "${PN} postinstall scriptlet failed:"
+        cat $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err
+        rm $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err
+        # we've got errors, postpone postinstall for first boot
+        exit 1
+    fi
 
-sed -i -e "s:$NATIVE_ROOT:/:g" $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.cache
+    sed -i -e "s:$NATIVE_ROOT:/:g" $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.cache
 
-# remove the empty loaders.err
-rm $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err
+    # remove the empty loaders.err
+    rm $D/${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders.err
+else
+    # Update the pixbuf loaders in case they haven't been registered yet
+    GDK_PIXBUF_MODULEDIR=${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders gdk-pixbuf-query-loaders --update-cache
 
-exit 0
-fi
-
-# Update the pixbuf loaders in case they haven't been registered yet
-GDK_PIXBUF_MODULEDIR=${libdir}/gdk-pixbuf-2.0/${LIBV}/loaders gdk-pixbuf-query-loaders --update-cache
-
-if [ -x ${bindir}/gtk-update-icon-cache ] && [ -d ${datadir}/icons ]; then
-    for icondir in /usr/share/icons/*; do
-        if [ -d ${icondir} ]; then
-            gtk-update-icon-cache -t -q ${icondir}
-        fi
-    done
+    if [ -x ${bindir}/gtk-update-icon-cache ] && [ -d ${datadir}/icons ]; then
+        for icondir in /usr/share/icons/*; do
+            if [ -d ${icondir} ]; then
+                gtk-update-icon-cache -t -q ${icondir}
+            fi
+        done
+    fi
 fi
 }
 
