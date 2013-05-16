@@ -526,7 +526,7 @@ class Cache(object):
 
         if appends != info_array[0].appends:
             logger.debug(2, "Cache: appends for %s changed from %s to %s",
-                         fn, info_array[0].appends, appends))
+                         fn, info_array[0].appends, appends)
             self.remove(fn)
             return False
 
