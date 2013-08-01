@@ -166,7 +166,7 @@ LINGUAS_INSTALL ?= "${@" ".join(map(lambda s: "locale-base-%s" % s, d.getVar('IM
 PSEUDO_PASSWD = "${IMAGE_ROOTFS}"
 
 do_rootfs[nostamp] = "1"
-do_rootfs[dirs] = "${TOPDIR} ${WORKDIR}/intercept_scripts"
+do_rootfs[dirs] += "${TOPDIR} ${WORKDIR}/intercept_scripts"
 do_rootfs[lockfiles] += "${IMAGE_ROOTFS}.lock"
 do_rootfs[cleandirs] += "${S} ${WORKDIR}/intercept_scripts"
 do_build[nostamp] = "1"
