@@ -9,7 +9,7 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=94d55d512a9ba36caa9b7df079bae19f \
                     file://src/opkg-cl.c;beginline=1;endline=20;md5=321f658c3f6b6c832e25c8850b5dffba"
 
 PE = "1"
-INC_PR = "r10"
+INC_PR = "r11"
 
 FILESDIR = "${@os.path.dirname(d.getVar('FILE',1))}/opkg"
 
@@ -49,6 +49,10 @@ FILES_libopkg = "${libdir}/*.so.* ${localstatedir}/lib/opkg/"
 # We need to create the lock directory
 do_install_append() {
 	install -d ${D}${localstatedir}/lib/opkg
+       if [[ "${IMAGE_FEATURES}" == *"read-only-rootfs"* ]]
+       then
+           install -D -m 0644 ${WORKDIR}/02-opkg-ro-rootfs-volatile.conf ${D}${sysconfdir}/tmpfiles.d/02-opkg-ro-rootfs-volatile.conf
+       fi
 }
 
 pkg_postinst_${PN} () {

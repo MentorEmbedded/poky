@@ -1,0 +1,13 @@
+--- a/libopkg/opkg_conf.c	2013-08-26 21:29:00.330114975 +0530
++++ b/libopkg/opkg_conf.c	2013-08-27 00:28:08.908012435 +0530
+@@ -511,7 +511,9 @@
+ 	if (conf->offline_root)
+ 		sprintf_alloc (&lock_file, "%s/%s", conf->offline_root, OPKGLOCKFILE);
+ 	else
+-		sprintf_alloc (&lock_file, "%s", OPKGLOCKFILE);
++		// In case read-only-rootfs configured, lock file should be created on rw volatile path
++		// sprintf_alloc (&lock_file, "%s", OPKGLOCKFILE);
++		sprintf_alloc (&lock_file, "%s", "/var/volatile/opkg/lock");
+ 
+ 	lock_fd = creat(lock_file, S_IRUSR | S_IWUSR | S_IRGRP);
+ 	if (lock_fd == -1) {
