@@ -291,6 +291,10 @@ class Git(FetchMethod):
         runfetchcmd("%s remote add origin %s" % (gitcmd, source), d)
         for name, (shallow, revision, branch) in branchinfo.iteritems():
             runfetchcmd("%s fetch -a origin %s" % (gitcmd, branch), d)
+            runfetchcmd("%s update-ref refs/remotes/origin/%s %s" % (gitcmd, branch, revision), d)
+        runfetchcmd("%s repack -Ad" % gitcmd, d)
+        runfetchcmd("%s prune --expire now" % gitcmd, d)
+        runfetchcmd("%s pack-redundant --all | xargs -r rm" % gitcmd, d)
         runfetchcmd("%s remote set-url origin %s" % (gitcmd, repourl), d)
 
     def build_mirror_data(self, ud, d):
