@@ -192,6 +192,21 @@ class LocalhostBEController(BuildEnvironmentController):
         #logger.debug("localhostbecontroller: using HEAD checkout in %s" % local_checkout_path)
         return local_checkout_path
 
+    def getHeadLayers(self, gitrepos, layers):
+        """ HEAD layers are special cases. They don't need to be cloned. """
+
+        layerlist = []
+        headlayers = [commit for giturl, commit in gitrepos.keys() if commit == "HEAD"]
+        if set(headlayers) == set(["HEAD"]):
+           # Populate layerlist if all of them are HEAD
+            for layer_version in Layer_Version.objects.all().filter(local_path__startswith = "/"):
+                if layer_version.commit == "HEAD":
+                    if layer_version.local_path not in layerlist:
+                        layerlist.append(layer_version.local_path)
+                        if os.path.exists(os.path.join(os.path.dirname(layer_version.local_path), "oe-init-build-env")):
+                            self.pokydirname = os.path.dirname(layer_version.local_path)
+        return layerlist
+
 
     def setLayers(self, bitbakes, layers, targets):
         """ a word of attention: by convention, the first layer for any build will be poky! """
@@ -239,51 +254,58 @@ class LocalhostBEController(BuildEnvironmentController):
         layerlist = []
 
 
-        # 3. checkout the repositories
-        for giturl, commit in gitrepos.keys():
-            localdirname = os.path.join(self.be.sourcedir, self.getGitCloneDirectory(giturl, commit))
-            logger.debug("localhostbecontroller: giturl %s:%s checking out in current directory %s" % (giturl, commit, localdirname))
+        # Verify HEAD layers
 
-            # make sure our directory is a git repository
-            if os.path.exists(localdirname):
-                localremotes = self._shellcmd("git remote -v", localdirname)
-                if not giturl in localremotes:
-                    raise BuildSetupException("Existing git repository at %s, but with different remotes ('%s', expected '%s'). Toaster will not continue out of fear of damaging something." % (localdirname, ", ".join(localremotes.split("\n")), giturl))
-            else:
-                if giturl in cached_layers:
-                    logger.debug("localhostbecontroller git-copying %s to %s" % (cached_layers[giturl], localdirname))
-                    self._shellcmd("git clone \"%s\" \"%s\"" % (cached_layers[giturl], localdirname))
-                    self._shellcmd("git remote remove origin", localdirname)
-                    self._shellcmd("git remote add origin \"%s\"" % giturl, localdirname)
+        layerlist = self.getHeadLayers(gitrepos,layers)
+
+        # If the layerlist doesn't have already cloned layers then checkout repositories
+        if len(layerlist) == 0:
+
+            # 3. checkout the repositories
+            for giturl, commit in gitrepos.keys():
+                localdirname = os.path.join(self.be.sourcedir, self.getGitCloneDirectory(giturl, commit))
+                logger.debug("localhostbecontroller: giturl %s:%s checking out in current directory %s" % (giturl, commit, localdirname))
+
+                # make sure our directory is a git repository
+                if os.path.exists(localdirname):
+                    localremotes = self._shellcmd("git remote -v", localdirname)
+                    if not giturl in localremotes:
+                        raise BuildSetupException("Existing git repository at %s, but with different remotes ('%s', expected '%s'). Toaster will not continue out of fear of damaging something." % (localdirname, ", ".join(localremotes.split("\n")), giturl))
                 else:
-                    logger.debug("localhostbecontroller: cloning %s in %s" % (giturl, localdirname))
-                    self._shellcmd('git clone "%s" "%s"' % (giturl, localdirname))
+                    if giturl in cached_layers:
+                        logger.debug("localhostbecontroller git-copying %s to %s" % (cached_layers[giturl], localdirname))
+                        self._shellcmd("git clone \"%s\" \"%s\"" % (cached_layers[giturl], localdirname))
+                        self._shellcmd("git remote remove origin", localdirname)
+                        self._shellcmd("git remote add origin \"%s\"" % giturl, localdirname)
+                    else:
+                        logger.debug("localhostbecontroller: cloning %s in %s" % (giturl, localdirname))
+                        self._shellcmd('git clone "%s" "%s"' % (giturl, localdirname))
 
-            # branch magic name "HEAD" will inhibit checkout
-            if commit != "HEAD":
-                logger.debug("localhostbecontroller: checking out commit %s to %s " % (commit, localdirname))
-                ref = commit if re.match('^[a-fA-F0-9]+$', commit) else 'origin/%s' % commit
-                self._shellcmd('git fetch --all && git reset --hard "%s"' % ref, localdirname)
+                # branch magic name "HEAD" will inhibit checkout
+                if commit != "HEAD":
+                    logger.debug("localhostbecontroller: checking out commit %s to %s " % (commit, localdirname))
+                    ref = commit if re.match('^[a-fA-F0-9]+$', commit) else 'origin/%s' % commit
+                    self._shellcmd('git fetch --all && git reset --hard "%s"' % ref, localdirname)
 
-            # take the localdirname as poky dir if we can find the oe-init-build-env
-            if self.pokydirname is None and os.path.exists(os.path.join(localdirname, "oe-init-build-env")):
-                logger.debug("localhostbecontroller: selected poky dir name %s" % localdirname)
-                self.pokydirname = localdirname
+                # take the localdirname as poky dir if we can find the oe-init-build-env
+                if self.pokydirname is None and os.path.exists(os.path.join(localdirname, "oe-init-build-env")):
+                    logger.debug("localhostbecontroller: selected poky dir name %s" % localdirname)
+                    self.pokydirname = localdirname
 
-                # make sure we have a working bitbake
-                if not os.path.exists(os.path.join(self.pokydirname, 'bitbake')):
-                    logger.debug("localhostbecontroller: checking bitbake into the poky dirname %s " % self.pokydirname)
-                    self._shellcmd("git clone -b \"%s\" \"%s\" \"%s\" " % (bitbakes[0].commit, bitbakes[0].giturl, os.path.join(self.pokydirname, 'bitbake')))
+                    # make sure we have a working bitbake
+                    if not os.path.exists(os.path.join(self.pokydirname, 'bitbake')):
+                        logger.debug("localhostbecontroller: checking bitbake into the poky dirname %s " % self.pokydirname)
+                        self._shellcmd("git clone -b \"%s\" \"%s\" \"%s\" " % (bitbakes[0].commit, bitbakes[0].giturl, os.path.join(self.pokydirname, 'bitbake')))
 
-            # verify our repositories
-            for name, dirpath in gitrepos[(giturl, commit)]:
-                localdirpath = os.path.join(localdirname, dirpath)
-                logger.debug("localhostbecontroller: localdirpath expected '%s'" % localdirpath)
-                if not os.path.exists(localdirpath):
-                    raise BuildSetupException("Cannot find layer git path '%s' in checked out repository '%s:%s'. Aborting." % (localdirpath, giturl, commit))
+                # verify our repositories
+                for name, dirpath in gitrepos[(giturl, commit)]:
+                    localdirpath = os.path.join(localdirname, dirpath)
+                    logger.debug("localhostbecontroller: localdirpath expected '%s'" % localdirpath)
+                    if not os.path.exists(localdirpath):
+                        raise BuildSetupException("Cannot find layer git path '%s' in checked out repository '%s:%s'. Aborting." % (localdirpath, giturl, commit))
 
-                if name != "bitbake":
-                    layerlist.append(localdirpath.rstrip("/"))
+                    if name != "bitbake":
+                        layerlist.append(localdirpath.rstrip("/"))
 
         logger.debug("localhostbecontroller: current layer list %s " % pformat(layerlist))
 
