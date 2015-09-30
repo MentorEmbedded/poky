@@ -373,7 +373,7 @@ class ORMWrapper(object):
                 if not localdirname.startswith("/"):
                     localdirname = os.path.join(bc.be.sourcedir, localdirname)
                 #logger.debug(1, "Localdirname %s lcal_path %s" % (localdirname, layer_information['local_path']))
-                if localdirname.startswith(layer_information['local_path']):
+                if localdirname.startswith(layer_information['local_path']) or os.path.exists(layer_information['local_path']):
                   # If the build request came from toaster this field
                   # should contain the information from the layer_version
                   # That created this build request.
@@ -383,13 +383,14 @@ class ORMWrapper(object):
                     # we matched the BRLayer, but we need the layer_version that generated this BR; reverse of the Project.schedule_build()
                     #logger.debug(1, "Matched %s to BRlayer %s" % (pformat(layer_information["local_path"]), localdirname))
 
-                    for pl in buildrequest.project.projectlayer_set.filter(layercommit__layer__name = brl.name):
+                    for pl in buildrequest.project.projectlayer_set.filter(layercommit__layer__name = layer_information['name']):
                         if pl.layercommit.layer.vcs_url == brl.giturl :
                             layer = pl.layercommit.layer
                             layer.save()
                             return layer
 
-            raise NotExisting("Unidentified layer %s" % pformat(layer_information))
+            if os.path.exists(localdirname) == False and os.path.exists(layer_information['local_path']) == False:
+               raise NotExisting("Unidentified layer %s" % pformat(layer_information))
 
 
     def save_target_file_information(self, build_obj, target_obj, filedata):
@@ -813,7 +814,7 @@ class BuildInfoHelper(object):
                 # we get a relative path, unless running in HEAD mode where the path is absolute
                 if not localdirname.startswith("/"):
                     localdirname = os.path.join(bc.be.sourcedir, localdirname)
-                if path.startswith(localdirname):
+                if path.startswith(localdirname) or (brl.dirpath in path):
                     # If the build request came from toaster this field
                     # should contain the information from the layer_version
                     # That created this build request.
