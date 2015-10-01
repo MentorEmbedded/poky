@@ -377,7 +377,7 @@ class ORMWrapper(object):
                   # If the build request came from toaster this field
                   # should contain the information from the layer_version
                   # That created this build request.
-                    if brl.layer_version:
+                    if (layer_information['name'] == brl.name) and (brl.layer_version):
                         return brl.layer_version
 
                     # we matched the BRLayer, but we need the layer_version that generated this BR; reverse of the Project.schedule_build()
@@ -511,8 +511,9 @@ class ORMWrapper(object):
         errormsg = ""
         for p in packagedict:
             searchname = p
-            if 'OPKGN' in pkgpnmap[p].keys():
-                searchname = pkgpnmap[p]['OPKGN']
+            if p in pkgpnmap:
+                if 'OPKGN' in pkgpnmap[p].keys():
+                    searchname = pkgpnmap[p]['OPKGN']
 
             packagedict[p]['object'], created = Package.objects.get_or_create( build = build_obj, name = searchname )
             if created or packagedict[p]['object'].size == -1:    # save the data anyway we can, not just if it was not created here; bug [YOCTO #6887]
