@@ -191,10 +191,11 @@ class Project(models.Model):
 
     # returns a queryset of compatible layers for a project
     def compatible_layerversions(self, release = None, layer_name = None):
+        logger.warning("This function is deprecated")
         if release == None:
             release = self.release
         # layers on the same branch or layers specifically set for this project
-        queryset = Layer_Version.objects.filter((Q(up_branch__name = release.branch_name) & Q(project = None)) | Q(project = self) | Q(build__project = self))
+        queryset = Layer_Version.objects.filter(((Q(up_branch__name = release.branch_name) & Q(project = None)) | Q(project = self)) & Q(build__isnull=True))
 
         if layer_name is not None:
             # we select only a layer name
@@ -205,45 +206,55 @@ class Project(models.Model):
 
         return queryset
 
-    def projectlayer_equivalent_set(self):
-        return self.compatible_layerversions().filter(layer__name__in = [x.layercommit.layer.name for x in self.projectlayer_set.all()]).select_related("up_branch")
+    def get_all_compatible_layer_versions(self):
+        """ Returns Queryset of all Layer_Versions which are compatible with
+        this project"""
+        queryset = Layer_Version.objects.filter(
+            (Q(up_branch__name=self.release.branch_name) & Q(build=None))
+            | Q(project=self))
+
+        return queryset
+
+    def get_project_layer_versions(self, pk=False):
+        """ Returns the Layer_Versions currently added to this project """
+        layer_versions = self.projectlayer_set.all().values('layercommit')
+
+        if pk is False:
+            return layer_versions
+        else:
+            return layer_versions.values_list('pk', flat=True)
+
 
     def get_available_machines(self):
         """ Returns QuerySet of all Machines which are provided by the
         Layers currently added to the Project """
-        queryset = Machine.objects.filter(layer_version__in=self.projectlayer_equivalent_set)
+        queryset = Machine.objects.filter(
+            layer_version__in=self.get_project_layer_versions(self))
+
         return queryset
 
     def get_all_compatible_machines(self):
         """ Returns QuerySet of all the compatible machines available to the
         project including ones from Layers not currently added """
-        compatible_layers = self.compatible_layerversions()
+        queryset = Machine.objects.filter(
+            layer_version__in=self.get_all_compatible_layer_versions())
 
-        queryset = Machine.objects.filter(layer_version__in=compatible_layers)
         return queryset
 
     def get_available_recipes(self):
-        """ Returns QuerySet of all Recipes which are provided by the Layers
-        currently added to the Project """
-        project_layers = self.projectlayer_equivalent_set()
-        queryset = Recipe.objects.filter(layer_version__in = project_layers)
-
-        # Copied from get_all_compatible_recipes
-        search_maxids = map(lambda i: i[0], list(queryset.values('name').distinct().annotate(max_id=Max('id')).values_list('max_id')))
-        queryset = queryset.filter(id__in=search_maxids).select_related('layer_version', 'layer_version__layer', 'layer_version__up_branch', 'layer_source')
-        # End copy
+        """ Returns QuerySet of all the recipes that are provided by layers
+        added to this project """
+        queryset = Recipe.objects.filter(
+            layer_version__in=self.get_project_layer_versions())
 
         return queryset
 
     def get_all_compatible_recipes(self):
         """ Returns QuerySet of all the compatible Recipes available to the
         project including ones from Layers not currently added """
-        compatible_layerversions = self.compatible_layerversions()
-        queryset = Recipe.objects.filter(layer_version__in = compatible_layerversions)
+        queryset = Recipe.objects.filter(
+            layer_version__in=self.get_all_compatible_layer_versions())
 
-        search_maxids = map(lambda i: i[0], list(queryset.values('name').distinct().annotate(max_id=Max('id')).values_list('max_id')))
-
-        queryset = queryset.filter(id__in=search_maxids).select_related('layer_version', 'layer_version__layer', 'layer_version__up_branch', 'layer_source')
         return queryset
 
 
@@ -260,7 +271,7 @@ class Project(models.Model):
             for l in self.projectlayer_set.all().order_by("pk"):
                 commit = l.layercommit.get_vcs_reference()
                 print("ii Building layer ", l.layercommit.layer.name, " at vcs point ", commit)
-                BRLayer.objects.create(req = br, name = l.layercommit.layer.name, giturl = l.layercommit.layer.vcs_url, commit = commit, dirpath = l.layercommit.dirpath)
+                BRLayer.objects.create(req = br, name = l.layercommit.layer.name, giturl = l.layercommit.layer.vcs_url, commit = commit, dirpath = l.layercommit.dirpath, layer_version=l.layercommit)
 
             br.state = BuildRequest.REQ_QUEUED
             now = timezone.now()
@@ -551,7 +562,7 @@ class Task_Dependency(models.Model):
 
 class Package(models.Model):
     search_allowed_fields = ['name', 'version', 'revision', 'recipe__name', 'recipe__version', 'recipe__license', 'recipe__layer_version__layer__name', 'recipe__layer_version__branch', 'recipe__layer_version__commit', 'recipe__layer_version__local_path', 'installed_name']
-    build = models.ForeignKey('Build')
+    build = models.ForeignKey('Build', null=True)
     recipe = models.ForeignKey('Recipe', null=True)
     name = models.CharField(max_length=100)
     installed_name = models.CharField(max_length=100, default='')
@@ -828,6 +839,7 @@ class LayerIndexLayerSource(LayerSource):
         import urllib2, urlparse, json
         import os
         proxy_settings = os.environ.get("http_proxy", None)
+        oe_core_layer = 'openembedded-core'
 
         def _get_json_response(apiurl = self.apiurl):
             _parsedurl = urlparse.urlparse(apiurl)
@@ -872,6 +884,25 @@ class LayerIndexLayerSource(LayerSource):
         if not connection.features.autocommits_when_autocommit_is_off:
             transaction.set_autocommit(False)
         for li in layers_info:
+            # Special case for the openembedded-core layer
+            if li['name'] == oe_core_layer:
+                try:
+                    # If we have an existing openembedded-core for example
+                    # from the toasterconf.json augment the info using the
+                    # layerindex rather than duplicate it
+                    oe_core_l =  Layer.objects.get(name=oe_core_layer)
+                    # Take ownership of the layer as now coming from the
+                    # layerindex
+                    oe_core_l.layer_source = self
+                    oe_core_l.up_id = li['id']
+                    oe_core_l.summary = li['summary']
+                    oe_core_l.description = li['description']
+                    oe_core_l.save()
+                    continue
+
+                except DoesNotExist:
+                    pass
+
             l, created = Layer.objects.get_or_create(layer_source = self, name = li['name'])
             l.up_id = li['id']
             l.up_date = li['updated']
@@ -882,6 +913,7 @@ class LayerIndexLayerSource(LayerSource):
             l.summary = li['summary']
             l.description = li['description']
             l.save()
+
         if not connection.features.autocommits_when_autocommit_is_off:
             transaction.set_autocommit(True)
 
@@ -974,6 +1006,8 @@ class LayerIndexLayerSource(LayerSource):
                 ro.file_path = ri['filepath'] + "/" + ri['filename']
                 if 'inherits' in ri:
                     ro.is_image = 'image' in ri['inherits'].split()
+                else: # workaround for old style layer index
+                    ro.is_image = "-image-" in ri['pn']
                 ro.save()
             except IntegrityError as e:
                 logger.debug("Failed saving recipe, ignoring: %s (%s:%s)" % (e, ro.layer_version, ri['filepath']+"/"+ri['filename']))
@@ -1132,12 +1166,12 @@ class Layer_Version(models.Model):
         return project.compatible_layerversions(layer_name = self.layer.name)
 
     def get_vcs_reference(self):
-        if self.commit is not None and len(self.commit) > 0:
-            return self.commit
         if self.branch is not None and len(self.branch) > 0:
             return self.branch
         if self.up_branch is not None:
             return self.up_branch.name
+        if self.commit is not None and len(self.commit) > 0:
+            return self.commit
         return ("Cannot determine the vcs_reference for layer version %s" % vars(self))
 
     def get_detailspage_url(self, project_id):
@@ -1169,6 +1203,15 @@ class ProjectLayer(models.Model):
 
     class Meta:
         unique_together = (("project", "layercommit"),)
+
+class CustomImageRecipe(models.Model):
+    name = models.CharField(max_length=100)
+    base_recipe = models.ForeignKey(Recipe)
+    packages = models.ManyToManyField(Package)
+    project = models.ForeignKey(Project)
+
+    class Meta:
+        unique_together = ("name", "project")
 
 class ProjectVariable(models.Model):
     project = models.ForeignKey(Project)

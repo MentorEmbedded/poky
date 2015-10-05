@@ -80,11 +80,13 @@ testimage_dump_target () {
 
 testimage_dump_host () {
     top -bn1
+    iostat -x -z -N -d -p ALL 20 2
     ps -ef
     free
     df
     memstat
     dmesg
+    ip -s link
     netstat -an
 }
 
@@ -146,6 +148,10 @@ def get_tests_list(d, type="runtime"):
                     testslist.append("oeqa." + type + "." + testname)
                     found = True
                     break
+                elif os.path.exists(os.path.join(p, 'lib', 'oeqa', type, testname.split(".")[0] + '.py')):
+                    testslist.append("oeqa." + type + "." + testname)
+                    found = True
+                    break
             if not found:
                 bb.fatal('Test %s specified in TEST_SUITES could not be found in lib/oeqa/runtime under BBPATH' % testname)
 
@@ -172,6 +178,7 @@ def exportTests(d,tc):
     import json
     import shutil
     import pkgutil
+    import re
 
     exportpath = d.getVar("TEST_EXPORT_DIR", True)
 
@@ -223,6 +230,8 @@ def exportTests(d,tc):
     bb.utils.mkdirhier(os.path.join(exportpath, "oeqa/utils"))
     # copy test modules, this should cover tests in other layers too
     for t in tc.testslist:
+        if re.search("\w+\.\w+\.test_\S+", t):
+            t = '.'.join(t.split('.')[:3])
         mod = pkgutil.get_loader(t)
         shutil.copy2(mod.filename, os.path.join(exportpath, "oeqa/runtime"))
     # copy __init__.py files

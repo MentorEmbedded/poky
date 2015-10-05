@@ -96,7 +96,7 @@ def exec_fakeroot(d, cmd, **kwargs):
             newenv[splitval[0]] = splitval[1]
     return subprocess.call("%s %s" % (fakerootcmd, cmd), env=newenv, **kwargs)
 
-def setup_tinfoil(config_only=False, basepath=None):
+def setup_tinfoil(config_only=False, basepath=None, tracking=False):
     """Initialize tinfoil api from bitbake"""
     import scriptpath
     orig_cwd = os.path.abspath(os.curdir)
@@ -108,7 +108,7 @@ def setup_tinfoil(config_only=False, basepath=None):
         sys.exit(1)
 
     import bb.tinfoil
-    tinfoil = bb.tinfoil.Tinfoil()
+    tinfoil = bb.tinfoil.Tinfoil(tracking=tracking)
     tinfoil.prepare(config_only)
     tinfoil.logger.setLevel(logger.getEffectiveLevel())
     os.chdir(orig_cwd)
@@ -183,11 +183,17 @@ def setup_git_repo(repodir, version, devbranch, basetag='devtool-base'):
     if not os.path.exists(os.path.join(repodir, '.git')):
         bb.process.run('git init', cwd=repodir)
         bb.process.run('git add .', cwd=repodir)
-        if version:
+        commit_cmd = ['git', 'commit', '-q']
+        stdout, _ = bb.process.run('git status --porcelain', cwd=repodir)
+        if not stdout:
+            commit_cmd.append('--allow-empty')
+            commitmsg = "Initial empty commit with no upstream sources"
+        elif version:
             commitmsg = "Initial commit from upstream at version %s" % version
         else:
             commitmsg = "Initial commit from upstream"
-        bb.process.run('git commit -q -m "%s"' % commitmsg, cwd=repodir)
+        commit_cmd += ['-m', commitmsg]
+        bb.process.run(commit_cmd, cwd=repodir)
 
     bb.process.run('git checkout -b %s' % devbranch, cwd=repodir)
     bb.process.run('git tag -f %s' % basetag, cwd=repodir)

@@ -66,6 +66,7 @@ class ORMWrapper(object):
 
     def __init__(self):
         self.layer_version_objects = []
+        self.layer_version_built = []
         self.task_objects = {}
         self.recipe_objects = {}
 
@@ -94,8 +95,8 @@ class ORMWrapper(object):
 
         created = False
         if not key in vars(self)[dictname].keys():
-            vars(self)[dictname][key] = clazz.objects.create(**kwargs)
-            created = True
+            vars(self)[dictname][key], created = \
+                clazz.objects.get_or_create(**kwargs)
 
         return (vars(self)[dictname][key], created)
 
@@ -161,6 +162,8 @@ class ORMWrapper(object):
             build.bitbake_version=build_info['bitbake_version']
             build.save()
 
+            Target.objects.filter(build = build).delete()
+
         else:
             build = Build.objects.create(
                                     project = prj,
@@ -180,6 +183,19 @@ class ORMWrapper(object):
             buildrequest.save()
 
         return build
+
+    def create_target_objects(self, target_info):
+        assert 'build' in target_info
+        assert 'targets' in target_info
+
+        targets = []
+        for tgt_name in target_info['targets']:
+            tgt_object = Target.objects.create( build = target_info['build'],
+                                    target = tgt_name,
+                                    is_image = False,
+                                    )
+            targets.append(tgt_object)
+        return targets
 
     def update_build_object(self, build, errors, warnings, taskfailures):
         assert isinstance(build,Build)
@@ -254,23 +270,61 @@ class ORMWrapper(object):
 
         assert not recipe_information['file_path'].startswith("/")      # we should have layer-relative paths at all times
 
-        recipe_object, created = self._cached_get_or_create(Recipe, layer_version=recipe_information['layer_version'],
+
+        def update_recipe_obj(recipe_object):
+            object_changed = False
+            for v in vars(recipe_object):
+                if v in recipe_information.keys():
+                    object_changed = True
+                    vars(recipe_object)[v] = recipe_information[v]
+
+            if object_changed:
+                recipe_object.save()
+
+        recipe, created = self._cached_get_or_create(Recipe, layer_version=recipe_information['layer_version'],
                                      file_path=recipe_information['file_path'], pathflags = recipe_information['pathflags'])
+
+        update_recipe_obj(recipe)
+
+        # Create a copy of the recipe for historical puposes and update it
+        for built_layer in self.layer_version_built:
+            if built_layer.layer == recipe_information['layer_version'].layer:
+                built_recipe, c = self._cached_get_or_create(Recipe,
+                        layer_version=built_layer,
+                        file_path=recipe_information['file_path'],
+                        pathflags = recipe_information['pathflags'])
+                update_recipe_obj(built_recipe)
+                break
+
+
+
         if created and must_exist:
             raise NotExisting("Recipe object created when expected to exist", recipe_information)
 
-        object_changed = False
-        for v in vars(recipe_object):
-            if v in recipe_information.keys():
-                object_changed = True
-                vars(recipe_object)[v] = recipe_information[v]
-
-        if object_changed:
-            recipe_object.save()
-
-        return recipe_object
+        return recipe
 
     def get_update_layer_version_object(self, build_obj, layer_obj, layer_version_information):
+        if isinstance(layer_obj, Layer_Version):
+            # We already found our layer version for this build so just
+            # update it with the new build information
+            logger.debug("We found our layer from toaster")
+            layer_obj.local_path = layer_version_information['local_path']
+            layer_obj.save()
+            self.layer_version_objects.append(layer_obj)
+
+            # create a new copy of this layer version as a snapshot for
+            # historical purposes
+            layer_copy, c = Layer_Version.objects.get_or_create(build=build_obj,
+                            layer=layer_obj.layer,
+                            commit=layer_version_information['commit'],
+                            local_path = layer_version_information['local_path'],
+                            )
+            logger.warning("created new historical layer version %d", layer_copy.pk)
+
+            self.layer_version_built.append(layer_copy)
+
+            return layer_obj
+
         assert isinstance(build_obj, Build)
         assert isinstance(layer_obj, Layer)
         assert 'branch' in layer_version_information
@@ -320,8 +374,15 @@ class ORMWrapper(object):
                     localdirname = os.path.join(bc.be.sourcedir, localdirname)
                 #logger.debug(1, "Localdirname %s lcal_path %s" % (localdirname, layer_information['local_path']))
                 if localdirname.startswith(layer_information['local_path']):
+                  # If the build request came from toaster this field
+                  # should contain the information from the layer_version
+                  # That created this build request.
+                    if brl.layer_version:
+                        return brl.layer_version
+
                     # we matched the BRLayer, but we need the layer_version that generated this BR; reverse of the Project.schedule_build()
                     #logger.debug(1, "Matched %s to BRlayer %s" % (pformat(layer_information["local_path"]), localdirname))
+
                     for pl in buildrequest.project.projectlayer_set.filter(layercommit__layer__name = brl.name):
                         if pl.layercommit.layer.vcs_url == brl.giturl :
                             layer = pl.layercommit.layer
@@ -674,6 +735,7 @@ class BuildInfoHelper(object):
     def __init__(self, server, has_build_history = False):
         self.internal_state = {}
         self.internal_state['taskdata'] = {}
+        self.internal_state['targets'] = []
         self.task_order = 0
         self.autocommit_step = 1
         self.server = server
@@ -752,8 +814,15 @@ class BuildInfoHelper(object):
                 if not localdirname.startswith("/"):
                     localdirname = os.path.join(bc.be.sourcedir, localdirname)
                 if path.startswith(localdirname):
+                    # If the build request came from toaster this field
+                    # should contain the information from the layer_version
+                    # That created this build request.
+                    if brl.layer_version:
+                        return brl.layer_version
+
                     #logger.warn("-- managed: matched path %s with layer %s " % (path, localdirname))
                     # we matched the BRLayer, but we need the layer_version that generated this br
+
                     for lvo in self.orm_wrapper.layer_version_objects:
                         if brl.name == lvo.layer.name:
                             return lvo
@@ -857,7 +926,7 @@ class BuildInfoHelper(object):
         target_information['targets'] = event._pkgs
         target_information['build'] = build_obj
 
-        self.internal_state['targets'] = Target.objects.filter(build=target_information['build'])
+        self.internal_state['targets'] = self.orm_wrapper.create_target_objects(target_information)
 
         # Save build configuration
         data = self.server.runCommand(["getAllKeysWithFlags", ["doc", "func"]])[0]

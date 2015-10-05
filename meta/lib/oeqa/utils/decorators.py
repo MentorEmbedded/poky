@@ -33,6 +33,10 @@ class getResults(object):
                     ret.append(s.replace("setUpModule (", "").replace(")",""))
                 else:
                     ret.append(s)
+                # Append also the test without the full path
+                testname = s.split('.')[-1]
+                if testname:
+                    ret.append(testname)
             return ret
         self.faillist = handleList(upperf.f_locals['result'].failures)
         self.errorlist = handleList(upperf.f_locals['result'].errors)
@@ -167,14 +171,12 @@ def LogResults(original_class):
         if passed:
             local_log.results("Testcase "+str(test_case)+": PASSED")
 
-    original_class.run = run
-
-    # Create symlink to the current log
-    if os.path.islink(linkfile):
-        os.unlink(linkfile)
-    elif os.path.isfile(linkfile):
+        # Create symlink to the current log
+        if os.path.exists(linkfile):
             os.remove(linkfile)
-    os.symlink(logfile, linkfile)
+        os.symlink(logfile, linkfile)
+
+    original_class.run = run
 
     return original_class
 
