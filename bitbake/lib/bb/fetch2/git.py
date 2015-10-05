@@ -67,7 +67,6 @@ Supported SRC_URI options are:
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import errno
-import itertools
 import os
 import re
 import tempfile
@@ -135,13 +134,15 @@ class Git(FetchMethod):
                 shallow = None
             ud.shallows[name] = shallow
 
-        if not shallow_default and not filter(None, ud.shallows.itervalues()):
+        if not shallow_default and not any(s is not None for s in ud.shallows.itervalues()):
             # No shallows
             ud.shallows = None
 
         ud.basecmd = data.getVar("FETCHCMD_git", d, True) or "git -c core.fsyncobjectfiles=0"
 
-        ud.write_tarballs = ((data.getVar("BB_GENERATE_MIRROR_TARBALLS", d, True) or "0") != "0") or ud.rebaseable
+        write_tarballs = d.getVar("BB_GENERATE_MIRROR_TARBALLS", True) or "0"
+        ud.write_tarballs = write_tarballs != "0" or ud.rebaseable
+        ud.write_shallow_tarballs = (d.getVar("BB_GENERATE_SHALLOW_TARBALLS", True) or write_tarballs) != "0"
 
         ud.setup_revisons(d)
 
@@ -174,7 +175,11 @@ class Git(FetchMethod):
         if ud.shallows:
             tarballname = gitsrcname
             for name, shallow in ud.shallows.iteritems():
-                tarballname = '%s_%s_%s' % (tarballname, ud.branches[name].replace('/', '.'), ud.revisions[name])
+                if ud.nobranch:
+                    tarballname = '%s_%s' % (tarballname, ud.revisions[name])
+                else:
+                    tarballname = '%s_%s_%s' % (tarballname, ud.branches[name].replace('/', '.'), ud.revisions[name])
+
                 if shallow:
                     tarballname = tarballname + "_" + shallow
             ud.shallowtarball = 'git2_%s.tar.gz' % tarballname
@@ -191,7 +196,9 @@ class Git(FetchMethod):
         for name in ud.names:
             if not self._contains_ref(ud, d, name):
                 return True
-        if ud.write_tarballs and not os.path.exists(ud.fullmirror if not ud.shallows else ud.fullshallow):
+        if ud.shallows and ud.write_shallow_tarballs and not os.path.exists(ud.fullshallow):
+            return True
+        if ud.write_tarballs and not os.path.exists(ud.fullmirror):
             return True
         return False
 
@@ -262,7 +269,7 @@ class Git(FetchMethod):
             if not self._contains_ref(ud, d, name):
                 raise bb.fetch2.FetchError("Unable to find revision %s in branch %s even from upstream" % (ud.revisions[name], ud.branches[name]))
 
-    def _populate_shallowclone(self, repourl, source, dest, gitcmd, branchinfo, d):
+    def _populate_shallowclone(self, repourl, source, dest, gitcmd, branchinfo, nobranch, d):
         os.makedirs(dest)
         os.chdir(dest)
         runfetchcmd("%s init --bare" % gitcmd, d)
@@ -271,57 +278,57 @@ class Git(FetchMethod):
                 if not shallow:
                     continue
 
-                for rev in [shallow + "^{}", shallow]:
-                    try:
-                        revision = runfetchcmd("GIT_DIR=%s %s rev-parse %s" % (source, gitcmd, rev), d)
-                    except bb.fetch2.FetchError:
-                        pass
-                    else:
-                        break
-                else:
+                try:
+                    shallow_revision = runfetchcmd("GIT_DIR=%s %s rev-parse %s^{}" % (source, gitcmd, shallow), d)
+                except bb.fetch2.FetchError:
                     try:
                         shallow = int(shallow)
                     except ValueError:
                         raise bb.fetch2.FetchError("Invalid BB_GIT_SHALLOW_%s: %s" % (name, shallow))
                     else:
-                        revision = runfetchcmd("GIT_DIR=%s %s rev-parse %s~%d" % (source, gitcmd, revision, shallow - 1), d)
+                        shallow_revision = runfetchcmd("GIT_DIR=%s %s rev-parse %s~%d^{}" % (source, gitcmd, revision, shallow - 1), d)
 
-                f.write(revision)
+                f.write(shallow_revision)
 
-        runfetchcmd("%s remote add origin %s" % (gitcmd, source), d)
+        runfetchcmd("%s remote add origin %s" % (gitcmd, repourl), d)
+
+        alternates_file = os.path.join("objects", "info", "alternates")
+        with open(alternates_file, "w") as f:
+            f.write("%s/objects\n" % source)
+
         for name, (shallow, revision, branch) in branchinfo.iteritems():
-            runfetchcmd("%s fetch -a origin %s" % (gitcmd, branch), d)
-            runfetchcmd("%s update-ref refs/remotes/origin/%s %s" % (gitcmd, branch, revision), d)
-        runfetchcmd("%s repack -Ad" % gitcmd, d)
-        runfetchcmd("%s prune --expire now" % gitcmd, d)
-        runfetchcmd("%s pack-redundant --all | xargs -r rm" % gitcmd, d)
-        runfetchcmd("%s remote set-url origin %s" % (gitcmd, repourl), d)
+            runfetchcmd("%s update-ref refs/shallow/%s %s" % (gitcmd, name, revision), d)
+            if not nobranch:
+                runfetchcmd("%s update-ref refs/remotes/origin/%s %s^{}" % (gitcmd, branch, revision), d)
+
+        runfetchcmd("%s repack -ad" % gitcmd, d)
+        runfetchcmd("%s prune-packed" % gitcmd, d)
+        os.unlink(alternates_file)
 
     def build_mirror_data(self, ud, d):
-        tarball = ud.fullmirror if not ud.shallows else ud.fullshallow
-        if ud.write_tarballs and not os.path.exists(tarball):
-            # it's possible that this symlink points to read-only filesystem with PREMIRROR
-            if os.path.islink(tarball):
-                os.unlink(tarball)
-
-            if ud.shallows:
+        if ud.shallows and ud.write_shallow_tarballs:
+            if not os.path.exists(ud.fullshallow):
+                if os.path.islink(ud.fullshallow):
+                    os.unlink(ud.fullshallow)
                 tempdir = tempfile.mkdtemp()
                 shallowclone = os.path.join(tempdir, 'git')
                 try:
                     repourl = self._get_repo_url(ud)
                     branchinfo = dict((name, (ud.shallows[name], ud.revisions[name], ud.branches[name])) for name in ud.names)
-                    self._populate_shallowclone(repourl, ud.clonedir, shallowclone, ud.basecmd, branchinfo, d)
+                    self._populate_shallowclone(repourl, ud.clonedir, shallowclone, ud.basecmd, branchinfo, ud.nobranch, d)
 
                     logger.info("Creating tarball of git repository")
-                    runfetchcmd("tar -czf %s %s" % (tarball, os.path.join(".")), d)
-                    runfetchcmd("touch %s.done" % tarball, d)
+                    runfetchcmd("tar -czf %s %s" % (ud.fullshallow, os.path.join(".")), d)
+                    runfetchcmd("touch %s.done" % ud.fullshallow, d)
                 finally:
                     bb.utils.remove(tempdir, recurse=True)
-            else:
-                os.chdir(ud.clonedir)
-                logger.info("Creating tarball of git repository")
-                runfetchcmd("tar -czf %s %s" % (tarball, os.path.join(".")), d)
-                runfetchcmd("touch %s.done" % tarball, d)
+        elif ud.write_tarballs and not os.path.exists(ud.fullmirror):
+            if os.path.islink(ud.fullmirror):
+                os.unlink(ud.fullmirror)
+            os.chdir(ud.clonedir)
+            logger.info("Creating tarball of git repository")
+            runfetchcmd("tar -czf %s %s" % (ud.fullmirror, os.path.join(".")), d)
+            runfetchcmd("touch %s.done" % ud.fullmirror, d)
 
     def unpack(self, ud, destdir, d):
         """ unpack the downloaded src to destdir"""
