@@ -373,23 +373,24 @@ class ORMWrapper(object):
                 if not localdirname.startswith("/"):
                     localdirname = os.path.join(bc.be.sourcedir, localdirname)
                 #logger.debug(1, "Localdirname %s lcal_path %s" % (localdirname, layer_information['local_path']))
-                if localdirname.startswith(layer_information['local_path']):
+                if localdirname.startswith(layer_information['local_path']) or os.path.exists(layer_information['local_path']):
                   # If the build request came from toaster this field
                   # should contain the information from the layer_version
                   # That created this build request.
-                    if brl.layer_version:
+                    if (layer_information['name'] == brl.name) and (brl.layer_version):
                         return brl.layer_version
 
                     # we matched the BRLayer, but we need the layer_version that generated this BR; reverse of the Project.schedule_build()
                     #logger.debug(1, "Matched %s to BRlayer %s" % (pformat(layer_information["local_path"]), localdirname))
 
-                    for pl in buildrequest.project.projectlayer_set.filter(layercommit__layer__name = brl.name):
+                    for pl in buildrequest.project.projectlayer_set.filter(layercommit__layer__name = layer_information['name']):
                         if pl.layercommit.layer.vcs_url == brl.giturl :
                             layer = pl.layercommit.layer
                             layer.save()
                             return layer
 
-            raise NotExisting("Unidentified layer %s" % pformat(layer_information))
+            if os.path.exists(localdirname) == False and os.path.exists(layer_information['local_path']) == False:
+               raise NotExisting("Unidentified layer %s" % pformat(layer_information))
 
 
     def save_target_file_information(self, build_obj, target_obj, filedata):
@@ -510,8 +511,9 @@ class ORMWrapper(object):
         errormsg = ""
         for p in packagedict:
             searchname = p
-            if 'OPKGN' in pkgpnmap[p].keys():
-                searchname = pkgpnmap[p]['OPKGN']
+            if p in pkgpnmap:
+                if 'OPKGN' in pkgpnmap[p].keys():
+                    searchname = pkgpnmap[p]['OPKGN']
 
             packagedict[p]['object'], created = Package.objects.get_or_create( build = build_obj, name = searchname )
             if created or packagedict[p]['object'].size == -1:    # save the data anyway we can, not just if it was not created here; bug [YOCTO #6887]
@@ -813,7 +815,7 @@ class BuildInfoHelper(object):
                 # we get a relative path, unless running in HEAD mode where the path is absolute
                 if not localdirname.startswith("/"):
                     localdirname = os.path.join(bc.be.sourcedir, localdirname)
-                if path.startswith(localdirname):
+                if path.startswith(localdirname) or (brl.dirpath in path):
                     # If the build request came from toaster this field
                     # should contain the information from the layer_version
                     # That created this build request.

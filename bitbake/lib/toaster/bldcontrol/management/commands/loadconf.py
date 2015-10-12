@@ -45,12 +45,14 @@ class Command(BaseCommand):
         for i in ['bitbake', 'releases', 'defaultrelease', 'config', 'layersources']:
             assert i in data
 
-        def _read_git_url_from_local_repository(address):
+        def _read_git_url_from_local_repository(address, path = None):
             url = None
+            if not path:
+                path = os.path.dirname(filepath)
             # we detect the remote name at runtime
             import subprocess
             (remote, remote_name) = address.split(":", 1)
-            cmd = subprocess.Popen("git remote -v", shell=True, cwd = os.path.dirname(filepath), stdout=subprocess.PIPE, stderr = subprocess.PIPE)
+            cmd = subprocess.Popen("git remote -v", shell=True, cwd = path, stdout=subprocess.PIPE, stderr = subprocess.PIPE)
             (out,err) = cmd.communicate()
             if cmd.returncode != 0:
                 logging.warning("Error while importing layer vcs_url: git error: %s" % err)
@@ -121,7 +123,11 @@ class Command(BaseCommand):
                         logger.error("Local layer path %s must exists. Are you trying to import a layer that does not exist ? Check your local toasterconf.json" % lo.local_path)
 
                     if layerinfo['vcs_url'].startswith("remote:"):
-                        lo.vcs_url = _read_git_url_from_local_repository(layerinfo['vcs_url'])
+                        if not layerinfo['local_path'].startswith("/"):
+                           path = None
+                        else:
+                           path = layerinfo['local_path']
+                        lo.vcs_url = _read_git_url_from_local_repository(layerinfo['vcs_url'], path)
                         if lo.vcs_url is None:
                             logger.error("The toaster config file references the local git repo, but Toaster cannot detect it.\nYour local configuration for layer %s is invalid. Make sure that the toasterconf.json file is correct." % layerinfo['name'])
 
@@ -138,6 +144,8 @@ class Command(BaseCommand):
                                 commit = branch.name,
                                 layer = lo)
                         lvo.dirpath = layerinfo['dirpath']
+                        if len(layerinfo['local_path']) > 1 and layerinfo['local_path'].startswith("/") and branch.name == "HEAD":
+                            lvo.local_path = layerinfo['local_path']
                         lvo.save()
         # set releases
         for ri in data['releases']:
