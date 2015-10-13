@@ -511,9 +511,8 @@ class ORMWrapper(object):
         errormsg = ""
         for p in packagedict:
             searchname = p
-            if p in pkgpnmap:
-                if 'OPKGN' in pkgpnmap[p].keys():
-                    searchname = pkgpnmap[p]['OPKGN']
+            if 'OPKGN' in pkgpnmap[p].keys():
+                searchname = pkgpnmap[p]['OPKGN']
 
             packagedict[p]['object'], created = Package.objects.get_or_create( build = build_obj, name = searchname )
             if created or packagedict[p]['object'].size == -1:    # save the data anyway we can, not just if it was not created here; bug [YOCTO #6887]
