@@ -183,7 +183,7 @@ class LocalhostBEController(BuildEnvironmentController):
     def getGitCloneDirectory(self, url, branch):
         """Construct unique clone directory name out of url and branch."""
         if branch != "HEAD":
-            return "_toaster_clones/_%s_%s" % (re.sub('[:/]', '_', url), branch)
+            return "_toaster_clones/_%s_%s" % (re.sub('[:/@%]', '_', url), branch)
 
         # word of attention; this is a localhost-specific issue; only on the localhost we expect to have "HEAD" releases
         # which _ALWAYS_ means the current poky checkout
@@ -233,23 +233,26 @@ class LocalhostBEController(BuildEnvironmentController):
         logger.debug("localhostbecontroller, our git repos are %s" % pformat(gitrepos))
 
 
-        # 2. find checked-out git repos in the sourcedir directory that may help faster cloning
+        # 2. Note for future use if the current source directory is a
+        # checked-out git repos that could match a layer's vcs_url and therefore
+        # be used to speed up cloning (rather than fetching it again).
 
         cached_layers = {}
-        for ldir in os.listdir(self.be.sourcedir):
-            fldir = os.path.join(self.be.sourcedir, ldir)
-            if os.path.isdir(fldir):
+
+        try:
+            for remotes in self._shellcmd("git remote -v", self.be.sourcedir).split("\n"):
                 try:
-                    for line in self._shellcmd("git remote -v", fldir).split("\n"):
-                        try:
-                            remote = line.split("\t")[1].split(" ")[0]
-                            if remote not in cached_layers:
-                                cached_layers[remote] = fldir
-                        except IndexError:
-                            pass
-                except ShellCmdException:
-                    # ignore any errors in collecting git remotes
+                    remote = remotes.split("\t")[1].split(" ")[0]
+                    if remote not in cached_layers:
+                        cached_layers[remote] = self.be.sourcedir
+                except IndexError:
                     pass
+        except ShellCmdException:
+            # ignore any errors in collecting git remotes this is an optional
+            # step
+            pass
+
+        logger.info("Using pre-checked out source for layer %s", cached_layers)
 
         layerlist = []
 

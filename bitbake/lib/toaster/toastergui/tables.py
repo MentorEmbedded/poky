@@ -57,9 +57,7 @@ class LayersTable(ToasterTable):
         context = super(LayersTable, self).get_context_data(**kwargs)
 
         project = Project.objects.get(pk=kwargs['pid'])
-
         context['project'] = project
-        context['projectlayers'] = map(lambda prjlayer: prjlayer.layercommit.id, ProjectLayer.objects.filter(project=project))
 
         return context
 
@@ -93,7 +91,10 @@ class LayersTable(ToasterTable):
 
     def setup_queryset(self, *args, **kwargs):
         prj = Project.objects.get(pk = kwargs['pid'])
-        compatible_layers = prj.compatible_layerversions()
+        compatible_layers = prj.get_all_compatible_layer_versions()
+
+        self.static_context_extra['current_layers'] = \
+                prj.get_project_layer_versions(pk=True)
 
         self.queryset = compatible_layers.order_by(self.default_orderby)
 
@@ -335,9 +336,22 @@ class RecipesTable(ToasterTable, ProjectFiltersMixin):
 
         return context
 
+    def setup_filters(self, *args, **kwargs):
+        self.add_filter(title="Filter by project recipes",
+                        name="in_current_project",
+                        filter_actions=[
+                            self.make_filter_action("in_project", "Recipes provided by layers added to this project", self.filter_in_project),
+                            self.make_filter_action("not_in_project", "Recipes provided by layers not added to this project", self.filter_not_in_project)
+                        ])
 
     def setup_queryset(self, *args, **kwargs):
         prj = Project.objects.get(pk = kwargs['pid'])
+
+        # Project layers used by the filters
+        self.project_layers = prj.get_project_layer_versions(pk=True)
+
+        # Project layers used to switch the button states
+        self.static_context_extra['current_layers'] = self.project_layers
 
         self.queryset = prj.get_all_compatible_recipes()
         self.queryset = self.queryset.order_by(self.default_orderby)
@@ -345,8 +359,8 @@ class RecipesTable(ToasterTable, ProjectFiltersMixin):
 
     def setup_columns(self, *args, **kwargs):
 
-        self.add_column(title="Recipe Version",
-                        hidden=True,
+        self.add_column(title="Version",
+                        hidden=False,
                         field_name="version")
 
         self.add_column(title="Description",
@@ -367,6 +381,7 @@ class RecipesTable(ToasterTable, ProjectFiltersMixin):
 
         self.add_column(title="Section",
                         help_text="The section in which recipes should be categorized",
+                        hidden=True,
                         orderable=True,
                         field_name="section")
 
@@ -383,10 +398,12 @@ class RecipesTable(ToasterTable, ProjectFiltersMixin):
 
         self.add_column(title="License",
                         help_text="The list of source licenses for the recipe. Multiple license names separated by the pipe character indicates a choice between licenses. Multiple license names separated by the ampersand character indicates multiple licenses exist that cover different parts of the source",
+                        hidden=True,
                         orderable=True,
                         field_name="license")
 
         self.add_column(title="Revision",
+                        hidden=True,
                         field_name="layer_version__get_vcs_reference")
 
 

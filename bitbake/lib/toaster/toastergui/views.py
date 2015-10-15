@@ -47,19 +47,26 @@ import json
 from os.path import dirname
 from functools import wraps
 import itertools
+import mimetypes
 
-import magic
 import logging
 
 logger = logging.getLogger("toaster")
 
 class MimeTypeFinder(object):
-    _magic = magic.Magic(flags = magic.MAGIC_MIME_TYPE)
+    # setting this to False enables additional non-standard mimetypes
+    # to be included in the guess
+    _strict = False
 
-    # returns the mimetype for a file path
+    # returns the mimetype for a file path as a string,
+    # or 'application/octet-stream' if the type couldn't be guessed
     @classmethod
     def get_mimetype(self, path):
-        return self._magic.id_filename(path)
+        guess = mimetypes.guess_type(path, self._strict)
+        guessed_type = guess[0]
+        if guessed_type == None:
+            guessed_type = 'application/octet-stream'
+        return guessed_type
 
 # all new sessions should come through the landing page;
 # determine in which mode we are running in, and redirect appropriately
@@ -2103,35 +2110,38 @@ if True:
                     },
                     {'name': 'Errors', 'clclass': 'errors_no',
                      'qhelp': "How many errors were encountered during the build (if any)",
-                     'orderfield': _get_toggle_order(request, "errors_no", True),
-                     'ordericon':_get_toggle_order_icon(request, "errors_no"),
-                     'orderkey' : 'errors_no',
-                     'filter' : {'class' : 'errors_no',
-                                 'label': 'Show:',
-                                 'options' : [
-                                             ('Builds with errors', 'errors_no__gte:1', queryset_with_search.filter(errors_no__gte=1).count()),
-                                             ('Builds without errors', 'errors_no:0', queryset_with_search.filter(errors_no=0).count()),
-                                             ]
-                                }
+                     # Comment out sorting and filter until YOCTO #8131 is fixed
+                     #'orderfield': _get_toggle_order(request, "errors_no", True),
+                     #'ordericon':_get_toggle_order_icon(request, "errors_no"),
+                     #'orderkey' : 'errors_no',
+                     #'filter' : {'class' : 'errors_no',
+                     #            'label': 'Show:',
+                     #            'options' : [
+                     #                        ('Builds with errors', 'errors_no__gte:1', queryset_with_search.filter(errors_no__gte=1).count()),
+                     #                        ('Builds without errors', 'errors_no:0', queryset_with_search.filter(errors_no=0).count()),
+                     #                        ]
+                     #           }
                     },
                     {'name': 'Warnings', 'clclass': 'warnings_no',
                      'qhelp': "How many warnings were encountered during the build (if any)",
-                     'orderfield': _get_toggle_order(request, "warnings_no", True),
-                     'ordericon':_get_toggle_order_icon(request, "warnings_no"),
-                     'orderkey' : 'warnings_no',
-                     'filter' : {'class' : 'warnings_no',
-                                 'label': 'Show:',
-                                 'options' : [
-                                             ('Builds with warnings','warnings_no__gte:1', queryset_with_search.filter(warnings_no__gte=1).count()),
-                                             ('Builds without warnings','warnings_no:0', queryset_with_search.filter(warnings_no=0).count()),
-                                             ]
-                                }
+                     # Comment out sorting and filter until YOCTO #8131 is fixed
+                     #'orderfield': _get_toggle_order(request, "warnings_no", True),
+                     #'ordericon':_get_toggle_order_icon(request, "warnings_no"),
+                     #'orderkey' : 'warnings_no',
+                     #'filter' : {'class' : 'warnings_no',
+                     #            'label': 'Show:',
+                     #            'options' : [
+                     #                        ('Builds with warnings','warnings_no__gte:1', queryset_with_search.filter(warnings_no__gte=1).count()),
+                     #                        ('Builds without warnings','warnings_no:0', queryset_with_search.filter(warnings_no=0).count()),
+                     #                        ]
+                     #           }
                     },
                     {'name': 'Time', 'clclass': 'time', 'hidden' : 1,
                      'qhelp': "How long it took the build to finish",
-                     'orderfield': _get_toggle_order(request, "timespent", True),
-                     'ordericon':_get_toggle_order_icon(request, "timespent"),
-                     'orderkey' : 'timespent',
+                     # Comment out sorting until YOCTO #8131 is fixed
+                     #'orderfield': _get_toggle_order(request, "timespent", True),
+                     #'ordericon':_get_toggle_order_icon(request, "timespent"),
+                     #'orderkey' : 'timespent',
                     },
                     {'name': 'Image files', 'clclass': 'output',
                      'qhelp': "The root file system types produced by the build. You can find them in your <code>/build/tmp/deploy/images/</code> directory",
@@ -2758,12 +2768,16 @@ if True:
         project = Project.objects.get(pk=pid)
         layer_version = Layer_Version.objects.get(pk=layerid)
 
-        context = { 'project' : project,
-                   'layerversion' : layer_version,
-                   'layerdeps' : { "list": [
-                     [{"id": y.id, "name": y.layer.name} for y in x.depends_on.get_equivalents_wpriority(project)][0] for x in layer_version.dependencies.all()]},
-                   'projectlayers': map(lambda prjlayer: prjlayer.layercommit.id, ProjectLayer.objects.filter(project=project))
-                  }
+        context = {'project' : project,
+            'layerversion' : layer_version,
+            'layerdeps' : {"list": [{"id": dep.id,
+                "name": dep.layer.name,
+                "layerdetailurl": reverse('layerdetails', args=(pid, dep.pk)),
+                "vcs_url": dep.layer.vcs_url,
+                "vcs_reference": dep.get_vcs_reference()} \
+                for dep in layer_version.get_alldeps(project.id)]},
+            'projectlayers': map(lambda prjlayer: prjlayer.layercommit.id, ProjectLayer.objects.filter(project=project))
+        }
 
         return context
 
@@ -2971,7 +2985,7 @@ if True:
             if file_name is None:
                 raise Exception("Could not handle artifact %s id %s" % (artifact_type, artifact_id))
             else:
-                content_type = b.buildrequest.environment.get_artifact_type(file_name)
+                content_type = MimeTypeFinder.get_mimetype(file_name)
                 fsock = b.buildrequest.environment.get_artifact(file_name)
                 file_name = os.path.basename(file_name) # we assume that the build environment system has the same path conventions as host
 

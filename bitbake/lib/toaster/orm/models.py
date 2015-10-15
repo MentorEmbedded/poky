@@ -222,14 +222,14 @@ class Project(models.Model):
         if pk is False:
             return layer_versions
         else:
-            return layer_versions.values_list('pk', flat=True)
+            return layer_versions.values_list('layercommit__pk', flat=True)
 
 
     def get_available_machines(self):
         """ Returns QuerySet of all Machines which are provided by the
         Layers currently added to the Project """
         queryset = Machine.objects.filter(
-            layer_version__in=self.get_project_layer_versions(self))
+            layer_version__in=self.get_project_layer_versions())
 
         return queryset
 
@@ -253,7 +253,7 @@ class Project(models.Model):
         """ Returns QuerySet of all the compatible Recipes available to the
         project including ones from Layers not currently added """
         queryset = Recipe.objects.filter(
-            layer_version__in=self.get_all_compatible_layer_versions())
+            layer_version__in=self.get_all_compatible_layer_versions()).exclude(name__exact='')
 
         return queryset
 
@@ -900,7 +900,7 @@ class LayerIndexLayerSource(LayerSource):
                     oe_core_l.save()
                     continue
 
-                except DoesNotExist:
+                except Layer.DoesNotExist:
                     pass
 
             l, created = Layer.objects.get_or_create(layer_source = self, name = li['name'])
@@ -1011,6 +1011,7 @@ class LayerIndexLayerSource(LayerSource):
                 ro.save()
             except IntegrityError as e:
                 logger.debug("Failed saving recipe, ignoring: %s (%s:%s)" % (e, ro.layer_version, ri['filepath']+"/"+ri['filename']))
+                ro.delete()
         if not connection.features.autocommits_when_autocommit_is_off:
             transaction.set_autocommit(True)
 
@@ -1176,6 +1177,25 @@ class Layer_Version(models.Model):
 
     def get_detailspage_url(self, project_id):
         return reverse('layerdetails', args=(project_id, self.pk))
+
+    def get_alldeps(self, project_id):
+        """Get full list of unique layer dependencies."""
+        def gen_layerdeps(lver, project):
+            for ldep in lver.dependencies.all():
+                yield ldep.depends_on
+                # get next level of deps recursively calling gen_layerdeps
+                for subdep in gen_layerdeps(ldep.depends_on, project):
+                    yield subdep
+
+        project = Project.objects.get(pk=project_id)
+        result = []
+        projectlvers = [player.layercommit for player in project.projectlayer_set.all()]
+        for dep in gen_layerdeps(self, project):
+            # filter out duplicates and layers already belonging to the project
+            if dep not in result + projectlvers:
+                result.append(dep)
+
+        return sorted(result, key=lambda x: x.layer.name)
 
     def __unicode__(self):
         return "%d %s (VCS %s, Project %s)" % (self.pk, str(self.layer), self.get_vcs_reference(), self.build.project if self.build is not None else "No project")
