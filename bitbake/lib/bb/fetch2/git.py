@@ -182,7 +182,7 @@ class Git(FetchMethod):
 
                 if shallow:
                     tarballname = tarballname + "_" + shallow
-            ud.shallowtarball = 'git2_%s.tar.gz' % tarballname
+            ud.shallowtarball = 'gitshallow_%s.tar.gz' % tarballname
             ud.fullshallow = os.path.join(dl_dir, ud.shallowtarball)
             ud.mirrortarballs = [ud.shallowtarball, ud.mirrortarball]
 
