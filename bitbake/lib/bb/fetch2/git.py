@@ -274,7 +274,7 @@ class Git(FetchMethod):
             if not os.path.exists(ud.fullshallow):
                 if os.path.islink(ud.fullshallow):
                     os.unlink(ud.fullshallow)
-                tempdir = tempfile.mkdtemp()
+                tempdir = tempfile.mkdtemp(dir=d.getVar('DL_DIR', True))
                 shallowclone = os.path.join(tempdir, 'git')
                 try:
                     repourl = self._get_repo_url(ud)
