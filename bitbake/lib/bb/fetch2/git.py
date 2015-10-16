@@ -68,6 +68,7 @@ Supported SRC_URI options are:
 
 import collections
 import errno
+import itertools
 import os
 import re
 import tempfile
@@ -87,6 +88,11 @@ def iter_except(func, exception, start=None):
             yield func()
     except exception:
         pass
+
+
+def iter_extend(iterable, length, obj=None):
+    """Ensure that iterable is the specified length by extending with obj"""
+    return itertools.islice(itertools.chain(iterable, itertools.repeat(obj)), length)
 
 
 class Git(FetchMethod):
@@ -349,8 +355,9 @@ class Git(FetchMethod):
             if exc.errno != errno.ENOENT:
                 raise
 
-        ref_output = runfetchcmd('%s for-each-ref --format="%%(refname)"' % gitcmd, d)
-        refs = (b.rstrip() for b in ref_output.splitlines())
+        ref_output = runfetchcmd('%s for-each-ref --format="%%(refname)	%%(*objecttype)"' % gitcmd, d)
+        ref_split = (iter_extend(l.rstrip().rsplit('\t', 1), 2) for l in ref_output.splitlines())
+        refs = (ref for ref, objtype in ref_split if not objtype or objtype == 'commit')
 
         parsed_revs = runfetchcmd('%s rev-parse %s' % (gitcmd, ' '.join('%s^{}' % i for i in revisions)), d)
         queue = collections.deque(r.rstrip() for r in parsed_revs.splitlines())
