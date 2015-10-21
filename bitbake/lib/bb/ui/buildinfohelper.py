@@ -302,6 +302,11 @@ class ORMWrapper(object):
         if created and must_exist:
             raise NotExisting("Recipe object created when expected to exist", recipe_information)
 
+        if built_recipe is None:
+            built_recipe, c = self._cached_get_or_create(Recipe,
+                    layer_version=built_layer,
+                    file_path=recipe_information['file_path'],
+                    pathflags = recipe_information['pathflags'])
         return built_recipe
 
     def get_update_layer_version_object(self, build_obj, layer_obj, layer_version_information):
