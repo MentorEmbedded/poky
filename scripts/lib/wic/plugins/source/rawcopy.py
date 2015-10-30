@@ -74,6 +74,10 @@ class RawCopyPlugin(SourcePlugin):
             dd_cmd = "dd if=%s of=%s ibs=%s skip=1 conv=notrunc" % \
                     (src, dst, source_params['skip'])
             exec_cmd(dd_cmd)
+        else:
+             dst = os.path.join(cr_workdir, source_params['file'])
+             cp_cmd = "cp %s %s" % (src, dst)
+             exec_cmd(cp_cmd)
 
         # get the size in the right units for kickstart (kB)
         du_cmd = "du -Lbks %s" % dst
