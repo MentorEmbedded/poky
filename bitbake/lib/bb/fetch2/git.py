@@ -400,6 +400,7 @@ class Git(FetchMethod):
                         continue
                     queue.append(merge_base)
 
+        runfetchcmd('%s reflog expire --expire-unreachable=now --all' % gitcmd, d)
         runfetchcmd('%s repack -ad' % gitcmd, d)
         runfetchcmd('%s prune-packed' % gitcmd, d)
 
