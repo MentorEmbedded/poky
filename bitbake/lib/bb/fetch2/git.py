@@ -346,6 +346,7 @@ class Git(FetchMethod):
             shallow_branches = None
         else:
             runfetchcmd("%s for-each-ref --format='%%(refname)' | xargs -n 1 %s update-ref -d" % (gitcmd, gitcmd), d)
+            runfetchcmd('%s update-ref -d HEAD' % gitcmd, d)
             shallow_branches = []
             for name, (shallow, revision, branch) in branchinfo.iteritems():
                 if nobranch:
