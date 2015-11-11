@@ -66,6 +66,7 @@ class Rootfs(object):
                 m = r.search(line)
                 if m:
                     found_error = 1
+                    bb.warn('[log_check] In line: [%s]' % line)
                     bb.warn('[log_check] %s: found an error message in the logfile (keyword \'%s\'):\n[log_check] %s'
 				    % (self.d.getVar('PN', True), m.group(), line))
 
@@ -278,6 +279,7 @@ class Rootfs(object):
 
         bb.note("Running intercept scripts:")
         os.environ['D'] = self.image_rootfs
+        os.environ['STAGING_DIR_NATIVE'] = self.d.getVar('STAGING_DIR_NATIVE', True)
         for script in os.listdir(intercepts_dir):
             script_full = os.path.join(intercepts_dir, script)
 

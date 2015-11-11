@@ -71,14 +71,24 @@ class MimeTypeFinder(object):
 # all new sessions should come through the landing page;
 # determine in which mode we are running in, and redirect appropriately
 def landing(request):
+    # in build mode, we redirect to the command-line builds page
+    # if there are any builds for the default (cli builds) project
+    default_project = Project.objects.get_default_project()
+    default_project_builds = Build.objects.filter(project = default_project)
+
+    if (not toastermain.settings.BUILD_MODE) and default_project_builds.count() > 0:
+        args = (default_project.id,)
+        return redirect(reverse('projectbuilds', args = args), permanent = False)
+
     # we only redirect to projects page if there is a user-generated project
+    num_builds = Build.objects.all().count()
     user_projects = Project.objects.filter(is_default = False)
     has_user_project = user_projects.count() > 0
 
-    if Build.objects.count() == 0 and has_user_project:
+    if num_builds == 0 and has_user_project:
         return redirect(reverse('all-projects'), permanent = False)
 
-    if Build.objects.all().count() > 0:
+    if num_builds > 0:
         return redirect(reverse('all-builds'), permanent = False)
 
     context = {'lvs_nos' : Layer_Version.objects.all().count()}
@@ -92,9 +102,12 @@ def _get_latest_builds(prj=None):
     if prj is not None:
         queryset = queryset.filter(project = prj)
 
+    if not toastermain.settings.BUILD_MODE:
+        queryset = queryset.exclude(project__is_default=False)
+
     return list(itertools.chain(
-        queryset.filter(outcome=Build.IN_PROGRESS).order_by("-pk"),
-        queryset.filter(outcome__lt=Build.IN_PROGRESS).order_by("-pk")[:3] ))
+        queryset.filter(outcome=Build.IN_PROGRESS).order_by("-started_on"),
+        queryset.filter(outcome__lt=Build.IN_PROGRESS).order_by("-started_on")[:3] ))
 
 
 # a JSON-able dict of recent builds; for use in the Project page, xhr_ updates,  and other places, as needed
@@ -1223,7 +1236,7 @@ def tasks_common(request, build_id, variant, task_anchor):
     context = { 'objectname': variant,
                 'object_search_display': object_search_display,
                 'filter_search_display': filter_search_display,
-                'title': title_variant,
+                'mainheading': title_variant,
                 'build': build,
                 'objects': task_objects,
                 'default_orderby' : orderby,
@@ -1870,11 +1883,20 @@ def image_information_dir(request, build_id, target_id, packagefile_id):
     return redirect(builds)
     # the context processor that supplies data used across all the pages
 
-
+# a context processor which runs on every request; this provides the
+# projects and non_cli_projects (i.e. projects created by the user)
+# variables referred to in templates, which used to determine the
+# visibility of UI elements like the "New build" button
 def managedcontextprocessor(request):
+    projects = Project.objects.all()
     ret = {
-        "projects": Project.objects.all(),
+        "projects": projects,
+        "non_cli_projects": projects.exclude(is_default=True),
         "DEBUG" : toastermain.settings.DEBUG,
+
+        # True if Toaster is in build mode, False otherwise
+        "BUILD_MODE": toastermain.settings.BUILD_MODE,
+
         "CUSTOM_IMAGE" : toastermain.settings.CUSTOM_IMAGE,
         "TOASTER_BRANCH": toastermain.settings.TOASTER_BRANCH,
         "TOASTER_REVISION" : toastermain.settings.TOASTER_REVISION,
@@ -1916,6 +1938,11 @@ if True:
         # that use paginators.
 
         queryset = Build.objects.all()
+
+        # if in analysis mode, exclude builds for all projects except
+        # command line builds
+        if not toastermain.settings.BUILD_MODE:
+            queryset = queryset.exclude(project__is_default=False)
 
         redirect_page = resolve(request.path_info).url_name
 
@@ -1991,7 +2018,7 @@ if True:
         build_info = _build_page_range(Paginator(queryset, pagesize), request.GET.get('page', 1))
 
         # build view-specific information; this is rendered specifically in the builds page, at the top of the page (i.e. Recent builds)
-        build_mru = Build.objects.order_by("-started_on")[:3]
+        build_mru = _get_latest_builds()[:3]
 
         # calculate the exact begining of local today and yesterday, append context
         context_date,today_begin,yesterday_begin = _add_daterange_context(queryset_all, request, {'started_on','completed_on'})
@@ -3020,6 +3047,10 @@ if True:
         q_default_with_builds = Q(is_default=True) & Q(num_builds__gt=0)
         queryset_all = queryset_all.filter(Q(is_default=False) |
                                            q_default_with_builds)
+
+        # if in BUILD_MODE, exclude everything but the command line builds project
+        if not toastermain.settings.BUILD_MODE:
+            queryset_all = queryset_all.exclude(is_default=False)
 
         # boilerplate code that takes a request for an object type and returns a queryset
         # for that object type. copypasta for all needed table searches
