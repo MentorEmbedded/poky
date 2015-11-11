@@ -344,13 +344,14 @@ class Build(models.Model):
         tgts = Target.objects.filter(build_id = self.id).order_by( 'target' );
         return( tgts );
 
-    @property
-    def toaster_exceptions(self):
-        return self.logmessage_set.filter(level=LogMessage.EXCEPTION)
+    def get_outcome_text(self):
+        return Build.BUILD_OUTCOME[int(self.outcome)][1]
 
     @property
     def errors(self):
-        return (self.logmessage_set.filter(level=LogMessage.ERROR)|self.logmessage_set.filter(level=LogMessage.EXCEPTION))
+        return (self.logmessage_set.filter(level=LogMessage.ERROR) |
+                self.logmessage_set.filter(level=LogMessage.EXCEPTION) |
+                self.logmessage_set.filter(level=LogMessage.CRITICAL))
 
     @property
     def warnings(self):
@@ -361,10 +362,23 @@ class Build(models.Model):
         return (self.completed_on - self.started_on).total_seconds()
 
     def get_current_status(self):
+        """
+        get the status string from the build request if the build
+        has one, or the text for the build outcome if it doesn't
+        """
+
         from bldcontrol.models import BuildRequest
-        if self.outcome == Build.IN_PROGRESS and self.buildrequest.state != BuildRequest.REQ_INPROGRESS:
+
+        build_request = None
+        if hasattr(self, 'buildrequest'):
+            build_request = self.buildrequest
+
+        if (build_request
+                and build_request.state != BuildRequest.REQ_INPROGRESS
+                and self.outcome == Build.IN_PROGRESS):
             return self.buildrequest.get_state_display()
-        return self.get_outcome_display()
+        else:
+            return self.get_outcome_text()
 
     def __str__(self):
         return "%d %s %s" % (self.id, self.project, ",".join([t.target for t in self.target_set.all()]))
@@ -1269,16 +1283,20 @@ class LogMessage(models.Model):
     INFO = 0
     WARNING = 1
     ERROR = 2
+    CRITICAL = 3
 
-    LOG_LEVEL = ( (INFO, "info"),
-            (WARNING, "warn"),
-            (ERROR, "error"),
-            (EXCEPTION, "toaster exception"))
+    LOG_LEVEL = (
+        (INFO, "info"),
+        (WARNING, "warn"),
+        (ERROR, "error"),
+        (CRITICAL, "critical"),
+        (EXCEPTION, "toaster exception")
+    )
 
     build = models.ForeignKey(Build)
     task  = models.ForeignKey(Task, blank = True, null=True)
     level = models.IntegerField(choices=LOG_LEVEL, default=INFO)
-    message=models.CharField(max_length=240)
+    message = models.TextField(blank=True, null=True)
     pathname = models.FilePathField(max_length=255, blank=True)
     lineno = models.IntegerField(null=True)
 

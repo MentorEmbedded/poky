@@ -162,8 +162,6 @@ class ORMWrapper(object):
             build.bitbake_version=build_info['bitbake_version']
             build.save()
 
-            Target.objects.filter(build = build).delete()
-
         else:
             build = Build.objects.create(
                                     project = prj,
@@ -184,18 +182,26 @@ class ORMWrapper(object):
 
         return build
 
-    def create_target_objects(self, target_info):
-        assert 'build' in target_info
-        assert 'targets' in target_info
-
-        targets = []
-        for tgt_name in target_info['targets']:
-            tgt_object = Target.objects.create( build = target_info['build'],
-                                    target = tgt_name,
-                                    is_image = False,
-                                    )
-            targets.append(tgt_object)
-        return targets
+    @staticmethod
+    def get_or_create_targets(target_info):
+        result = []
+        for target in target_info['targets']:
+            task = ''
+            if ':' in target:
+                target, task = target.split(':', 1)
+            if task.startswith('do_'):
+                task = task[3:]
+            if task == 'build':
+                task = ''
+            obj, created = Target.objects.get_or_create(build=target_info['build'],
+                                                        target=target)
+            if created:
+                obj.is_image = False
+                if task:
+                    obj.task = task
+                obj.save()
+            result.append(obj)
+        return result
 
     def update_build_object(self, build, errors, warnings, taskfailures):
         assert isinstance(build,Build)
@@ -298,9 +304,13 @@ class ORMWrapper(object):
                 break
 
 
-
-        if created and must_exist:
-            raise NotExisting("Recipe object created when expected to exist", recipe_information)
+        # If we're in analysis mode then we are wholly responsible for the data
+        # and therefore we return the 'real' recipe rather than the build
+        # history copy of the recipe.
+        if  recipe_information['layer_version'].build is not None and \
+            recipe_information['layer_version'].build.project == \
+                Project.objects.get_default_project():
+            return recipe
 
         if built_recipe is None:
             built_recipe, c = self._cached_get_or_create(Recipe,
@@ -338,14 +348,20 @@ class ORMWrapper(object):
         assert 'priority' in layer_version_information
         assert 'local_path' in layer_version_information
 
+        # If we're doing a command line build then associate this new layer with the
+        # project to avoid it 'contaminating' toaster data
+        project = None
+        if build_obj.project == Project.objects.get_default_project():
+            project = build_obj.project
+
         layer_version_object, _ = Layer_Version.objects.get_or_create(
-                                    build = build_obj,
-                                    layer = layer_obj,
-                                    branch = layer_version_information['branch'],
-                                    commit = layer_version_information['commit'],
-                                    priority = layer_version_information['priority'],
-                                    local_path = layer_version_information['local_path'],
-                                    )
+                                  build = build_obj,
+                                  layer = layer_obj,
+                                  branch = layer_version_information['branch'],
+                                  commit = layer_version_information['commit'],
+                                  priority = layer_version_information['priority'],
+                                  local_path = layer_version_information['local_path'],
+                                  project=project)
 
         self.layer_version_objects.append(layer_version_object)
 
@@ -774,7 +790,7 @@ class BuildInfoHelper(object):
     ## methods to convert event/external info into objects that the ORM layer uses
 
 
-    def _get_build_information(self, consolelogfile):
+    def _get_build_information(self, build_log_path):
         build_info = {}
         # Generate an identifier for each new build
 
@@ -783,7 +799,7 @@ class BuildInfoHelper(object):
         build_info['distro_version'] = self.server.runCommand(["getVariable", "DISTRO_VERSION"])[0]
         build_info['started_on'] = timezone.now()
         build_info['completed_on'] = timezone.now()
-        build_info['cooker_log_path'] = consolelogfile
+        build_info['cooker_log_path'] = build_log_path
         build_info['build_name'] = self.server.runCommand(["getVariable", "BUILDNAME"])[0]
         build_info['bitbake_version'] = self.server.runCommand(["getVariable", "BB_VERSION"])[0]
 
@@ -851,7 +867,7 @@ class BuildInfoHelper(object):
         logger.warn("Could not match layer version for recipe path %s : %s", path, self.orm_wrapper.layer_version_objects)
 
         #mockup the new layer
-        unknown_layer, _ = Layer.objects.get_or_create(name="__FIXME__unidentified_layer", layer_index_url="")
+        unknown_layer, _ = Layer.objects.get_or_create(name="Unidentified layer", layer_index_url="")
         unknown_layer_version_obj, _ = Layer_Version.objects.get_or_create(layer = unknown_layer, build = self.internal_state['build'])
 
         # append it so we don't run into this error again and again
@@ -924,9 +940,9 @@ class BuildInfoHelper(object):
                 logger.warn("buildinfohelper: cannot identify layer exception:%s ", nee)
 
 
-    def store_started_build(self, event, consolelogfile):
+    def store_started_build(self, event, build_log_path):
         assert '_pkgs' in vars(event)
-        build_information = self._get_build_information(consolelogfile)
+        build_information = self._get_build_information(build_log_path)
 
         build_obj = self.orm_wrapper.create_build_object(build_information, self.brbe, self.project)
 
@@ -946,7 +962,7 @@ class BuildInfoHelper(object):
         target_information['targets'] = event._pkgs
         target_information['build'] = build_obj
 
-        self.internal_state['targets'] = self.orm_wrapper.create_target_objects(target_information)
+        self.internal_state['targets'] = self.orm_wrapper.get_or_create_targets(target_information)
 
         # Save build configuration
         data = self.server.runCommand(["getAllKeysWithFlags", ["doc", "func"]])[0]
@@ -1073,7 +1089,7 @@ class BuildInfoHelper(object):
             task_information['disk_io'] = taskstats['disk_io']
             if 'elapsed_time' in taskstats:
                 task_information['elapsed_time'] = taskstats['elapsed_time']
-            self.orm_wrapper.get_update_task_object(task_information, True)  # must exist
+            self.orm_wrapper.get_update_task_object(task_information)
 
     def update_and_store_task(self, event):
         assert 'taskfile' in vars(event)
@@ -1390,7 +1406,9 @@ class BuildInfoHelper(object):
 
         log_information = {}
         log_information['build'] = self.internal_state['build']
-        if event.levelno == formatter.ERROR:
+        if event.levelno == formatter.CRITICAL:
+            log_information['level'] = LogMessage.CRITICAL
+        elif event.levelno == formatter.ERROR:
             log_information['level'] = LogMessage.ERROR
         elif event.levelno == formatter.WARNING:
             log_information['level'] = LogMessage.WARNING
@@ -1403,6 +1421,7 @@ class BuildInfoHelper(object):
         log_information['pathname'] = event.pathname
         log_information['lineno'] = event.lineno
         logger.info("Logging error 2: %s", log_information)
+
         self.orm_wrapper.create_logmessage(log_information)
 
     def close(self, errorcode):
