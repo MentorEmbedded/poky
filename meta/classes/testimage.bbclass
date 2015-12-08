@@ -36,9 +36,9 @@ RPMTESTSUITE = "${@bb.utils.contains('IMAGE_PKGTYPE', 'rpm', 'smart rpm', '', d)
 
 DEFAULT_TEST_SUITES = "ping auto"
 DEFAULT_TEST_SUITES_pn-core-image-minimal = "ping"
-DEFAULT_TEST_SUITES_pn-core-image-sato = "ping ssh df connman syslog xorg scp vnc date dmesg parselogs ${RPMTESTSUITE} \
+DEFAULT_TEST_SUITES_pn-core-image-sato = "ping ssh df connman syslog xorg scp vnc date parselogs ${RPMTESTSUITE} \
     ${@bb.utils.contains('IMAGE_PKGTYPE', 'rpm', 'python', '', d)}"
-DEFAULT_TEST_SUITES_pn-core-image-sato-sdk = "ping ssh df connman syslog xorg scp vnc date perl ldd gcc kernelmodule dmesg python parselogs ${RPMTESTSUITE}"
+DEFAULT_TEST_SUITES_pn-core-image-sato-sdk = "ping ssh df connman syslog xorg scp vnc date perl ldd gcc kernelmodule python parselogs ${RPMTESTSUITE}"
 DEFAULT_TEST_SUITES_pn-core-image-lsb-sdk = "ping buildcvs buildiptables buildsudoku connman date df gcc kernelmodule ldd pam parselogs perl python scp ${RPMTESTSUITE} ssh syslog logrotate"
 DEFAULT_TEST_SUITES_pn-meta-toolchain = "auto"
 
@@ -229,11 +229,23 @@ def exportTests(d,tc):
     bb.utils.mkdirhier(os.path.join(exportpath, "oeqa/runtime/files"))
     bb.utils.mkdirhier(os.path.join(exportpath, "oeqa/utils"))
     # copy test modules, this should cover tests in other layers too
+    bbpath = d.getVar("BBPATH", True).split(':')
     for t in tc.testslist:
+        isfolder = False
         if re.search("\w+\.\w+\.test_\S+", t):
             t = '.'.join(t.split('.')[:3])
         mod = pkgutil.get_loader(t)
-        shutil.copy2(mod.filename, os.path.join(exportpath, "oeqa/runtime"))
+        # More depth than usual?
+        if (t.count('.') > 2):
+            for p in bbpath:
+                foldername = os.path.join(p, 'lib',  os.sep.join(t.split('.')).rsplit(os.sep, 1)[0])
+                if os.path.isdir(foldername):
+                    isfolder = True
+                    target_folder = os.path.join(exportpath, "oeqa", "runtime", os.path.basename(foldername))
+                    if not os.path.exists(target_folder):
+                        shutil.copytree(foldername, target_folder)
+        if not isfolder:
+            shutil.copy2(mod.filename, os.path.join(exportpath, "oeqa/runtime"))
     # copy __init__.py files
     oeqadir = pkgutil.get_loader("oeqa").filename
     shutil.copy2(os.path.join(oeqadir, "__init__.py"), os.path.join(exportpath, "oeqa"))

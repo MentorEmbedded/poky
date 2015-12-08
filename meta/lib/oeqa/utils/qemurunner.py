@@ -94,9 +94,9 @@ class QemuRunner:
     def start(self, qemuparams = None):
         if self.display:
             os.environ["DISPLAY"] = self.display
-        else:
-            logger.error("To start qemu I need a X desktop, please set DISPLAY correctly (e.g. DISPLAY=:1)")
-            return False
+            # Set this flag so that Qemu doesn't do any grabs as SDL grabs
+            # interact badly with screensavers.
+            os.environ["QEMU_DONT_GRAB"] = "1"
         if not os.path.exists(self.rootfs):
             logger.error("Invalid rootfs %s" % self.rootfs)
             return False
@@ -118,10 +118,10 @@ class QemuRunner:
             logger.error("Failed to create listening socket: %s" % msg[1])
             return False
 
-        # Set this flag so that Qemu doesn't do any grabs as SDL grabs interact
-        # badly with screensavers.
-        os.environ["QEMU_DONT_GRAB"] = "1"
-        self.qemuparams = 'bootparams="console=tty1 console=ttyS0,115200n8" qemuparams="-serial tcp:127.0.0.1:{}"'.format(threadport)
+
+        self.qemuparams = 'bootparams="console=tty1 console=ttyS0,115200n8 printk.time=1" qemuparams="-serial tcp:127.0.0.1:{}"'.format(threadport)
+        if not self.display:
+            self.qemuparams = 'nographic ' + self.qemuparams
         if qemuparams:
             self.qemuparams = self.qemuparams[:-1] + " " + qemuparams + " " + '\"'
 
@@ -366,23 +366,25 @@ class QemuRunner:
         # We assume target system have echo to get command status
         if not raw:
             command = "%s; echo $?\n" % command
-        self.server_socket.sendall(command)
+
         data = ''
         status = 0
-        stopread = False
-        endtime = time.time()+5
-        while time.time()<endtime and not stopread:
+        self.server_socket.sendall(command)
+        keepreading = True
+        while keepreading:
             sread, _, _ = select.select([self.server_socket],[],[],5)
-            for sock in sread:
-                answer = sock.recv(1024)
+            if sread:
+                answer = self.server_socket.recv(1024)
                 if answer:
                     data += answer
                     # Search the prompt to stop
                     if re.search("[a-zA-Z0-9]+@[a-zA-Z0-9\-]+:~#", data):
-                        stopread = True
-                        break
+                        keepreading = False
                 else:
                     raise Exception("No data on serial console socket")
+            else:
+                keepreading = False
+
         if data:
             if raw:
                 status = 1

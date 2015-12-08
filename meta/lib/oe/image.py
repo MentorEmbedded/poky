@@ -272,8 +272,8 @@ class Image(ImageDepGraph):
         rootfs_size = self._get_rootfs_size()
 
         self.d.setVar('img_creation_func', '\n'.join(cmds))
-        self.d.setVarFlag('img_creation_func', 'func', 1)
-        self.d.setVarFlag('img_creation_func', 'fakeroot', 1)
+        self.d.setVarFlag('img_creation_func', 'func', '1')
+        self.d.setVarFlag('img_creation_func', 'fakeroot', '1')
         self.d.setVar('ROOTFS_SIZE', str(rootfs_size))
 
         with open(script_name, "w+") as script:
@@ -335,13 +335,16 @@ class Image(ImageDepGraph):
         Write environment variables used by wic
         to tmp/sysroots/<machine>/imgdata/<image>.env
         """
+        wicvars = self.d.getVar('WICVARS', True)
+        if not wicvars:
+            return
+
         stdir = self.d.getVar('STAGING_DIR_TARGET', True)
         outdir = os.path.join(stdir, 'imgdata')
-        if not os.path.exists(outdir):
-            os.makedirs(outdir)
+        bb.utils.mkdirhier(outdir)
         basename = self.d.getVar('IMAGE_BASENAME', True)
         with open(os.path.join(outdir, basename) + '.env', 'w') as envf:
-            for var in self.d.getVar('WICVARS', True).split():
+            for var in wicvars.split():
                 value = self.d.getVar(var, True)
                 if value:
                     envf.write('%s="%s"\n' % (var, value.strip()))

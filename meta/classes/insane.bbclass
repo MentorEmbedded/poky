@@ -307,6 +307,9 @@ def package_qa_check_libdir(d):
                 if 'libdir' in (d.getVar('INSANE_SKIP_' + package, True) or "").split():
                     bb.note("Package %s skipping libdir QA test" % (package))
                     skippackages.append(package)
+                elif d.getVar('PACKAGE_DEBUG_SPLIT_STYLE', True) == 'debug-file-directory' and package.endswith("-dbg"):
+                    bb.note("Package %s skipping libdir QA test for PACKAGE_DEBUG_SPLIT_STYLE equals debug-file-directory" % (package))
+                    skippackages.append(package)
             for package in skippackages:
                 dirs.remove(package)
         for file in files:
@@ -1112,6 +1115,7 @@ python do_package_qa () {
     bb.note("DONE with PACKAGE QA")
 }
 
+do_package_qa[vardepsexclude] = "BB_TASKDEPDATA"
 do_package_qa[rdeptask] = "do_packagedata"
 addtask do_package_qa after do_packagedata do_package before do_build
 
