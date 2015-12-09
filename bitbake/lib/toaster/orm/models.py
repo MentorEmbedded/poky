@@ -130,13 +130,12 @@ class Project(models.Model):
         try:
             return self.projectvariable_set.get(name="MACHINE").value
         except (ProjectVariable.DoesNotExist,IndexError):
-            return( "None" );
+            return None;
 
     def get_number_of_builds(self):
-        try:
-            return len(Build.objects.filter( project = self.id ))
-        except (Build.DoesNotExist,IndexError):
-            return( 0 )
+        """Return the number of builds which have ended"""
+
+        return self.build_set.filter(~Q(outcome=Build.IN_PROGRESS)).count()
 
     def get_last_build_id(self):
         try:
@@ -1239,6 +1238,7 @@ class ProjectLayer(models.Model):
         unique_together = (("project", "layercommit"),)
 
 class CustomImageRecipe(models.Model):
+    search_allowed_fields = ['name']
     name = models.CharField(max_length=100)
     base_recipe = models.ForeignKey(Recipe)
     packages = models.ManyToManyField(Package)

@@ -175,11 +175,18 @@ function projectPageInit(ctx) {
 
   function updateLayersCount(){
     var count = $("#layers-in-project-list").children().length;
+    var noLayerMsg = $("#no-layers-in-project");
+    var buildInput = $("#build-input");
 
-    if (count === 0)
+
+    if (count === 0) {
+      noLayerMsg.fadeIn();
       $("#no-layers-in-project").fadeIn();
-    else
-      $("#no-layers-in-project").hide();
+      buildInput.attr("disabled", "disabled");
+    } else {
+      noLayerMsg.hide();
+      buildInput.removeAttr("disabled");
+    }
 
     $("#project-layers-count").text(count);
 
@@ -218,17 +225,21 @@ function projectPageInit(ctx) {
 
     var toBuild = "";
     freqBuildList.find(":checked").each(function(){
-      toBuild += $(this).val();
+      toBuild += $(this).val() + ' ';
     });
 
-    libtoaster.startABuild(libtoaster.ctx.projectBuildsUrl, libtoaster.ctx.projectId, toBuild, function(){
-      /* Build started */
-      window.location.replace(libtoaster.ctx.projectBuildsUrl);
-    },
-    function(){
-      /* Build start failed */
-      /* [YOCTO #7995] */
-      window.location.replace(libtoaster.ctx.projectBuildsUrl);
+    toBuild = toBuild.trim();
+
+    libtoaster.startABuild(libtoaster.ctx.projectBuildsUrl,
+      libtoaster.ctx.projectId,
+      toBuild,
+      function(){
+        /* Build request started */
+        window.location.replace(libtoaster.ctx.projectBuildsUrl);
+      },
+      function(){
+        /* Build request failed */
+        console.warn("Build request failed to be created");
     });
   });
 

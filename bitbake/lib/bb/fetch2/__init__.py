@@ -1689,9 +1689,6 @@ class Fetch(object):
             ud = self.ud[u]
             ud.setup_localpath(self.d)
 
-            if self.d.expand(self.localpath) is None:
-                continue
-
             if ud.lockfile:
                 lf = bb.utils.lockfile(ud.lockfile)
 

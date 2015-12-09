@@ -10,7 +10,7 @@ DEPENDS = "glib-2.0 cairo pango atk jpeg libpng gdk-pixbuf \
 
 LICENSE = "LGPLv2 & LGPLv2+ & LGPLv2.1+"
 
-inherit autotools pkgconfig gtk-doc update-alternatives gtk-immodules-cache gsettings distro_features_check
+inherit autotools pkgconfig gtk-doc update-alternatives gtk-immodules-cache gsettings distro_features_check upstream-version-is-even
 ANY_OF_DISTRO_FEATURES = "${GTK3DISTROFEATURES}"
 
 # This should be in autotools.bbclass, but until something elses uses it putting
@@ -29,6 +29,7 @@ EXTRA_OECONF += " \
                  --enable-modules \
                  --disable-cups \
                  --disable-introspection \
+                 --disable-colord \
 "
 
 PACKAGECONFIG ??= "${@bb.utils.contains("DISTRO_FEATURES", "x11", "x11", "", d)} \
@@ -79,7 +80,9 @@ FILES_${PN}-dev += " \
                     ${libdir}/gtk-3.0/${LIBV}/engines/*.la \
                     ${libdir}/gtk-3.0/modules/*.la \
                     ${bindir}/gtk-builder-convert \
-                    ${bindir}/gtk-encode-symbolic-svg"
+                    ${bindir}/gtk-encode-symbolic-svg \
+                    ${bindir}/gtk-builder-tool \
+                    "
 
 FILES_${PN}-dbg += " \
                     ${libdir}/gtk-3.0/${LIBV}/loaders/.debug \
@@ -94,6 +97,7 @@ PACKAGES_DYNAMIC += "^gtk3-immodule-.* ^gtk3-printbackend-.*"
 
 ALTERNATIVE_${PN} = "gtk-update-icon-cache"
 ALTERNATIVE_TARGET[gtk-update-icon-cache] = "${bindir}/gtk-update-icon-cache-3.0"
+ALTERNATIVE_PRIORITY = "30"
 
 python populate_packages_prepend () {
     import os.path
