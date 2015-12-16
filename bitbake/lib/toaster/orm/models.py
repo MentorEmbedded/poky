@@ -29,10 +29,58 @@ from django.core import validators
 from django.conf import settings
 import django.db.models.signals
 
-
 import logging
 logger = logging.getLogger("toaster")
 
+if 'sqlite' in settings.DATABASES['default']['ENGINE']:
+    from django.db import transaction, OperationalError
+    from time import sleep
+
+    _base_save = models.Model.save
+    def save(self, *args, **kwargs):
+        while True:
+            try:
+                with transaction.atomic():
+                    return _base_save(self, *args, **kwargs)
+            except OperationalError as err:
+                if 'database is locked' in str(err):
+                    logger.warning("%s, model: %s, args: %s, kwargs: %s",
+                                   err, self.__class__, args, kwargs)
+                    sleep(0.5)
+                    continue
+                raise
+
+    models.Model.save = save
+
+    # HACK: Monkey patch Django to fix 'database is locked' issue
+
+    from django.db.models.query import QuerySet
+    _base_insert = QuerySet._insert
+    def _insert(self,  *args, **kwargs):
+        with transaction.atomic(using=self.db, savepoint=False):
+            return _base_insert(self, *args, **kwargs)
+    QuerySet._insert = _insert
+
+    from django.utils import six
+    def _create_object_from_params(self, lookup, params):
+        """
+        Tries to create an object using passed params.
+        Used by get_or_create and update_or_create
+        """
+        try:
+            obj = self.create(**params)
+            return obj, True
+        except IntegrityError:
+            exc_info = sys.exc_info()
+            try:
+                return self.get(**lookup), False
+            except self.model.DoesNotExist:
+                pass
+            six.reraise(*exc_info)
+
+    QuerySet._create_object_from_params = _create_object_from_params
+
+    # end of HACK
 
 class GitURLValidator(validators.URLValidator):
     import re
@@ -91,18 +139,25 @@ class ProjectManager(models.Manager):
 
         return prj
 
-    def create(self, *args, **kwargs):
-        raise Exception("Invalid call to Project.objects.create. Use Project.objects.create_project() to create a project")
-
     # return single object with is_default = True
-    def get_default_project(self):
+    def get_or_create_default_project(self):
         projects = super(ProjectManager, self).filter(is_default = True)
+
         if len(projects) > 1:
-            raise Exception("Inconsistent project data: multiple " +
-                            "default projects (i.e. with is_default=True)")
+            raise Exception('Inconsistent project data: multiple ' +
+                            'default projects (i.e. with is_default=True)')
         elif len(projects) < 1:
-            raise Exception("Inconsistent project data: no default project found")
-        return projects[0]
+            options = {
+                'name': 'Command line builds',
+                'short_description': 'Project for builds started outside Toaster',
+                'is_default': True
+            }
+            project = Project.objects.create(**options)
+            project.save()
+
+            return project
+        else:
+            return projects[0]
 
 class Project(models.Model):
     search_allowed_fields = ['name', 'short_description', 'release__name', 'release__branch_name']
@@ -187,23 +242,6 @@ class Project(models.Model):
             return Variable.objects.filter(build = build_id, variable_name = "IMAGE_FSTYPES")[ 0 ].variable_value
         except (Variable.DoesNotExist,IndexError):
             return( "not_found" )
-
-    # returns a queryset of compatible layers for a project
-    def compatible_layerversions(self, release = None, layer_name = None):
-        logger.warning("This function is deprecated")
-        if release == None:
-            release = self.release
-        # layers on the same branch or layers specifically set for this project
-        queryset = Layer_Version.objects.filter(((Q(up_branch__name = release.branch_name) & Q(project = None)) | Q(project = self)) & Q(build__isnull=True))
-
-        if layer_name is not None:
-            # we select only a layer name
-            queryset = queryset.filter(layer__name = layer_name)
-
-        # order by layer version priority
-        queryset = queryset.filter(Q(layer_source=None) | Q(layer_source__releaselayersourcepriority__release = release)).select_related('layer_source', 'layer', 'up_branch', "layer_source__releaselayersourcepriority__priority").order_by("-layer_source__releaselayersourcepriority__priority")
-
-        return queryset
 
     def get_all_compatible_layer_versions(self):
         """ Returns Queryset of all Layer_Versions which are compatible with
@@ -380,7 +418,7 @@ class Build(models.Model):
             return self.get_outcome_text()
 
     def __str__(self):
-        return "%d %s %s" % (self.id, self.project, ",".join([t.target for t in self.target_set.all()]))
+        return "%s %s %s" % (self.id, self.project, ",".join([t.target for t in self.target_set.all()]))
 
 
 # an Artifact is anything that results from a Build, and may be of interest to the user, and is not stored elsewhere
@@ -562,7 +600,7 @@ class Task(models.Model):
     sstate_text  = property(get_sstate_text)
 
     def __unicode__(self):
-        return "%d(%d) %s:%s" % (self.pk, self.build.pk, self.recipe.name, self.task_name)
+        return "%s(%s) %s:%s" % (self.pk, self.build.pk, self.recipe.name, self.task_name)
 
     class Meta:
         ordering = ('order', 'recipe' ,)
@@ -591,8 +629,8 @@ class Package(models.Model):
 class Package_DependencyManager(models.Manager):
     use_for_related_fields = True
 
-    def get_query_set(self):
-        return super(Package_DependencyManager, self).get_query_set().exclude(package_id = F('depends_on__id'))
+    def get_queryset(self):
+        return super(Package_DependencyManager, self).get_queryset().exclude(package_id = F('depends_on__id'))
 
 class Package_Dependency(models.Model):
     TYPE_RDEPENDS = 0
@@ -692,8 +730,8 @@ class Recipe(models.Model):
 class Recipe_DependencyManager(models.Manager):
     use_for_related_fields = True
 
-    def get_query_set(self):
-        return super(Recipe_DependencyManager, self).get_query_set().exclude(recipe_id = F('depends_on__id'))
+    def get_queryset(self):
+        return super(Recipe_DependencyManager, self).get_queryset().exclude(recipe_id = F('depends_on__id'))
 
 class Recipe_Dependency(models.Model):
     TYPE_DEPENDS = 0
@@ -1177,7 +1215,9 @@ class Layer_Version(models.Model):
         return self._handle_url_path(self.layer.vcs_web_tree_base_url, '')
 
     def get_equivalents_wpriority(self, project):
-        return project.compatible_layerversions(layer_name = self.layer.name)
+        layer_versions = project.get_all_compatible_layer_versions()
+        filtered = layer_versions.filter(layer__name = self.layer.name)
+        return filtered.order_by("-layer_source__releaselayersourcepriority__priority")
 
     def get_vcs_reference(self):
         if self.branch is not None and len(self.branch) > 0:
@@ -1211,7 +1251,7 @@ class Layer_Version(models.Model):
         return sorted(result, key=lambda x: x.layer.name)
 
     def __unicode__(self):
-        return "%d %s (VCS %s, Project %s)" % (self.pk, str(self.layer), self.get_vcs_reference(), self.build.project if self.build is not None else "No project")
+        return "%s %s (VCS %s, Project %s)" % (self.pk, str(self.layer), self.get_vcs_reference(), self.build.project if self.build is not None else "No project")
 
     class Meta:
         unique_together = ("layer_source", "up_id")

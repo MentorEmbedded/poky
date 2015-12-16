@@ -56,28 +56,10 @@ webserverStartAll()
     retval=0
     # you can always add a superuser later via
     # python bitbake/lib/toaster/manage.py python manage.py createsuperuser --username=<ME>
-    python $BBBASEDIR/lib/toaster/manage.py syncdb --noinput || retval=1
-
-    python $BBBASEDIR/lib/toaster/manage.py migrate orm || retval=2
+    python $BBBASEDIR/lib/toaster/manage.py migrate --noinput || retval=1
 
     if [ $retval -eq 1 ]; then
-        echo "Failed db sync, aborting system start" 1>&2
-        return $retval
-    fi
-
-    python $BBBASEDIR/lib/toaster/manage.py migrate orm || retval=1
-
-    if [ $retval -eq 1 ]; then
-        printf "\nError on orm migration, rolling back...\n"
-        python $BBBASEDIR/lib/toaster/manage.py migrate orm 0001_initial --fake
-        return $retval
-    fi
-
-    python $BBBASEDIR/lib/toaster/manage.py migrate bldcontrol || retval=1
-
-    if [ $retval -eq 1 ]; then
-        printf "\nError on bldcontrol migration, rolling back...\n"
-        python $BBBASEDIR/lib/toaster/manage.py migrate bldcontrol 0001_initial --fake
+        echo "Failed migrations, aborting system start" 1>&2
         return $retval
     fi
 
@@ -174,17 +156,18 @@ notify_chldexit() {
 
 
 verify_prereq() {
-    # Verify prerequisites
-
-    if ! echo "import django; print (1,) == django.VERSION[0:1] and django.VERSION[1:2][0] in (6,)" | python 2>/dev/null | grep True >/dev/null; then
-        printf "This program needs Django 1.6. Please install with\n\npip install django==1.6\n"
+    # Verify Django version
+    reqfile=$(python -c "import os; print os.path.realpath('$BBBASEDIR/toaster-requirements.txt')")
+    exp='s/Django\([><=]\+\)\([^,]\+\),\([><=]\+\)\(.\+\)/'
+    exp=$exp'import sys,django;version=django.get_version().split(".");'
+    exp=$exp'sys.exit(not (version \1 "\2".split(".") and version \3 "\4".split(".")))/p'
+    if ! sed -n "$exp" $reqfile | python - ; then
+        req=`grep ^Django $reqfile`
+        echo "This program needs $req"
+        echo "Please install with pip install -r $reqfile"
         return 2
     fi
 
-    if ! echo "import south; print reduce(lambda x, y: 2 if x==2 else 0 if x == 0 else y, map(lambda x: 1+cmp(x[1]-x[0],0), zip([0,8,4], map(int,south.__version__.split(\".\"))))) > 0" | python 2>/dev/null | grep True >/dev/null; then
-        printf "This program needs South 0.8.4. Please install with\n\npip install south==0.8.4\n"
-        return 2
-    fi
     return 0
 }
 
@@ -281,10 +264,7 @@ if [ "$1" = 'restart-bitbake' ] ; then
     return $rc
 fi
 
-if ! verify_prereq; then
-    echo "Error: Could not verify that the needed dependencies are installed. Please use virtualenv and pip to install dependencies listed in toaster-requirements.txt" 1>&2
-    return 1
-fi
+verify_prereq || return 1
 
 # We make sure we're running in the current shell and in a good environment
 if [ -z "$BUILDDIR" ] ||  ! which bitbake >/dev/null 2>&1 ; then

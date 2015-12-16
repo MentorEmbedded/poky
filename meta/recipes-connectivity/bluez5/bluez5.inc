@@ -18,6 +18,7 @@ PACKAGECONFIG[experimental] = "--enable-experimental,--disable-experimental,"
 
 SRC_URI = "\
     ${KERNELORG_MIRROR}/linux/bluetooth/bluez-${PV}.tar.xz \
+    file://core-profile-Fix-possible-crash-when-registering-pro.patch \
     file://init \
 "
 S = "${WORKDIR}/bluez-${PV}"
@@ -92,14 +93,6 @@ def get_noinst_tools_paths (d, bb, tools):
     return "\n".join(s)
 
 FILES_${PN}-noinst-tools = "${@get_noinst_tools_paths(d, bb, d.getVar('NOINST_TOOLS', True))}"
-
-FILES_${PN}-dbg += "\
-  ${libexecdir}/bluetooth/.debug \
-  ${libdir}/bluetooth/plugins/.debug \
-  ${libdir}/*/.debug \
-  */udev/.debug \
-  */*/udev/.debug \
-  "
 
 RDEPENDS_${PN}-testtools += "python python-dbus python-pygobject"
 
