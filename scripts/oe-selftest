@@ -31,11 +31,13 @@ import unittest
 import logging
 import argparse
 import subprocess
+import time as t
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + '/lib')
 import scriptpath
 scriptpath.add_bitbake_lib_path()
 scriptpath.add_oe_lib_path()
+import argparse_oe
 
 import oeqa.selftest
 import oeqa.utils.ftools as ftools
@@ -43,10 +45,14 @@ from oeqa.utils.commands import runCmd, get_bb_var, get_test_layer
 from oeqa.selftest.base import oeSelfTest
 
 def logger_create():
+    log_file = "oe-selftest-" + t.strftime("%Y-%m-%d_%H:%M:%S") + ".log"
+    if os.path.exists("oe-selftest.log"): os.remove("oe-selftest.log")
+    os.symlink(log_file, "oe-selftest.log")
+
     log = logging.getLogger("selftest")
     log.setLevel(logging.DEBUG)
 
-    fh = logging.FileHandler(filename='oe-selftest.log', mode='w')
+    fh = logging.FileHandler(filename=log_file, mode='w')
     fh.setLevel(logging.DEBUG)
 
     ch = logging.StreamHandler(sys.stdout)
@@ -65,7 +71,7 @@ log = logger_create()
 
 def get_args_parser():
     description = "Script that runs unit tests agains bitbake and other Yocto related tools. The goal is to validate tools functionality and metadata integrity. Refer to https://wiki.yoctoproject.org/wiki/Oe-selftest for more information."
-    parser = argparse.ArgumentParser(description=description)
+    parser = argparse_oe.ArgumentParser(description=description)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--run-tests', required=False, action='store', nargs='*', dest="run_tests", default=None, help='Select what tests to run (modules, classes or test methods). Format should be: <module>.<class>.<test_method>')
     group.add_argument('--run-all-tests', required=False, action="store_true", dest="run_all_tests", default=False, help='Run all (unhidden) tests')
