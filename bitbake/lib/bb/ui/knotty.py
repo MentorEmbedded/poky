@@ -171,7 +171,7 @@ class TerminalFilter(object):
                 signal.signal(signal.SIGWINCH, self.sigwinch_handle)
             except:
                 pass
-            self.columns = self.getTerminalColumns()
+            self.rows, self.columns = self.getTerminalColumns()
         except:
             self.cuu = None
         console.addFilter(InteractConsoleLogFilter(self, format))
@@ -533,10 +533,12 @@ def main(server, eventHandler, params, tf = TerminalFilter):
             main.shutdown = main.shutdown + 1
             pass
         except Exception as e:
-            sys.stderr.write(str(e))
+            import traceback
+            sys.stderr.write(traceback.format_exc())
             if not params.observe_only:
                 _, error = server.runCommand(["stateForceShutdown"])
             main.shutdown = 2
+            return_value = 1
     try:
         summary = ""
         if taskfailures:

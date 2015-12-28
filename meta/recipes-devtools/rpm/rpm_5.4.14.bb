@@ -102,6 +102,7 @@ SRC_URI = "http://www.rpm5.org/files/rpm/rpm-5.4/rpm-5.4.14-0.20131024.src.rpm;e
 	   file://configure.ac-check-for-both-gpg2-and-gpg.patch \
 	   file://0001-define-EM_AARCH64.patch \
 	   file://rpm-rpmfc.c-fix-for-N32-MIPS64.patch \
+	   file://rpm-lib-transaction.c-fix-file-conflicts-for-mips64-N32.patch \
 	  "
 
 # Uncomment the following line to enable platform score debugging
@@ -252,11 +253,6 @@ FILES_${PN} =  "${bindir}/rpm \
 		${bindir}/rpm.real \
 		${bindir}/rpmconstant.real \
 		${bindir}/rpm2cpio.real \
-		"
-
-FILES_${PN}-dbg += "${libdir}/rpm/.debug \
-		${libdir}/rpm/bin/.debug \
-		${libdir}/python*/site-packages/rpm/.debug/_* \
 		"
 
 FILES_${PN}-common = "${bindir}/rpm2cpio \
@@ -410,6 +406,9 @@ do_install_append() {
 	sed -i -e 's,%__perl_requires,#%%__perl_requires,' ${D}/${libdir}/rpm/macros ${D}/${libdir}/rpm/macros.d/*
 	sed -i -e 's,%_repackage_all_erasures[^_].*,%_repackage_all_erasures 0,' ${D}/${libdir}/rpm/macros
 	sed -i -e 's,^#%_openall_before_chroot.*,%_openall_before_chroot\t1,' ${D}/${libdir}/rpm/macros
+
+	# Enable MIPS64 N32 transactions.  (This is a no-op on non-MIPS targets.)
+	sed -i -e 's,%_transaction_color[^_].*,%_transaction_color 7,' ${D}/${libdir}/rpm/macros
 
 	# Enable Debian style arbitrary tags...
 	sed -i -e 's,%_arbitrary_tags[^_].*,%_arbitrary_tags %{_arbitrary_tags_debian},' ${D}/${libdir}/rpm/macros
