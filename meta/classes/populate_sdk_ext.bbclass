@@ -15,6 +15,9 @@ SDK_RDEPENDS_append_task-populate-sdk-ext = " ${SDK_TARGETS}"
 
 SDK_RELOCATE_AFTER_INSTALL_task-populate-sdk-ext = "0"
 
+SDK_EXT = ""
+SDK_EXT_task-populate-sdk-ext = "-ext"
+
 SDK_LOCAL_CONF_WHITELIST ?= ""
 SDK_LOCAL_CONF_BLACKLIST ?= "CONF_VERSION BB_NUMBER_THREADS PARALLEL_MAKE PRSERV_HOST"
 SDK_INHERIT_BLACKLIST ?= "buildhistory icecc"
@@ -149,13 +152,11 @@ python copy_buildsystem () {
         # Bypass the default connectivity check if any
         f.write('CONNECTIVITY_CHECK_URIS = ""\n\n')
 
-        # Another hack, but we want the native part of sstate to be kept the same
-        # regardless of the host distro
-        fixedlsbstring = 'SDK-Fixed'
-        f.write('NATIVELSBSTRING_forcevariable = "%s"\n\n' % fixedlsbstring)
-
         # Ensure locked sstate cache objects are re-used without error
         f.write('SIGGEN_LOCKEDSIGS_CHECK_LEVEL = "warn"\n\n')
+
+        # Hide the config information from bitbake output (since it's fixed within the SDK)
+        f.write('BUILDCFG_HEADER = ""\n')
 
         # If you define a sdk_extraconf() function then it can contain additional config
         extraconf = (d.getVar('sdk_extraconf', True) or '').strip()
@@ -180,6 +181,8 @@ python copy_buildsystem () {
 
     sstate_out = baseoutpath + '/sstate-cache'
     bb.utils.remove(sstate_out, True)
+    # uninative.bbclass sets NATIVELSBSTRING to 'universal'
+    fixedlsbstring = 'universal'
     oe.copy_buildsystem.create_locked_sstate_cache(lockedsigs_pruned,
                                                    d.getVar('SSTATE_DIR', True),
                                                    sstate_out, d,
@@ -219,7 +222,7 @@ SDK_PRE_INSTALL_COMMAND_task-populate-sdk-ext = "${sdk_ext_preinst}"
 sdk_ext_postinst() {
 	printf "\nExtracting buildtools...\n"
 	cd $target_sdk_dir
-	printf "buildtools\ny" | ./*buildtools-nativesdk-standalone* > /dev/null
+	printf "buildtools\ny" | ./*buildtools-nativesdk-standalone* > /dev/null || ( printf 'ERROR: buildtools installation failed\n' ; exit 1 )
 
 	# Make sure when the user sets up the environment, they also get
 	# the buildtools-tarball tools in their path.
