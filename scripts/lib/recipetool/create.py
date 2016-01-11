@@ -90,9 +90,9 @@ def determine_from_filename(srcfile):
     """Determine name and version from a filename"""
     part = ''
     if '.tar.' in srcfile:
-        namepart = srcfile.split('.tar.')[0]
+        namepart = srcfile.split('.tar.')[0].lower()
     else:
-        namepart = os.path.splitext(srcfile)[0]
+        namepart = os.path.splitext(srcfile)[0].lower()
     splitval = namepart.rsplit('_', 1)
     if len(splitval) == 1:
         splitval = namepart.rsplit('-', 1)
@@ -232,6 +232,8 @@ def create_recipe(args):
     lines_before.append('LIC_FILES_CHKSUM = "%s"' % ' \\\n                    '.join(lic_files_chksum))
     lines_before.append('')
 
+    classes = []
+
     # FIXME This is kind of a hack, we probably ought to be using bitbake to do this
     pn = None
     pv = None
@@ -249,6 +251,16 @@ def create_recipe(args):
 
     if args.name:
         pn = args.name
+        if args.name.endswith('-native'):
+            if args.also_native:
+                logger.error('--also-native cannot be specified for a recipe named *-native (*-native denotes a recipe that is already only for native) - either remove the -native suffix from the name or drop --also-native')
+                sys.exit(1)
+            classes.append('native')
+        elif args.name.startswith('nativesdk-'):
+            if args.also_native:
+                logger.error('--also-native cannot be specified for a recipe named nativesdk-* (nativesdk-* denotes a recipe that is already only for nativesdk)')
+                sys.exit(1)
+            classes.append('nativesdk')
 
     if pv and pv not in 'git svn hg'.split():
         realpv = pv
@@ -312,7 +324,6 @@ def create_recipe(args):
     handlers = [item[0] for item in handlers]
 
     # Apply the handlers
-    classes = []
     handled = []
 
     if args.binary:
@@ -387,6 +398,22 @@ def create_recipe(args):
             if realpv:
                 line = re.sub('"[^+]*\+', '"%s+' % realpv, line)
         lines_before.append(line)
+
+    if args.also_native:
+        lines = lines_after
+        lines_after = []
+        bbclassextend = None
+        for line in lines:
+            if line.startswith('BBCLASSEXTEND ='):
+                splitval = line.split('"')
+                if len(splitval) > 1:
+                    bbclassextend = splitval[1].split()
+                    if not 'native' in bbclassextend:
+                        bbclassextend.insert(0, 'native')
+                line = 'BBCLASSEXTEND = "%s"' % ' '.join(bbclassextend)
+            lines_after.append(line)
+        if not bbclassextend:
+            lines_after.append('BBCLASSEXTEND = "native"')
 
     outlines = []
     outlines.extend(lines_before)
@@ -586,5 +613,6 @@ def register_commands(subparsers):
     parser_create.add_argument('-N', '--name', help='Name to use within recipe (PN)')
     parser_create.add_argument('-V', '--version', help='Version to use within recipe (PV)')
     parser_create.add_argument('-b', '--binary', help='Treat the source tree as something that should be installed verbatim (no compilation, same directory structure)', action='store_true')
+    parser_create.add_argument('--also-native', help='Also add native variant (i.e. support building recipe for the build host as well as the target machine)', action='store_true')
     parser_create.set_defaults(func=create_recipe)
 

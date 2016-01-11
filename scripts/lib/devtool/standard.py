@@ -28,7 +28,7 @@ import scriptutils
 import errno
 import glob
 from collections import OrderedDict
-from devtool import exec_build_env_command, setup_tinfoil, check_workspace_recipe, use_external_build, setup_git_repo, recipe_to_append, DevtoolError
+from devtool import exec_build_env_command, setup_tinfoil, check_workspace_recipe, use_external_build, setup_git_repo, recipe_to_append, get_bbclassextend_targets, DevtoolError
 from devtool import parse_recipe
 
 logger = logging.getLogger('devtool')
@@ -139,6 +139,8 @@ def add(args, config, basepath, workspace):
         extracmdopts += ' -V %s' % args.version
     if args.binary:
         extracmdopts += ' -b'
+    if args.also_native:
+        extracmdopts += ' --also-native'
 
     tempdir = tempfile.mkdtemp(prefix='devtool')
     try:
@@ -1169,13 +1171,9 @@ def status(args, config, basepath, workspace):
     """Entry point for the devtool 'status' subcommand"""
     if workspace:
         for recipe, value in workspace.iteritems():
-            bbfile = os.path.basename(value['bbappend']).replace('.bbappend', '.bb').replace('%', '*')
-            recipefile = glob.glob(os.path.join(config.workspace_path,
-                                                'recipes',
-                                                recipe,
-                                                bbfile))
+            recipefile = value['recipefile']
             if recipefile:
-                recipestr = ' (%s)' % recipefile[0]
+                recipestr = ' (%s)' % recipefile
             else:
                 recipestr = ''
             print("%s: %s%s" % (recipe, value['srctree'], recipestr))
@@ -1196,21 +1194,33 @@ def reset(args, config, basepath, workspace):
         raise DevtoolError("Recipe must be specified, or specify -a/--all to "
                            "reset all recipes")
     if args.all:
-        recipes = workspace
+        recipes = workspace.keys()
     else:
         recipes = [args.recipename]
 
-    for pn in recipes:
-        if not args.no_clean:
-            logger.info('Cleaning sysroot for recipe %s...' % pn)
-            try:
-                exec_build_env_command(config.init_path, basepath, 'bitbake -c clean %s' % pn)
-            except bb.process.ExecutionError as e:
-                raise DevtoolError('Command \'%s\' failed, output:\n%s\nIf you '
-                                   'wish, you may specify -n/--no-clean to '
-                                   'skip running this command when resetting' %
-                                   (e.command, e.stdout))
+    if recipes and not args.no_clean:
+        if len(recipes) == 1:
+            logger.info('Cleaning sysroot for recipe %s...' % recipes[0])
+        else:
+            logger.info('Cleaning sysroot for recipes %s...' % ', '.join(recipes))
+        # If the recipe file itself was created in the workspace, and
+        # it uses BBCLASSEXTEND, then we need to also clean the other
+        # variants
+        targets = []
+        for recipe in recipes:
+            targets.append(recipe)
+            recipefile = workspace[recipe]['recipefile']
+            if recipefile:
+                targets.extend(get_bbclassextend_targets(recipefile, recipe))
+        try:
+            exec_build_env_command(config.init_path, basepath, 'bitbake -c clean %s' % ' '.join(targets))
+        except bb.process.ExecutionError as e:
+            raise DevtoolError('Command \'%s\' failed, output:\n%s\nIf you '
+                                'wish, you may specify -n/--no-clean to '
+                                'skip running this command when resetting' %
+                                (e.command, e.stdout))
 
+    for pn in recipes:
         _check_preserve(config, pn)
 
         preservepath = os.path.join(config.workspace_path, 'attic', pn)
@@ -1256,15 +1266,8 @@ def edit_recipe(args, config, basepath, workspace):
             tinfoil.shutdown()
     else:
         check_workspace_recipe(workspace, args.recipename)
-        bbappend = workspace[args.recipename]['bbappend']
-        bbfile = os.path.basename(bbappend).replace('.bbappend', '.bb').replace('%', '*')
-        recipefile = glob.glob(os.path.join(config.workspace_path,
-                                            'recipes',
-                                            args.recipename,
-                                            bbfile))
-        if recipefile:
-            recipefile = recipefile[0]
-        else:
+        recipefile = workspace[args.recipename]['recipefile']
+        if not recipefile:
             raise DevtoolError("Recipe file for %s is not under the workspace" %
                                args.recipename)
 
@@ -1304,6 +1307,7 @@ def register_commands(subparsers, context):
     parser_add.add_argument('--version', '-V', help='Version to use within recipe (PV)')
     parser_add.add_argument('--no-git', '-g', help='If fetching source, do not set up source tree as a git repository', action="store_true")
     parser_add.add_argument('--binary', '-b', help='Treat the source tree as something that should be installed verbatim (no compilation, same directory structure). Useful with binary packages e.g. RPMs.', action='store_true')
+    parser_add.add_argument('--also-native', help='Also add native variant (i.e. support building recipe for the build host as well as the target machine)', action='store_true')
     parser_add.set_defaults(func=add)
 
     parser_modify = subparsers.add_parser('modify', help='Modify the source for an existing recipe',
