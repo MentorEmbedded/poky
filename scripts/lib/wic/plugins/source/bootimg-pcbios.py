@@ -27,7 +27,7 @@
 import os
 
 from wic.utils.errors import ImageError
-from wic import kickstart, msger
+from wic import msger
 from wic.utils import runner
 from wic.utils.misc import get_custom_config
 from wic.pluginbase import SourcePlugin
@@ -78,24 +78,23 @@ class BootimgPcbiosPlugin(SourcePlugin):
         Called before do_prepare_partition(), creates syslinux config
         """
         hdddir = "%s/hdd/boot" % cr_workdir
-        rm_cmd = "rm -rf " + cr_workdir
-        exec_cmd(rm_cmd)
 
         install_cmd = "install -d %s" % hdddir
         exec_cmd(install_cmd)
 
-        configfile = kickstart.get_bootloader_file(creator.ks)
+        bootloader = creator.ks.bootloader
+
         custom_cfg = None
-        if configfile:
-            custom_cfg = get_custom_config(configfile)
+        if bootloader.configfile:
+            custom_cfg = get_custom_config(bootloader.configfile)
             if custom_cfg:
                 # Use a custom configuration for grub
                 syslinux_conf = custom_cfg
                 msger.debug("Using custom configuration file "
-                        "%s for syslinux.cfg" % configfile)
+                            "%s for syslinux.cfg" % bootloader.configfile)
             else:
                 msger.error("configfile is specified but failed to "
-                        "get it from %s." % configfile)
+                            "get it from %s." % bootloader.configfile)
 
         if not custom_cfg:
             # Create syslinux configuration using parameters from wks file
@@ -105,14 +104,9 @@ class BootimgPcbiosPlugin(SourcePlugin):
             else:
                 splashline = ""
 
-            options = creator.ks.handler.bootloader.appendLine
-
             syslinux_conf = ""
             syslinux_conf += "PROMPT 0\n"
-            timeout = kickstart.get_timeout(creator.ks)
-            if not timeout:
-                timeout = 0
-            syslinux_conf += "TIMEOUT " + str(timeout) + "\n"
+            syslinux_conf += "TIMEOUT " + str(bootloader.timeout) + "\n"
             syslinux_conf += "\n"
             syslinux_conf += "ALLOWOPTIONS 1\n"
             syslinux_conf += "SERIAL 0 115200\n"
@@ -126,7 +120,7 @@ class BootimgPcbiosPlugin(SourcePlugin):
             syslinux_conf += "KERNEL " + kernel + "\n"
 
             syslinux_conf += "APPEND label=boot root=%s %s\n" % \
-                                 (creator.rootdev, options)
+                             (creator.rootdev, bootloader.append)
 
         msger.debug("Writing syslinux config %s/hdd/boot/syslinux.cfg" \
                     % cr_workdir)
@@ -210,7 +204,7 @@ class BootimgPcbiosPlugin(SourcePlugin):
         out = exec_cmd(du_cmd)
         bootimg_size = out.split()[0]
 
-        part.set_size(bootimg_size)
-        part.set_source_file(bootimg)
+        part.size = int(out.split()[0])
+        part.source_file = bootimg
 
 

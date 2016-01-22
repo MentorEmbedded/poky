@@ -808,7 +808,7 @@ class RunQueueData:
                     invalidate_task(fn, st, True)
 
         # Create and print to the logs a virtual/xxxx -> PN (fn) table
-        virtmap = taskData.get_providermap()
+        virtmap = taskData.get_providermap(prefix="virtual/")
         virtpnmap = {}
         for v in virtmap:
             virtpnmap[v] = self.dataCache.pkg_fn[virtmap[v]]
@@ -1077,9 +1077,12 @@ class RunQueue:
             retval = self.rqexe.execute()
 
         if self.state is runQueueRunInit:
-            logger.info("Executing RunQueue Tasks")
-            self.rqexe = RunQueueExecuteTasks(self)
-            self.state = runQueueRunning
+            if self.cooker.configuration.setsceneonly:
+                self.state = runQueueComplete
+            else:
+                logger.info("Executing RunQueue Tasks")
+                self.rqexe = RunQueueExecuteTasks(self)
+                self.state = runQueueRunning
 
         if self.state is runQueueRunning:
             retval = self.rqexe.execute()
@@ -1398,7 +1401,7 @@ class RunQueueExecuteTasks(RunQueueExecute):
                 self.runq_buildable.append(1)
             else:
                 self.runq_buildable.append(0)
-            if len(self.rqdata.runq_revdeps[task]) > 0 and self.rqdata.runq_revdeps[task].issubset(self.rq.scenequeue_covered) and task not in self.rq.scenequeue_notcovered:
+            if len(self.rqdata.runq_revdeps[task]) > 0 and self.rqdata.runq_revdeps[task].issubset(self.rq.scenequeue_covered):
                 self.rq.scenequeue_covered.add(task)
 
         found = True
@@ -1409,7 +1412,7 @@ class RunQueueExecuteTasks(RunQueueExecute):
                     continue
                 logger.debug(1, 'Considering %s (%s): %s' % (task, self.rqdata.get_user_idstring(task), str(self.rqdata.runq_revdeps[task])))
 
-                if len(self.rqdata.runq_revdeps[task]) > 0 and self.rqdata.runq_revdeps[task].issubset(self.rq.scenequeue_covered) and task not in self.rq.scenequeue_notcovered:
+                if len(self.rqdata.runq_revdeps[task]) > 0 and self.rqdata.runq_revdeps[task].issubset(self.rq.scenequeue_covered):
                     found = True
                     self.rq.scenequeue_covered.add(task)
 
@@ -1718,6 +1721,7 @@ class RunQueueExecuteScenequeue(RunQueueExecute):
                 sq_revdeps_new[point] = set()
                 if point in self.rqdata.runq_setscene:
                     sq_revdeps_new[point] = tasks
+                    tasks = set()
                 for dep in self.rqdata.runq_depends[point]:
                     if point in sq_revdeps[dep]:
                         sq_revdeps[dep].remove(point)
@@ -2024,9 +2028,6 @@ class RunQueueExecuteScenequeue(RunQueueExecute):
         self.rq.scenequeue_covered = set()
         for task in oldcovered:
             self.rq.scenequeue_covered.add(self.rqdata.runq_setscene[task])
-        self.rq.scenequeue_notcovered = set()
-        for task in self.scenequeue_notcovered:
-            self.rq.scenequeue_notcovered.add(self.rqdata.runq_setscene[task])
 
         logger.debug(1, 'We can skip tasks %s', sorted(self.rq.scenequeue_covered))
 

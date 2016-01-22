@@ -9,10 +9,12 @@ LABELS_append = " ${SYSLINUX_LABELS} "
 
 ROOTFS ?= "${DEPLOY_DIR_IMAGE}/${IMAGE_LINK_NAME}.ext4"
 
-do_bootimg[depends] += "${INITRD_IMAGE}:do_rootfs"
-do_bootimg[depends] += "${PN}:do_rootfs"
+do_bootimg[depends] += "${INITRD_IMAGE}:do_image_complete"
+do_bootimg[depends] += "${PN}:do_image_ext4"
 
 inherit bootimg
 
 IMAGE_TYPEDEP_live = "ext4"
-IMAGE_TYPES_MASKED += "live"
+IMAGE_TYPEDEP_iso = "ext4"
+IMAGE_TYPEDEP_hddimg = "ext4"
+IMAGE_TYPES_MASKED += "live hddimg iso"

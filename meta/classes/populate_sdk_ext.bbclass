@@ -142,6 +142,8 @@ python copy_buildsystem () {
         for line in newlines:
             if line.strip() and not line.startswith('#'):
                 f.write(line)
+        # Write a newline just in case there's none at the end of the original
+        f.write('\n')
 
         f.write('INHERIT += "%s"\n\n' % 'uninative')
         f.write('CONF_VERSION = "%s"\n\n' % d.getVar('CONF_VERSION', False))
@@ -167,15 +169,25 @@ python copy_buildsystem () {
 
         f.write('require conf/locked-sigs.inc\n')
 
-    sigfile = d.getVar('WORKDIR', True) + '/locked-sigs.inc'
-    oe.copy_buildsystem.generate_locked_sigs(sigfile, d)
+    if os.path.exists(builddir + '/conf/auto.conf'):
+        with open(builddir + '/conf/auto.conf', 'r') as f:
+            oldlines = f.readlines()
+        (updated, newlines) = bb.utils.edit_metadata(oldlines, varlist, handle_var)
+        with open(baseoutpath + '/conf/auto.conf', 'w') as f:
+            f.write('# WARNING: this configuration has been automatically generated and in\n')
+            f.write('# most cases should not be edited. If you need more flexibility than\n')
+            f.write('# this configuration provides, it is strongly suggested that you set\n')
+            f.write('# up a proper instance of the full build system and use that instead.\n\n')
+            for line in newlines:
+                if line.strip() and not line.startswith('#'):
+                    f.write(line)
 
     # Filter the locked signatures file to just the sstate tasks we are interested in
-    allowed_tasks = ['do_populate_lic', 'do_populate_sysroot', 'do_packagedata', 'do_package_write_ipk', 'do_package_write_rpm', 'do_package_write_deb', 'do_package_qa', 'do_deploy']
     excluded_targets = d.getVar('SDK_TARGETS', True)
+    sigfile = d.getVar('WORKDIR', True) + '/locked-sigs.inc'
     lockedsigs_pruned = baseoutpath + '/conf/locked-sigs.inc'
-    oe.copy_buildsystem.prune_lockedsigs(allowed_tasks,
-                                         excluded_targets,
+    oe.copy_buildsystem.prune_lockedsigs([],
+                                         excluded_targets.split(),
                                          sigfile,
                                          lockedsigs_pruned)
 
@@ -187,6 +199,12 @@ python copy_buildsystem () {
                                                    d.getVar('SSTATE_DIR', True),
                                                    sstate_out, d,
                                                    fixedlsbstring)
+    # We don't need sstate do_package files
+    for root, dirs, files in os.walk(sstate_out):
+        for name in files:
+            if name.endswith("_package.tgz"):
+                f = os.path.join(root, name)
+                os.remove(f)
 }
 
 def extsdk_get_buildtools_filename(d):
@@ -204,7 +222,7 @@ install_tools() {
 
 	install ${SDK_DEPLOY}/${BUILD_ARCH}-nativesdk-libc.tar.bz2 ${SDK_OUTPUT}/${SDKPATH}
 
-	install -m 0755 ${COREBASE}/meta/files/ext-sdk-prepare.sh ${SDK_OUTPUT}/${SDKPATH}
+	install -m 0644 ${COREBASE}/meta/files/ext-sdk-prepare.py ${SDK_OUTPUT}/${SDKPATH}
 }
 
 # Since bitbake won't run as root it doesn't make sense to try and install
@@ -250,9 +268,8 @@ sdk_ext_postinst() {
 		# current working directory when first ran, nor will it set $1 when
 		# sourcing a script. That is why this has to look so ugly.
 		LOGFILE="$target_sdk_dir/preparing_build_system.log"
-		sh -c ". buildtools/environment-setup* > $LOGFILE && cd $target_sdk_dir/`dirname ${oe_init_build_env_path}` && set $target_sdk_dir && . $target_sdk_dir/${oe_init_build_env_path} $target_sdk_dir >> $LOGFILE && $target_sdk_dir/ext-sdk-prepare.sh $target_sdk_dir '${SDK_TARGETS}' >> $LOGFILE 2>&1" || { echo "ERROR: SDK preparation failed: see $LOGFILE"; echo "printf 'ERROR: this SDK was not fully installed and needs reinstalling\n'" >> $env_setup_script ; exit 1 ; }
+		sh -c ". buildtools/environment-setup* > $LOGFILE && cd $target_sdk_dir/`dirname ${oe_init_build_env_path}` && set $target_sdk_dir && . $target_sdk_dir/${oe_init_build_env_path} $target_sdk_dir >> $LOGFILE && python $target_sdk_dir/ext-sdk-prepare.py '${SDK_TARGETS}' >> $LOGFILE 2>&1" || { echo "ERROR: SDK preparation failed: see $LOGFILE"; echo "printf 'ERROR: this SDK was not fully installed and needs reinstalling\n'" >> $env_setup_script ; exit 1 ; }
 	fi
-	rm -f $target_sdk_dir/ext-sdk-prepare.sh
 	echo done
 }
 
@@ -269,6 +286,25 @@ fakeroot python do_populate_sdk_ext() {
     bb.build.exec_func("do_populate_sdk", d)
 }
 
+def get_ext_sdk_depends(d):
+    return d.getVarFlag('do_rootfs', 'depends', True) + ' ' + d.getVarFlag('do_build', 'depends', True)
+
+python do_sdk_depends() {
+    # We have to do this separately in its own task so we avoid recursing into
+    # dependencies we don't need to (e.g. buildtools-tarball) and bringing those
+    # into the SDK's sstate-cache
+    import oe.copy_buildsystem
+    sigfile = d.getVar('WORKDIR', True) + '/locked-sigs.inc'
+    oe.copy_buildsystem.generate_locked_sigs(sigfile, d)
+}
+addtask sdk_depends
+
+do_sdk_depends[dirs] = "${WORKDIR}"
+do_sdk_depends[depends] = "${@get_ext_sdk_depends(d)}"
+do_sdk_depends[recrdeptask] = "${@d.getVarFlag('do_populate_sdk', 'recrdeptask', False)}"
+do_sdk_depends[recrdeptask] += "do_populate_lic do_package_qa do_populate_sysroot do_deploy"
+do_sdk_depends[rdepends] = "${@get_sdk_ext_rdepends(d)}"
+
 def get_sdk_ext_rdepends(d):
     localdata = d.createCopy()
     localdata.appendVar('OVERRIDES', ':task-populate-sdk-ext')
@@ -276,17 +312,13 @@ def get_sdk_ext_rdepends(d):
     return localdata.getVarFlag('do_populate_sdk', 'rdepends', True)
 
 do_populate_sdk_ext[dirs] = "${@d.getVarFlag('do_populate_sdk', 'dirs', False)}"
-do_populate_sdk_ext[depends] += "${@d.getVarFlag('do_populate_sdk', 'depends', False)}"
-do_populate_sdk_ext[rdepends] = "${@get_sdk_ext_rdepends(d)}"
-do_populate_sdk_ext[recrdeptask] += "${@d.getVarFlag('do_populate_sdk', 'recrdeptask', False)}"
 
-
-do_populate_sdk_ext[depends] += "buildtools-tarball:do_populate_sdk uninative-tarball:do_populate_sdk"
+do_populate_sdk_ext[depends] = "${@d.getVarFlag('do_populate_sdk', 'depends', False)} \
+                                buildtools-tarball:do_populate_sdk uninative-tarball:do_populate_sdk"
 
 do_populate_sdk_ext[rdepends] += "${@' '.join([x + ':do_build' for x in d.getVar('SDK_TARGETS', True).split()])}"
-do_populate_sdk_ext[recrdeptask] += "do_populate_lic do_package_qa do_populate_sysroot do_deploy"
 
 # Make sure codes change in copy_buildsystem can result in rebuilt
 do_populate_sdk_ext[vardeps] += "copy_buildsystem"
 
-addtask populate_sdk_ext
+addtask populate_sdk_ext after do_sdk_depends

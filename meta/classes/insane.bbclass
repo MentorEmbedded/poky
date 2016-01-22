@@ -38,6 +38,7 @@ ERROR_QA ?= "dev-so debug-deps dev-deps debug-files arch pkgconfig la \
             perms dep-cmp pkgvarcheck perm-config perm-line perm-link \
             split-strip packages-list pkgv-undefined var-undefined \
             version-going-backwards expanded-d invalid-chars \
+            license-checksum \
             "
 FAKEROOT_QA = "host-user-contaminated"
 FAKEROOT_QA[doc] = "QA tests which need to run under fakeroot. If any \
@@ -631,6 +632,7 @@ def package_qa_check_symlink_to_sysroot(path, name, d, elf, messages):
             if target.startswith(tmpdir):
                 trimmed = path.replace(os.path.join (d.getVar("PKGDEST", True), name), "")
                 messages["symlink-to-sysroot"] = "Symlink %s in %s points to TMPDIR" % (trimmed, name)
+
 def package_qa_check_license(workdir, d):
     """
     Check for changes in the license files 
@@ -643,11 +645,11 @@ def package_qa_check_license(workdir, d):
     pn = d.getVar('PN', True)
 
     if lic == "CLOSED":
-        return True
+        return
 
     if not lic_files:
-        bb.error(pn + ": Recipe file does not have license file information (LIC_FILES_CHKSUM)")
-        return False
+        package_qa_handle_error("license-checksum", pn + ": Recipe file does not have license file information (LIC_FILES_CHKSUM)", d)
+        return
 
     srcdir = d.getVar('S', True)
 
@@ -655,10 +657,12 @@ def package_qa_check_license(workdir, d):
         try:
             (type, host, path, user, pswd, parm) = bb.fetch.decodeurl(url)
         except bb.fetch.MalformedUrl:
-            raise bb.build.FuncFailed( pn + ": LIC_FILES_CHKSUM contains an invalid URL: " + url)
+            package_qa_handle_error("license-checksum", pn + ": LIC_FILES_CHKSUM contains an invalid URL: " + url, d)
+            continue
         srclicfile = os.path.join(srcdir, path)
         if not os.path.isfile(srclicfile):
-            raise bb.build.FuncFailed( pn + ": LIC_FILES_CHKSUM points to an invalid file: " + srclicfile)
+            package_qa_handle_error("license-checksum", pn + ": LIC_FILES_CHKSUM points to an invalid file: " + srclicfile, d)
+            continue
 
         recipemd5 = parm.get('md5', '')
         beginline, endline = 0, 0
@@ -693,8 +697,8 @@ def package_qa_check_license(workdir, d):
             bb.note (pn + ": md5 checksum matched for ", url)
         else:
             if recipemd5:
-                bb.error(pn + ": md5 data is not matching for ", url)
-                bb.error(pn + ": The new md5 checksum is ", md5chksum)
+                msg = pn + ": The LIC_FILES_CHKSUM does not match for " + url
+                msg = msg + "\n" + pn + ": The new md5 checksum is " + md5chksum
                 if beginline:
                     if endline:
                         srcfiledesc = "%s (lines %d through to %d)" % (srclicfile, beginline, endline)
@@ -704,13 +708,12 @@ def package_qa_check_license(workdir, d):
                     srcfiledesc = "%s (ending on line %d)" % (srclicfile, endline)
                 else:
                     srcfiledesc = srclicfile
-                bb.error(pn + ": Check if the license information has changed in %s to verify that the LICENSE value \"%s\" remains valid" % (srcfiledesc, lic))
-            else:
-                bb.error(pn + ": md5 checksum is not specified for ", url)
-                bb.error(pn + ": The md5 checksum is ", md5chksum)
-            sane = False
+                msg = msg + "\n" + pn + ": Check if the license information has changed in %s to verify that the LICENSE value \"%s\" remains valid" % (srcfiledesc, lic)
 
-    return sane
+            else:
+                msg = pn + ": LIC_FILES_CHKSUM is not specified for " +  url
+                msg = msg + "\n" + pn + ": The md5 checksum is " + md5chksum
+            package_qa_handle_error("license-checksum", msg, d)
 
 def package_qa_check_staged(path,d):
     """
@@ -779,15 +782,12 @@ def package_qa_walk(path, warnfuncs, errorfuncs, skip, package, d):
     for e in errors:
         package_qa_handle_error(e, errors[e], d)
 
-    return len(errors) == 0
-
 def package_qa_check_rdepends(pkg, pkgdest, skip, taskdeps, packages, d):
     # Don't do this check for kernel/module recipes, there aren't too many debug/development
     # packages and you can get false positives e.g. on kernel-module-lirc-dev
     if bb.data.inherits_class("kernel", d) or bb.data.inherits_class("module-base", d):
-        return True
+        return
 
-    sane = True
     if not "-dbg" in pkg and not "packagegroup-" in pkg and not "-image" in pkg:
         localdata = bb.data.createCopy(d)
         localdata.setVar('OVERRIDES', pkg)
@@ -801,10 +801,10 @@ def package_qa_check_rdepends(pkg, pkgdest, skip, taskdeps, packages, d):
             for rdepend in rdepends:
                 if "-dbg" in rdepend and "debug-deps" not in skip:
                     error_msg = "%s rdepends on %s" % (pkg,rdepend)
-                    sane = package_qa_handle_error("debug-deps", error_msg, d)
+                    package_qa_handle_error("debug-deps", error_msg, d)
                 if (not "-dev" in pkg and not "-staticdev" in pkg) and rdepend.endswith("-dev") and "dev-deps" not in skip:
                     error_msg = "%s rdepends on %s" % (pkg, rdepend)
-                    sane = package_qa_handle_error("dev-deps", error_msg, d)
+                    package_qa_handle_error("dev-deps", error_msg, d)
                 if rdepend not in packages:
                     rdep_data = oe.packagedata.read_subpkgdata(rdepend, d)
                     if rdep_data and 'PN' in rdep_data and rdep_data['PN'] in taskdeps:
@@ -822,7 +822,7 @@ def package_qa_check_rdepends(pkg, pkgdest, skip, taskdeps, packages, d):
                     if rdep_data and 'PN' in rdep_data and rdep_data['PN'] in taskdeps:
                         continue
                     error_msg = "%s rdepends on %s, but it isn't a build dependency?" % (pkg, rdepend)
-                    sane = package_qa_handle_error("build-deps", error_msg, d)
+                    package_qa_handle_error("build-deps", error_msg, d)
 
         if "file-rdeps" not in skip:
             ignored_file_rdeps = set(['/bin/sh', '/usr/bin/env', 'rtld(GNU_HASH)'])
@@ -889,19 +889,15 @@ def package_qa_check_rdepends(pkg, pkgdest, skip, taskdeps, packages, d):
                 for key in filerdepends:
                     error_msg = "%s contained in package %s requires %s, but no providers found in its RDEPENDS" % \
                             (filerdepends[key],pkg, key)
-                sane = package_qa_handle_error("file-rdeps", error_msg, d)
-
-    return sane
+                package_qa_handle_error("file-rdeps", error_msg, d)
 
 def package_qa_check_deps(pkg, pkgdest, skip, d):
-    sane = True
 
     localdata = bb.data.createCopy(d)
     localdata.setVar('OVERRIDES', pkg)
     bb.data.update_data(localdata)
 
     def check_valid_deps(var):
-        sane = True
         try:
             rvar = bb.utils.explode_dep_versions2(localdata.getVar(var, True) or "")
         except ValueError as e:
@@ -910,24 +906,14 @@ def package_qa_check_deps(pkg, pkgdest, skip, d):
             for v in rvar[dep]:
                 if v and not v.startswith(('< ', '= ', '> ', '<= ', '>=')):
                     error_msg = "%s_%s is invalid: %s (%s)   only comparisons <, =, >, <=, and >= are allowed" % (var, pkg, dep, v)
-                    sane = package_qa_handle_error("dep-cmp", error_msg, d)
-        return sane
+                    package_qa_handle_error("dep-cmp", error_msg, d)
 
-    sane = True
-    if not check_valid_deps('RDEPENDS'):
-        sane = False
-    if not check_valid_deps('RRECOMMENDS'):
-        sane = False
-    if not check_valid_deps('RSUGGESTS'):
-        sane = False
-    if not check_valid_deps('RPROVIDES'):
-        sane = False
-    if not check_valid_deps('RREPLACES'):
-        sane = False
-    if not check_valid_deps('RCONFLICTS'):
-        sane = False
-
-    return sane
+    check_valid_deps('RDEPENDS')
+    check_valid_deps('RRECOMMENDS')
+    check_valid_deps('RSUGGESTS')
+    check_valid_deps('RPROVIDES')
+    check_valid_deps('RREPLACES')
+    check_valid_deps('RCONFLICTS')
 
 QAPATHTEST[expanded-d] = "package_qa_check_expanded_d"
 def package_qa_check_expanded_d(path,name,d,elf,messages):
@@ -1072,9 +1058,6 @@ python do_package_qa () {
         taskdeps.add(taskdepdata[dep][0])
 
     g = globals()
-    walk_sane = True
-    rdepends_sane = True
-    deps_sane = True
     for package in packages:
         skip = (d.getVar('INSANE_SKIP_' + package, True) or "").split()
         if skip:
@@ -1099,19 +1082,16 @@ python do_package_qa () {
                     "%s doesn't match the [a-z0-9.+-]+ regex" % package, d)
 
         path = "%s/%s" % (pkgdest, package)
-        if not package_qa_walk(path, warnchecks, errorchecks, skip, package, d):
-            walk_sane  = False
-        if not package_qa_check_rdepends(package, pkgdest, skip, taskdeps, packages, d):
-            rdepends_sane = False
-        if not package_qa_check_deps(package, pkgdest, skip, d):
-            deps_sane = False
+        package_qa_walk(path, warnchecks, errorchecks, skip, package, d)
 
+        package_qa_check_rdepends(package, pkgdest, skip, taskdeps, packages, d)
+        package_qa_check_deps(package, pkgdest, skip, d)
 
     if 'libdir' in d.getVar("ALL_QA", True).split():
         package_qa_check_libdir(d)
 
     qa_sane = d.getVar("QA_SANE", True)
-    if not walk_sane or not rdepends_sane or not deps_sane or not qa_sane:
+    if not qa_sane:
         bb.fatal("QA run found fatal errors. Please consider fixing them.")
     bb.note("DONE with PACKAGE QA")
 }
@@ -1183,8 +1163,7 @@ Missing inherit gettext?""" % (gt, config))
     # Check license variables
     ###########################################################################
 
-    if not package_qa_check_license(workdir, d):
-        bb.fatal("Licensing Error: LIC_FILES_CHKSUM does not match, please fix")
+    package_qa_check_license(workdir, d)
 
     ###########################################################################
     # Check unrecognised configure options (with a white list)
@@ -1216,6 +1195,10 @@ Missing inherit gettext?""" % (gt, config))
                 pn = d.getVar('PN', True)
                 error_msg = "%s: invalid PACKAGECONFIG: %s" % (pn, pconfig)
                 package_qa_handle_error("invalid-packageconfig", error_msg, d)
+
+    qa_sane = d.getVar("QA_SANE", True)
+    if not qa_sane:
+        bb.fatal("Fatal QA errors found, failing task.")
 }
 
 python do_qa_unpack() {
@@ -1285,4 +1268,7 @@ python () {
         d.setVarFlag('do_package_qa', 'rdeptask', '')
     for i in issues:
         package_qa_handle_error("pkgvarcheck", "%s: Variable %s is set as not being package specific, please fix this." % (d.getVar("FILE", True), i), d)
+    qa_sane = d.getVar("QA_SANE", True)
+    if not qa_sane:
+        bb.fatal("Fatal QA errors found, failing task.")
 }
