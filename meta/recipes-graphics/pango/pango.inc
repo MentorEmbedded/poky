@@ -9,21 +9,14 @@ BUGTRACKER = "http://bugzilla.gnome.org"
 SECTION = "libs"
 LICENSE = "LGPLv2.0+"
 
-X11DEPENDS = "virtual/libx11 libxft"
-DEPENDS = "glib-2.0 fontconfig freetype zlib virtual/libiconv cairo harfbuzz qemu-native"
+DEPENDS = "glib-2.0 glib-2.0-native fontconfig freetype virtual/libiconv cairo harfbuzz"
 
 PACKAGECONFIG ??= "${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'x11', '', d)}"
-PACKAGECONFIG[x11] = "--with-xft,--without-xft,${X11DEPENDS}"
+PACKAGECONFIG[x11] = "--with-xft,--without-xft,virtual/libx11 libxft"
 
-BBCLASSEXTEND = "native"
-DEPENDS_class-native = "glib-2.0-native cairo-native harfbuzz-native"
-
-inherit gnomebase gtk-doc qemu ptest-gnome upstream-version-is-even
+inherit gnomebase gtk-doc ptest-gnome upstream-version-is-even
 
 EXTRA_AUTORECONF = ""
-
-# seems to go wrong with default cflags
-FULL_OPTIMIZATION_arm = "-O2"
 
 EXTRA_OECONF = "--disable-introspection \
 	        --disable-debug \
@@ -33,7 +26,7 @@ LEAD_SONAME = "libpango-1.0*"
 LIBV = "1.8.0"
 
 # This binary needs to be compiled for the host architecture.  This isn't pretty!
-do_compile_prepend () {
+do_compile_prepend_class-target () {
 	if ${@base_contains('DISTRO_FEATURES', 'ptest', 'true', 'false', d)}; then
 		make CC="${BUILD_CC}" CFLAGS="" AM_CPPFLAGS="$(pkg-config-native --cflags glib-2.0)" gen_all_unicode_LDADD="$(pkg-config-native --libs glib-2.0)" -C ${B}/tests gen-all-unicode
 	fi
@@ -46,3 +39,5 @@ RDEPENDS_${PN}-ptest += "liberation-fonts"
 
 RPROVIDES_${PN} += "pango-modules pango-module-indic-lang \
                     pango-module-basic-fc pango-module-arabic-lang"
+
+BBCLASSEXTEND = "native"

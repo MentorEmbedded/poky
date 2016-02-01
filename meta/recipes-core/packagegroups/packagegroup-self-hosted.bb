@@ -67,7 +67,6 @@ RDEPENDS_packagegroup-self-hosted-sdk = "\
     cpp \
     cpp-symlinks \
     distcc \
-    glibc-gconv-ibm850 \
     file \
     findutils \
     g++ \
@@ -93,6 +92,7 @@ RDEPENDS_packagegroup-self-hosted-sdk = "\
     "
 # glibc-utils: for rpcgen
 RDEPENDS_packagegroup-self-hosted-sdk_append_libc-glibc = "\
+    glibc-gconv-ibm850 \
     glibc-utils \
     "
 RDEPENDS_packagegroup-self-hosted-debug = " \
@@ -150,7 +150,6 @@ RDEPENDS_packagegroup-self-hosted-extended = "\
     perl-dev \
     perl-modules \
     perl-pod \
-    ${PTH} \
     python \
     python-compiler \
     python-git \
@@ -198,5 +197,3 @@ RDEPENDS_packagegroup-self-hosted-graphics = "\
     pcmanfm \
     vte \
     "
-PTH = "pth"
-PTH_libc-uclibc = ""

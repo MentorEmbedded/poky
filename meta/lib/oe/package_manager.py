@@ -9,6 +9,7 @@ import bb
 import tempfile
 import oe.utils
 import string
+from oe.gpg_sign import get_signer
 
 # this can be used by all PM backends to create the index files in parallel
 def create_index(arg):
@@ -109,16 +110,14 @@ class RpmIndexer(Indexer):
 
         rpm_createrepo = bb.utils.which(os.getenv('PATH'), "createrepo")
         if self.d.getVar('PACKAGE_FEED_SIGN', True) == '1':
-            pkgfeed_gpg_name = self.d.getVar('PACKAGE_FEED_GPG_NAME', True)
-            pkgfeed_gpg_pass = self.d.getVar('PACKAGE_FEED_GPG_PASSPHRASE_FILE', True)
+            signer = get_signer(self.d,
+                                self.d.getVar('PACKAGE_FEED_GPG_BACKEND', True),
+                                self.d.getVar('PACKAGE_FEED_GPG_NAME', True),
+                                self.d.getVar('PACKAGE_FEED_GPG_PASSPHRASE_FILE', True))
         else:
-            pkgfeed_gpg_name = None
-            pkgfeed_gpg_pass = None
-        gpg_bin = self.d.getVar('GPG_BIN', True) or \
-                  bb.utils.which(os.getenv('PATH'), "gpg")
-
+            signer = None
         index_cmds = []
-        repo_sign_cmds = []
+        repomd_files = []
         rpm_dirs_found = False
         for arch in archs:
             dbpath = os.path.join(self.d.getVar('WORKDIR', True), 'rpmdb', arch)
@@ -130,15 +129,7 @@ class RpmIndexer(Indexer):
 
             index_cmds.append("%s --dbpath %s --update -q %s" % \
                              (rpm_createrepo, dbpath, arch_dir))
-            if pkgfeed_gpg_name:
-                repomd_file = os.path.join(arch_dir, 'repodata', 'repomd.xml')
-                gpg_cmd = "%s --detach-sign --armor --batch --no-tty --yes " \
-                          "--passphrase-file '%s' -u '%s' " % \
-                          (gpg_bin, pkgfeed_gpg_pass, pkgfeed_gpg_name)
-                if self.d.getVar('GPG_PATH', True):
-                    gpg_cmd += "--homedir %s " % self.d.getVar('GPG_PATH', True)
-                gpg_cmd += repomd_file
-                repo_sign_cmds.append(gpg_cmd)
+            repomd_files.append(os.path.join(arch_dir, 'repodata', 'repomd.xml'))
 
             rpm_dirs_found = True
 
@@ -151,9 +142,9 @@ class RpmIndexer(Indexer):
         if result:
             bb.fatal('%s' % ('\n'.join(result)))
         # Sign repomd
-        result = oe.utils.multiprocess_exec(repo_sign_cmds, create_index)
-        if result:
-            bb.fatal('%s' % ('\n'.join(result)))
+        if signer:
+            for repomd in repomd_files:
+                signer.detach_sign(repomd)
         # Copy pubkey(s) to repo
         distro_version = self.d.getVar('DISTRO_VERSION', True) or "oe.0"
         if self.d.getVar('RPM_SIGN_PACKAGES', True) == '1':
@@ -308,6 +299,7 @@ class PkgsList(object):
         output = dict()
         filename = ""
         dep = []
+        pkg = ""
         for line in cmd_output.splitlines():
             line = line.rstrip()
             if ':' in line:
@@ -1440,10 +1432,11 @@ class OpkgPM(PackageManager):
         if not os.path.exists(self.d.expand('${T}/saved')):
             bb.utils.mkdirhier(self.d.expand('${T}/saved'))
 
-        if (self.d.getVar('BUILD_IMAGES_FROM_FEEDS', True) or "") != "1":
-            self._create_config()
-        else:
+        self.from_feeds = (self.d.getVar('BUILD_IMAGES_FROM_FEEDS', True) or "") == "1"
+        if self.from_feeds:
             self._create_custom_config()
+        else:
+            self._create_config()
 
         self.indexer = OpkgIndexer(self.d, self.deploy_dir)
 
@@ -1645,6 +1638,10 @@ class OpkgPM(PackageManager):
         bb.utils.remove(self.opkg_dir, True)
         # create the directory back, it's needed by PM lock
         bb.utils.mkdirhier(self.opkg_dir)
+
+    def remove_lists(self):
+        if not self.from_feeds:
+            bb.utils.remove(os.path.join(self.opkg_dir, "lists"), True)
 
     def list_installed(self):
         return OpkgPkgsList(self.d, self.target_rootfs, self.config_file).list_pkgs()

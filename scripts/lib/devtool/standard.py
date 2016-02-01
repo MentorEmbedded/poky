@@ -141,6 +141,8 @@ def add(args, config, basepath, workspace):
         extracmdopts += ' -b'
     if args.also_native:
         extracmdopts += ' --also-native'
+    if args.src_subdir:
+        extracmdopts += ' --src-subdir "%s"' % args.src_subdir
 
     tempdir = tempfile.mkdtemp(prefix='devtool')
     try:
@@ -188,6 +190,9 @@ def add(args, config, basepath, workspace):
             shutil.move(recipes[0], recipefile)
         else:
             raise DevtoolError('Command \'%s\' did not create any recipe file:\n%s' % (e.command, e.stdout))
+        attic_recipe = os.path.join(config.workspace_path, 'attic', os.path.basename(recipefile))
+        if os.path.exists(attic_recipe):
+            logger.warn('A modified recipe from a previous invocation exists in %s - you may wish to move this over the top of the new recipe if you had changes in it that you want to continue with' % attic_recipe)
     finally:
         if tmpsrcdir and os.path.exists(tmpsrcdir):
             shutil.rmtree(tmpsrcdir)
@@ -207,6 +212,9 @@ def add(args, config, basepath, workspace):
     rd = oe.recipeutils.parse_recipe(recipefile, None, tinfoil.config_data)
     if not rd:
         return 1
+
+    if args.src_subdir:
+        srctree = os.path.join(srctree, args.src_subdir)
 
     bb.utils.mkdirhier(os.path.dirname(appendfile))
     with open(appendfile, 'w') as f:
@@ -378,7 +386,10 @@ class BbTaskExecutor(object):
                 logger.info('Executing %s...' % func)
             fn = self.rdata.getVar('FILE', True)
             localdata = bb.build._task_data(fn, func, self.rdata)
-            bb.build.exec_func(func, localdata)
+            try:
+                bb.build.exec_func(func, localdata)
+            except bb.build.FuncFailed as e:
+                raise DevtoolError(str(e))
             self.executed.append(func)
 
 
@@ -548,7 +559,7 @@ def _extract_source(srctree, keep_temp, devbranch, sync, d):
             # Store generate and store kernel config
             logger.info('Generating kernel config')
             task_executor.exec_func('do_configure', False)
-            kconfig = os.path.join(d.getVar('B', True), '.config')
+            kconfig = os.path.join(crd.getVar('B', True), '.config')
             shutil.copy2(kconfig, srcsubdir)
 
 
@@ -1253,36 +1264,6 @@ def reset(args, config, basepath, workspace):
     return 0
 
 
-def edit_recipe(args, config, basepath, workspace):
-    """Entry point for the devtool 'edit-recipe' subcommand"""
-    if args.any_recipe:
-        tinfoil = setup_tinfoil(config_only=False, basepath=basepath)
-        try:
-            rd = parse_recipe(config, tinfoil, args.recipename, True)
-            if not rd:
-                return 1
-            recipefile = rd.getVar('FILE', True)
-        finally:
-            tinfoil.shutdown()
-    else:
-        check_workspace_recipe(workspace, args.recipename)
-        recipefile = workspace[args.recipename]['recipefile']
-        if not recipefile:
-            raise DevtoolError("Recipe file for %s is not under the workspace" %
-                               args.recipename)
-
-    editor = os.environ.get('EDITOR', None)
-    if not editor:
-        raise DevtoolError("EDITOR environment variable not set")
-
-    import subprocess
-    try:
-        subprocess.check_call('%s "%s"' % (editor, recipefile), shell=True)
-    except subprocess.CalledProcessError as e:
-        return e.returncode
-
-    return 0
-
 def get_default_srctree(config, recipename=''):
     """Get the default srctree path"""
     srctreeparent = config.get('General', 'default_source_parent_dir', config.workspace_path)
@@ -1308,6 +1289,7 @@ def register_commands(subparsers, context):
     parser_add.add_argument('--no-git', '-g', help='If fetching source, do not set up source tree as a git repository', action="store_true")
     parser_add.add_argument('--binary', '-b', help='Treat the source tree as something that should be installed verbatim (no compilation, same directory structure). Useful with binary packages e.g. RPMs.', action='store_true')
     parser_add.add_argument('--also-native', help='Also add native variant (i.e. support building recipe for the build host as well as the target machine)', action='store_true')
+    parser_add.add_argument('--src-subdir', help='Specify subdirectory within source tree to use', metavar='SUBDIR')
     parser_add.set_defaults(func=add)
 
     parser_modify = subparsers.add_parser('modify', help='Modify the source for an existing recipe',
@@ -1359,9 +1341,3 @@ def register_commands(subparsers, context):
     parser_reset.add_argument('--all', '-a', action="store_true", help='Reset all recipes (clear workspace)')
     parser_reset.add_argument('--no-clean', '-n', action="store_true", help='Don\'t clean the sysroot to remove recipe output')
     parser_reset.set_defaults(func=reset)
-
-    parser_edit_recipe = subparsers.add_parser('edit-recipe', help='Edit a recipe file in your workspace',
-                                         description='Runs the default editor (as specified by the EDITOR variable) on the specified recipe. Note that the recipe file itself must be in the workspace (i.e. as a result of "devtool add" or "devtool upgrade"); you can override this with the -a/--any-recipe option.')
-    parser_edit_recipe.add_argument('recipename', help='Recipe to edit')
-    parser_edit_recipe.add_argument('--any-recipe', '-a', action="store_true", help='Edit any recipe, not just where the recipe file itself is in the workspace')
-    parser_edit_recipe.set_defaults(func=edit_recipe)

@@ -260,6 +260,14 @@ def supports_srcrev(uri):
             return True
     return False
 
+def reformat_git_uri(uri):
+    '''Convert any http[s]://....git URI into git://...;protocol=http[s]'''
+    res = re.match('(https?)://([^;]+\.git)(;.*)?$', uri)
+    if res:
+        # Need to switch the URI around so that the git fetcher is used
+        return 'git://%s;protocol=%s%s' % (res.group(2), res.group(1), res.group(3) or '')
+    return uri
+
 def create_recipe(args):
     import bb.process
     import tempfile
@@ -275,16 +283,11 @@ def create_recipe(args):
     srcrev = '${AUTOREV}'
     if '://' in args.source:
         # Fetch a URL
-        fetchuri = urlparse.urldefrag(args.source)[0]
+        fetchuri = reformat_git_uri(urlparse.urldefrag(args.source)[0])
         if args.binary:
             # Assume the archive contains the directory structure verbatim
             # so we need to extract to a subdirectory
             fetchuri += ';subdir=%s' % os.path.splitext(os.path.basename(urlparse.urlsplit(fetchuri).path))[0]
-        git_re = re.compile('(https?)://([^;]+\.git)(;.*)?$')
-        res = git_re.match(fetchuri)
-        if res:
-            # Need to switch the URI around so that the git fetcher is used
-            fetchuri = 'git://%s;protocol=%s%s' % (res.group(2), res.group(1), res.group(3) or '')
         srcuri = fetchuri
         rev_re = re.compile(';rev=([^;]+)')
         res = rev_re.search(srcuri)
@@ -296,8 +299,8 @@ def create_recipe(args):
         logger.info('Fetching %s...' % srcuri)
         try:
             checksums = scriptutils.fetch_uri(tinfoil.config_data, fetchuri, srctree, srcrev)
-        except bb.fetch2.FetchError:
-            # Error already printed
+        except bb.fetch2.BBFetchException as e:
+            logger.error(str(e).rstrip())
             sys.exit(1)
         dirlist = os.listdir(srctree)
         if 'git.indirectionsymlink' in dirlist:
@@ -321,8 +324,27 @@ def create_recipe(args):
         if not os.path.isdir(args.source):
             logger.error('Invalid source directory %s' % args.source)
             sys.exit(1)
-        srcuri = ''
         srctree = args.source
+        srcuri = ''
+        if os.path.exists(os.path.join(srctree, '.git')):
+            # Try to get upstream repo location from origin remote
+            try:
+                stdout, _ = bb.process.run('git remote -v', cwd=srctree, shell=True)
+            except bb.process.ExecutionError as e:
+                stdout = None
+            if stdout:
+                for line in stdout.splitlines():
+                    splitline = line.split()
+                    if len(splitline) > 1:
+                        if splitline[0] == 'origin' and '://' in splitline[1]:
+                            srcuri = reformat_git_uri(splitline[1])
+                            break
+
+    if args.src_subdir:
+        srcsubdir = os.path.join(srcsubdir, args.src_subdir)
+        srctree_use = os.path.join(srctree, args.src_subdir)
+    else:
+        srctree_use = srctree
 
     if args.outfile and os.path.isdir(args.outfile):
         outfile = None
@@ -343,7 +365,7 @@ def create_recipe(args):
     lines_before.append('# (Feel free to remove these comments when editing.)')
     lines_before.append('#')
 
-    licvalues = guess_license(srctree)
+    licvalues = guess_license(srctree_use)
     lic_files_chksum = []
     if licvalues:
         licenses = []
@@ -410,7 +432,7 @@ def create_recipe(args):
     if srcuri and not realpv or not pn:
         parseres = urlparse.urlparse(srcuri)
         if parseres.path:
-            srcfile = os.path.basename(parseres.path)
+            srcfile = os.path.basename(parseres.path.rstrip('/'))
             name_pn, name_pv = determine_from_filename(srcfile)
             logger.debug('Determined from filename: name = "%s", version = "%s"' % (name_pn, name_pv))
             if name_pn and not pn:
@@ -472,7 +494,7 @@ def create_recipe(args):
 
     extravalues = {}
     for handler in handlers:
-        handler.process(srctree, classes, lines_before, lines_after, handled, extravalues)
+        handler.process(srctree_use, classes, lines_before, lines_after, handled, extravalues)
 
     if not realpv:
         realpv = extravalues.get('PV', None)
@@ -759,5 +781,6 @@ def register_commands(subparsers):
     parser_create.add_argument('-V', '--version', help='Version to use within recipe (PV)')
     parser_create.add_argument('-b', '--binary', help='Treat the source tree as something that should be installed verbatim (no compilation, same directory structure)', action='store_true')
     parser_create.add_argument('--also-native', help='Also add native variant (i.e. support building recipe for the build host as well as the target machine)', action='store_true')
+    parser_create.add_argument('--src-subdir', help='Specify subdirectory within source tree to use', metavar='SUBDIR')
     parser_create.set_defaults(func=create_recipe)
 

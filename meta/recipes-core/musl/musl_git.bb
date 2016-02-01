@@ -3,13 +3,14 @@
 
 require musl.inc
 
-SRCREV = "3abb094d19ca4c7c4adcf373d971fb5aa05c5252"
+SRCREV = "369b22f9c4aebba2b8fe905db8469b2667572ee1"
 
 PV = "1.1.12+git${SRCPV}"
 
 # mirror is at git://github.com/kraj/musl.git
 
 SRC_URI = "git://git.musl-libc.org/musl \
+           file://0001-Make-dynamic-linker-a-relative-symlink-to-libc.patch \
           "
 
 S = "${WORKDIR}/git"
@@ -19,6 +20,7 @@ PROVIDES += "virtual/libc virtual/${TARGET_PREFIX}libc-for-gcc virtual/libiconv 
 DEPENDS = "virtual/${TARGET_PREFIX}binutils \
            virtual/${TARGET_PREFIX}gcc-initial \
            libgcc-initial \
+           bsd-headers \
           "
 
 export CROSS_COMPILE="${TARGET_PREFIX}"
@@ -48,10 +50,10 @@ do_install() {
 	oe_runmake install DESTDIR='${D}'
 
 	install -d ${D}${bindir}
-	ln -s ${libdir}/libc.so ${D}${bindir}/ldd
+	ln -s ../../${libdir}/libc.so ${D}${bindir}/ldd
 }
 
-RDEPENDS_${PN}-dev = "linux-libc-headers-dev"
+RDEPENDS_${PN}-dev += "linux-libc-headers-dev bsd-headers-dev"
 RPROVIDES_${PN}-dev += "libc-dev virtual-libc-dev"
 RPROVIDES_${PN} += "ldd libsegfault rtld(GNU_HASH)"
 

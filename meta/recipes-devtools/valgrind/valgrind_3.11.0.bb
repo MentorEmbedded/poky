@@ -15,13 +15,14 @@ DEPENDS = "${@bb.utils.contains('DISTRO_FEATURES', 'x11', '${X11DEPENDS}', '', d
 SRC_URI = "http://www.valgrind.org/downloads/valgrind-${PV}.tar.bz2 \
            file://fixed-perl-path.patch \
            file://Added-support-for-PPC-instructions-mfatbu-mfatbl.patch \
-           file://remove-arm-variant-specific.patch \
            file://run-ptest \
            file://11_mips-link-tool.patch \
            file://0002-remove-rpath.patch \
            file://0004-Fix-out-of-tree-builds.patch \
            file://0005-Modify-vg_test-wrapper-to-support-PTEST-formats.patch \
            file://0001-Remove-tests-that-fail-to-build-on-some-PPC32-config.patch \
+           file://use-appropriate-march-mcpu-mfpu-for-ARM-test-apps.patch \
+           file://avoid-neon-for-targets-which-don-t-support-it.patch \
            "
 
 SRC_URI[md5sum] = "4ea62074da73ae82e0162d6550d3f129"
@@ -44,6 +45,11 @@ EXTRA_OECONF_append_arm = " --host=armv7${HOST_VENDOR}-${HOST_OS}"
 
 EXTRA_OEMAKE = "-w"
 
+# valgrind likes to control its own optimisation flags. It generally defaults
+# to -O2 but uses -O0 for some specific test apps etc. Passing our own flags
+# (via CFLAGS) means we interfere with that.
+SELECTED_OPTIMIZATION = ""
+
 CFLAGS_append_libc-uclibc = " -D__UCLIBC__ "
 
 do_install_append () {
@@ -63,9 +69,8 @@ RDEPENDS_${PN}-ptest += " sed perl glibc-utils perl-module-file-glob"
 INSANE_SKIP_${PN}-ptest += "file-rdeps"
 
 do_compile_ptest() {
-    oe_runmake check CFLAGS="${CFLAGS} -O0" CXXFLAGS="${CXXFLAGS} -O0"
+    oe_runmake check
 }
-
 
 do_install_ptest() {
     chmod +x ${B}/tests/vg_regtest
@@ -107,4 +112,3 @@ do_install_ptest() {
     # handle multilib
     sed -i s:@libdir@:${libdir}:g ${D}${PTEST_PATH}/run-ptest
 }
-
