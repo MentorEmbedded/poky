@@ -174,7 +174,7 @@ class IsoImagePlugin(SourcePlugin):
             else:
                 msger.error("Couldn't find or build initrd, exiting.\n")
 
-            exec_cmd("cd %s && find . | cpio -o -H newc >%s/initrd.cpio " \
+            exec_cmd("find %s | cpio -o -H newc >%s/initrd.cpio " \
                     % (initrd_dir, cr_workdir), as_shell=True)
             exec_cmd("gzip -f -9 -c %s/initrd.cpio > %s" \
                     % (cr_workdir, initrd), as_shell=True)
@@ -208,10 +208,13 @@ class IsoImagePlugin(SourcePlugin):
         if not os.path.exists("%s/syslinux" % syslinux_dir):
             msger.info("Building syslinux...\n")
             exec_cmd("bitbake syslinux")
-            msger.info("Building syslinux-native...\n")
-            exec_cmd("bitbake syslinux-native")
         if not os.path.exists("%s/syslinux" % syslinux_dir):
             msger.error("Please build syslinux first\n")
+
+        # Make sure syslinux is available in native sysroot
+        if not os.path.exists("%s/usr/bin/syslinux" % native_sysroot):
+            msger.info("Building syslinux-native...\n")
+            exec_cmd("bitbake syslinux-native")
 
         #Make sure mkisofs is available in native sysroot
         if not os.path.isfile("%s/usr/bin/mkisofs" % native_sysroot):

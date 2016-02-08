@@ -76,7 +76,10 @@ SRC_URI = "\
            file://0044-Adding-mmusl-as-a-musl-libc-specifier-and-the-necess.patch \
            file://0045-Support-for-arm-linux-musl.patch \
            file://0046-Get-rid-of-ever-broken-fixincludes-on-musl.patch \
-	   file://0047-Fix-nios2-musl-build.patch \
+           file://0047-nios2-Define-MUSL_DYNAMIC_LINKER.patch \
+           file://0048-ssp_nonshared.patch \
+           file://0049-Disable-the-weak-reference-logic-in-gthr.h-for-os-ge.patch \
+           file://0050-powerpc-pass-secure-plt-to-the-linker.patch \
           "
 
 BACKPORTS = ""
@@ -122,6 +125,7 @@ EXTRA_OECONF_INITIAL = "\
 "
 
 EXTRA_OECONF_append_libc-uclibc = " --disable-decimal-float "
+EXTRA_OECONF_append_libc-musl = " gcc_cv_libc_provides_ssp=yes gcc_cv_target_dl_iterate_phdr=yes "
 
 EXTRA_OECONF_PATHS = "\
     --with-gxx-include-dir=/not/exist{target_includedir}/c++/${BINV} \

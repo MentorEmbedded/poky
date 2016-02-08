@@ -22,7 +22,6 @@ ${DISTRO_SRC_URI} \
 
 SRC_URI += "\
             file://03-fix-tkinter-detection.patch \
-            file://04-default-is-optimized.patch \
             file://avoid_warning_about_tkinter.patch \
             file://cgi_py.patch \
             file://host_include_contamination.patch \
@@ -211,6 +210,7 @@ FILES_${PN}-pyvenv += "${bindir}/pyvenv-${PYTHON_MAJMIN} ${bindir}/pyvenv"
 PACKAGES =+ "libpython3 libpython3-staticdev"
 FILES_libpython3 = "${libdir}/libpython*.so.*"
 FILES_libpython3-staticdev += "${libdir}/python${PYTHON_MAJMIN}/config-${PYTHON_BINABI}/libpython${PYTHON_BINABI}.a"
+INSANE_SKIP_${PN}-dev += "dev-elf"
 
 # catch all the rest (unsorted)
 PACKAGES += "${PN}-misc"

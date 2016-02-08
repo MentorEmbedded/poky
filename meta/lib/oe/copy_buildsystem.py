@@ -18,6 +18,7 @@ class BuildSystem(object):
         self.d = d
         self.context = context
         self.layerdirs = d.getVar('BBLAYERS', True).split()
+        self.layers_exclude = (d.getVar('SDK_LAYERS_EXCLUDE', True) or "").split()
 
     def copy_bitbake_and_layers(self, destdir):
         # Copy in all metadata layers + bitbake (as repositories)
@@ -27,6 +28,11 @@ class BuildSystem(object):
 
         corebase = self.d.getVar('COREBASE', True)
         layers.append(corebase)
+
+        # Exclude layers
+        for layer_exclude in self.layers_exclude:
+            if layer_exclude in layers:
+                layers.remove(layer_exclude)
 
         corebase_files = self.d.getVar('COREBASE_FILES', True).split()
         corebase_files = [corebase + '/' +x for x in corebase_files]
@@ -154,4 +160,11 @@ def create_locked_sstate_cache(lockedsigs, input_sstate_cache, output_sstate_cac
     if fixedlsbstring:
         nativedir = output_sstate_cache + '/' + nativelsbstring
         if os.path.isdir(nativedir):
-            os.rename(nativedir, output_sstate_cache + '/' + fixedlsbstring)
+            destdir = os.path.join(output_sstate_cache, fixedlsbstring)
+            bb.utils.mkdirhier(destdir)
+
+            dirlist = os.listdir(nativedir)
+            for i in dirlist:
+                src = os.path.join(nativedir, i)
+                dest = os.path.join(destdir, i)
+                os.rename(src, dest)
