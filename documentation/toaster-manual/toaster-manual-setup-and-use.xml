@@ -17,29 +17,9 @@
         </para>
 
         <para>
-            If you want to configure and start your builds using the
-            Toaster web interface
-            (i.e. "<link linkend='toaster-build-mode'>Build Mode</link>"),
-            navigate to the root of your
+            Navigate to the root of your
             <ulink url='&YOCTO_DOCS_DEV_URL;#source-directory'>Source Directory</ulink>
             (e.g. <filename>poky</filename>):
-            <literallayout class='monospaced'>
-     $ cd poky
-            </literallayout>
-            Next, start Toaster:
-            <literallayout class='monospaced'>
-     $ bitbake/bin/toaster
-            </literallayout>
-            Open your favourite browser and enter the following:
-            <literallayout class='monospaced'>
-     http://127.0.0.1:8000
-            </literallayout>
-            If you would rather configure and start your builds
-            using the command line
-            (i.e. <link linkend='toaster-analysis-mode'>Analysis Mode</link>),
-            you can get Toaster to "listen"
-            to your builds and collect information about them.
-            To do that, navigate to the root of your Source Directory:
             <literallayout class='monospaced'>
      $ cd poky
             </literallayout>
@@ -74,12 +54,7 @@
             By default, Toaster starts on port 8000.
             You can use the <filename>WEBPORT</filename> parameter to
             set a different port.
-            For example, either of the following commands sets the
-            port to "8400":
-            <literallayout class='monospaced'>
-     $ bitbake/bin/toaster webport=8400
-            </literallayout>
-            or
+            For example, the following command sets the port to "8400":
             <literallayout class='monospaced'>
      $ source ../bitbake/bin/toaster webport=8400
             </literallayout>
@@ -90,18 +65,10 @@
         <title>The Directory for Cloning Layers</title>
 
         <para>
-            If you are running Toaster in
-            <link linkend='toaster-build-mode'>Build Mode</link>,
             Toaster creates a <filename>_toaster_clones</filename>
             directory inside your Source Directory
-            (i.e. <filename>poky</filename>).
-            For example, suppose you use this command to start Toaster:
-            <literallayout class='monospaced'>
-     poky/bitbake/bin/toaster
-            </literallayout>
-            In this example, Toaster creates and uses the
-            <filename>poky/_toaster_clones</filename>
-            directory to clone any layers needed for your builds.
+            (i.e. <filename>poky</filename>) to clone any layers
+            needed for your builds.
         </para>
 
         <para>
@@ -119,17 +86,9 @@
         <title>The Build Directory</title>
 
         <para>
-            If you are running Toaster in
-            <link linkend='toaster-build-mode'>Build Mode</link>,
             Toaster creates a build directory within your Source
-            Directory (e.g. <filename>poky</filename>).
-            For example, suppose you use this command to start Toaster:
-            <literallayout class='monospaced'>
-     poky/bitbake/bin/toaster
-            </literallayout>
-            In this example, Toaster creates and uses the
-            <filename>poky/build</filename>
-            directory to execute the builds.
+            Directory (e.g. <filename>poky</filename>) to execute
+            the builds.
         </para>
 
         <para>
@@ -138,7 +97,7 @@
             the <filename>TOASTER_DIR</filename> environment variable,
             which takes precedence over your current working directory.
             Setting this environment variable causes Toaster to use
-            <filename>$TOASTER_DIR./build</filename> as the build directory.
+            <filename>$TOASTER_DIR/build</filename> as the build directory.
         </para>
     </section>
 
@@ -219,10 +178,7 @@
             The production instance is also the setup that can cope with
             heavier loads on the web service.
             Use the instructions in the following sections to set up
-            Toaster in
-            <link linkend='toaster-build-mode'>Build Mode</link>
-            where builds and projects are run,
-            viewed, and defined through the Toaster web interface.
+            Toaster to run builds through the Toaster web interface.
         </para>
 
         <section id='toaster-production-instance-requirements'>
@@ -320,6 +276,7 @@
              'PASSWORD': 'yourpasswordhere',
              'HOST': 'localhost',
              'PORT': '3306',
+        }
      }
                                 </literallayout>
                                 </para></listitem>
@@ -335,13 +292,6 @@
      STATIC_ROOT = '/var/www/toaster/static_files/'
                                 </literallayout>
                                 </para></listitem>
-                            <listitem><para>
-                                Enable Build Mode by adding the following
-                                line to <filename>settings.py</filename>:
-                                <literallayout class='monospaced'>
-     BUILD_MODE=True
-                                </literallayout>
-                                </para></listitem>
                         </itemizedlist>
                         </para></listitem>
                     <listitem><para>
@@ -349,7 +299,7 @@
                         server defined earlier:
                         <literallayout class='monospaced'>
      $ mysql -u root -p
-     mysql> CREATE DATABASE toaster;
+     mysql> CREATE DATABASE toaster_data;
      mysql> CREATE USER 'toaster'@'localhost' identified by 'yourpasswordhere';
      mysql> GRANT all on toaster_data.* to 'toaster'@'localhost';
      mysql> quit
@@ -360,9 +310,9 @@
                         default data, and gather the statically-served files:
                         <literallayout class='monospaced'>
      $ cd  /var/www/toaster/poky/
-     $ ./bitbake/lib/toaster/manage.py syncdb --migrate
-     $ ./bitbake/lib/toaster/manage.py loadconf ./meta-yocto/conf/toasterconf.json
-     $ ./bitbake/lib/toaster/manage.py lsupdates
+     $ ./bitbake/lib/toaster/manage.py syncdb
+     $ ./bitbake/lib/toaster/manage.py migrate
+     $ TOASTER_DIR=`pwd` TOASTER_CONF=./meta-yocto/conf/toasterconf.json ./bitbake/lib/toaster/manage.py checksettings
      $ ./bitbake/lib/toaster/manage.py collectstatic
                         </literallayout>
                         </para>
@@ -370,33 +320,41 @@
                         <para>
                             For the above set of commands, after moving to the
                             <filename>poky</filename> directory,
-                            the <filename>syncdb</filename> command with the
-                            <filename>migrate</filename> option makes sure the database
+                            the <filename>syncdb</filename> and <filename>migrate</filename>
+                            commands ensure the database
                             schema has had changes propagated correctly (i.e.
                             migrations).
-                            See the
-                            <ulink url='https://south.readthedocs.org/en/latest/commands.html#syncdb'><filename>syncdb</filename></ulink>
-                            command for more information.
                         </para>
 
                         <para>
-                            The
-                            <link linkend='toaster-command-loadconf'><filename>loadconf</filename></link>
-                            command loads the
-                            <filename>./meta-yocto/conf/toasterconf.json</filename>
-                            JSON file.
+                            The next line sets the Toaster root directory
+                            <filename>TOASTER_DIR</filename> and the location of
+                            the Toaster configuration file
+                            <filename>TOASTER_CONF</filename>, which is
+                            relative to the Toaster root directory
+                            <filename>TOASTER_DIR</filename>.
+                            For more information on the Toaster configuration file
+                            <filename>TOASTER_CONF</filename>, see the
+                            <link linkend='toaster-json-files'>JSON Files</link>
+                            section of this manual.
                         </para>
 
                         <para>
-                            The <filename>lsupdates</filename> command fetches
-                            information about machines, recipes and
-                            layers available as part of OpenEmbedded.
-                            The information is fetched from the
-                            <ulink url='http://layers.openembedded.org/'>OpenEmbedded Metadata Index</ulink>.
-                            This information provides easy access to metadata
-                            from Toaster, and it is key for Toaster's usability.
-                            It is not recommended that you use Toaster without
-                            fetching this information."
+                            This line also runs the <filename>checksettings</filename>
+                            command, which configures the location of the Toaster
+                            <ulink url='&YOCTO_DOCS_DEV_URL;#build-directory'>Build directory</ulink>.
+                            The Toaster root directory <filename>TOASTER_DIR</filename>
+                            determines where the Toaster build directory
+                            is created on the file system.
+                            In the example above,
+                            <filename>TOASTER_DIR</filename> is set as follows:
+                            <literallayout class="monospaced">
+     /var/www/toaster/poky
+                            </literallayout>
+                            This setting causes the Toaster build directory to be:
+                            <literallayout class="monospaced">
+     /var/www/toaster/poky/build
+                            </literallayout>
                         </para>
 
                         <para>
@@ -404,8 +362,6 @@
                             is a Django framework command that collects all the
                             statically served files into a designated directory to
                             be served up by the Apache web server.
-                            For more information on this Django command, see
-                            <ulink url='https://docs.djangoproject.com/en/1.7/ref/contrib/staticfiles/'></ulink>.
                         </para></listitem>
                     <listitem><para>
                         Add an Apache configuration file for Toaster to your Apache web
@@ -440,6 +396,7 @@
                         <literallayout class='monospaced'>
      $ sudo a2enmod wsgi
      $ sudo a2enconf toaster
+     $ chmod +x bitbake/lib/toaster/toastermain/wsgi.py
                         </literallayout>
                         Finally, restart Apache to make sure all new configuration
                         is loaded.

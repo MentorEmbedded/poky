@@ -574,10 +574,10 @@ def verify_checksum(ud, d, precomputed={}):
     else:
         sha256data = bb.utils.sha256_file(ud.localpath)
 
-    if ud.method.recommends_checksum(ud):
+    if ud.method.recommends_checksum(ud) and not ud.md5_expected and not ud.sha256_expected:
         # If strict checking enabled and neither sum defined, raise error
         strict = d.getVar("BB_STRICT_CHECKSUM", True) or "0"
-        if (strict == "1") and not (ud.md5_expected or ud.sha256_expected):
+        if strict == "1":
             logger.error('No checksum specified for %s, please add at least one to the recipe:\n'
                              'SRC_URI[%s] = "%s"\nSRC_URI[%s] = "%s"' %
                              (ud.localpath, ud.md5_name, md5data,
@@ -585,34 +585,22 @@ def verify_checksum(ud, d, precomputed={}):
             raise NoChecksumError('Missing SRC_URI checksum', ud.url)
 
         # Log missing sums so user can more easily add them
-        if not ud.md5_expected:
-            logger.warn('Missing md5 SRC_URI checksum for %s, consider adding to the recipe:\n'
-                        'SRC_URI[%s] = "%s"',
-                        ud.localpath, ud.md5_name, md5data)
-
-        if not ud.sha256_expected:
-            logger.warn('Missing sha256 SRC_URI checksum for %s, consider adding to the recipe:\n'
-                        'SRC_URI[%s] = "%s"',
-                        ud.localpath, ud.sha256_name, sha256data)
-
-    md5mismatch = False
-    sha256mismatch = False
-
-    if ud.md5_expected != md5data:
-        md5mismatch = True
-
-    if ud.sha256_expected != sha256data:
-        sha256mismatch = True
+        logger.warn('Missing md5 SRC_URI checksum for %s, consider adding to the recipe:\n'
+                    'SRC_URI[%s] = "%s"',
+                    ud.localpath, ud.md5_name, md5data)
+        logger.warn('Missing sha256 SRC_URI checksum for %s, consider adding to the recipe:\n'
+                    'SRC_URI[%s] = "%s"',
+                    ud.localpath, ud.sha256_name, sha256data)
 
     # We want to alert the user if a checksum is defined in the recipe but
     # it does not match.
     msg = ""
     mismatch = False
-    if md5mismatch and ud.md5_expected:
+    if ud.md5_expected and ud.md5_expected != md5data:
         msg = msg + "\nFile: '%s' has %s checksum %s when %s was expected" % (ud.localpath, 'md5', md5data, ud.md5_expected)
         mismatch = True;
 
-    if sha256mismatch and ud.sha256_expected:
+    if ud.sha256_expected and ud.sha256_expected != sha256data:
         msg = msg + "\nFile: '%s' has %s checksum %s when %s was expected" % (ud.localpath, 'sha256', sha256data, ud.sha256_expected)
         mismatch = True;
 
@@ -1017,7 +1005,7 @@ def trusted_network(d, url):
         return True
 
     pkgname = d.expand(d.getVar('PN', False))
-    trusted_hosts = d.getVarFlag('BB_ALLOWED_NETWORKS', pkgname)
+    trusted_hosts = d.getVarFlag('BB_ALLOWED_NETWORKS', pkgname, False)
 
     if not trusted_hosts:
         trusted_hosts = d.getVar('BB_ALLOWED_NETWORKS', True)
@@ -1200,13 +1188,13 @@ class FetchData(object):
         elif self.type not in ["http", "https", "ftp", "ftps", "sftp"]:
             self.md5_expected = None
         else:
-            self.md5_expected = d.getVarFlag("SRC_URI", self.md5_name)
+            self.md5_expected = d.getVarFlag("SRC_URI", self.md5_name, False)
         if self.sha256_name in self.parm:
             self.sha256_expected = self.parm[self.sha256_name]
         elif self.type not in ["http", "https", "ftp", "ftps", "sftp"]:
             self.sha256_expected = None
         else:
-            self.sha256_expected = d.getVarFlag("SRC_URI", self.sha256_name)
+            self.sha256_expected = d.getVarFlag("SRC_URI", self.sha256_name, False)
         self.ignore_checksums = False
 
         self.names = self.parm.get("name",'default').split(',')

@@ -1,4 +1,4 @@
-# BBMASK is a regular expression that can be used to tell BitBake to ignore
+# BBMASK contains regular expressions that can be used to tell BitBake to ignore
 # certain recipes.
 #BBMASK = ""
 
@@ -57,7 +57,7 @@
 
 # The following are used to control options related to debugging.
 #
-# Uncomment this to change the optimization to make debugging easer, at the 
+# Uncomment this to change the optimization to make debugging easer, at the
 # possible cost of performance.
 # DEBUG_BUILD = "1"
 #
@@ -131,9 +131,9 @@
 # build both the 32-bit and 64-bit wrapper libraries on a 64-bit build system.
 #
 # Pseudo will attempt to determine if a 32-bit wrapper is necessary, but
-# it doesn't always guess properly.  If you have 32-bit executables on 
-# your 64-bit build system, you likely want to set this to "0", 
-# otherwise you could end up with incorrect file attributes on the 
+# it doesn't always guess properly.  If you have 32-bit executables on
+# your 64-bit build system, you likely want to set this to "0",
+# otherwise you could end up with incorrect file attributes on the
 # target filesystem.
 #
 # Default is to not build 32 bit libs on 64 bit systems, uncomment this
@@ -191,8 +191,7 @@
 #                           commercial_lame \
 #                           commercial_libmad \
 #                           commercial_libomxil \
-#                           commercial_mpeg2dec \
-#                           commercial_qmmp"
+#                           commercial_mpeg2dec"
 
 
 #
@@ -271,7 +270,7 @@
 
 #
 # GCC/LD FLAGS to enable more secure code generation
-# 
+#
 # By including the security_flags include file you enable flags
 # to the compiler and linker that cause them to generate more secure
 # code, this is enabled by default in the poky-lsb distro.
@@ -376,8 +375,26 @@
 #
 # Currently the rootfs_rpm code has a hard depends on rpmresolve:do_populate_sysroot,
 # when using rpm4 the rpmresolve code will not compile due to a missing header file.
-# That dependency needs to be removed when using RPM4, also the PREFRRED_VERSION needs
+# That dependency needs to be removed when using RPM4, also the PREFERRED_VERSION needs
 # to be set. This example shows how to enable rpm4
 # PREFERRED_VERSION_rpm = "4.11.2"
 # PREFERRED_VERSION_rpm-native = "4.11.2"
 # RPMROOTFSDEPENDS_remove = "rpmresolve-native:do_populate_sysroot"
+
+#
+# Use busybox/mdev for system initialization
+#
+#VIRTUAL-RUNTIME_dev_manager = "busybox-mdev"
+#VIRTUAL-RUNTIME_login_manager = "busybox"
+#VIRTUAL-RUNTIME_init_manager = "busybox"
+#VIRTUAL-RUNTIME_initscripts = "initscripts"
+#VIRTUAL-RUNTIME_keymaps = "keymaps"
+#DISTRO_FEATURES_BACKFILL_CONSIDERED += "sysvinit"
+
+#
+# Use systemd for system initialization
+#
+#DISTRO_FEATURES_append = " systemd"
+#DISTRO_FEATURES_BACKFILL_CONSIDERED += "sysvinit"
+#VIRTUAL-RUNTIME_init_manager = "systemd"
+#VIRTUAL-RUNTIME_initscripts = "systemd-compat-units"

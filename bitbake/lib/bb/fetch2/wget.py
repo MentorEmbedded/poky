@@ -37,6 +37,7 @@ from   bb.fetch2 import FetchMethod
 from   bb.fetch2 import FetchError
 from   bb.fetch2 import logger
 from   bb.fetch2 import runfetchcmd
+from   bb.utils import export_proxies
 from   bs4 import BeautifulSoup
 from   bs4 import SoupStrainer
 
@@ -219,54 +220,64 @@ class Wget(FetchMethod):
 
                 return resp
 
-        def export_proxies(d):
-            variables = ['http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY',
-                            'ftp_proxy', 'FTP_PROXY', 'no_proxy', 'NO_PROXY']
-            exported = False
+        class HTTPMethodFallback(urllib2.BaseHandler):
+            """
+            Fallback to GET if HEAD is not allowed (405 HTTP error)
+            """
+            def http_error_405(self, req, fp, code, msg, headers):
+                fp.read()
+                fp.close()
 
-            for v in variables:
-                if v in os.environ.keys():
-                    exported = True
-                else:
-                    v_proxy = d.getVar(v, True)
-                    if v_proxy is not None:
-                        os.environ[v] = v_proxy
-                        exported = True
+                newheaders = dict((k,v) for k,v in req.headers.items()
+                                  if k.lower() not in ("content-length", "content-type"))
+                return self.parent.open(urllib2.Request(req.get_full_url(),
+                                                        headers=newheaders,
+                                                        origin_req_host=req.get_origin_req_host(),
+                                                        unverifiable=True))
 
-            return exported
+            """
+            Some servers (e.g. GitHub archives, hosted on Amazon S3) return 403
+            Forbidden when they actually mean 405 Method Not Allowed.
+            """
+            http_error_403 = http_error_405
 
-        def head_method(self):
-            return "HEAD"
+            """
+            Some servers (e.g. FusionForge) returns 406 Not Acceptable when they
+            actually mean 405 Method Not Allowed.
+            """
+            http_error_406 = http_error_405
 
+        class FixedHTTPRedirectHandler(urllib2.HTTPRedirectHandler):
+            """
+            urllib2.HTTPRedirectHandler resets the method to GET on redirect,
+            when we want to follow redirects using the original method.
+            """
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                newreq = urllib2.HTTPRedirectHandler.redirect_request(self, req, fp, code, msg, headers, newurl)
+                newreq.get_method = lambda: req.get_method()
+                return newreq
         exported_proxies = export_proxies(d)
 
+        handlers = [FixedHTTPRedirectHandler, HTTPMethodFallback]
+        if export_proxies:
+            handlers.append(urllib2.ProxyHandler())
+        handlers.append(CacheHTTPHandler())
         # XXX: Since Python 2.7.9 ssl cert validation is enabled by default
         # see PEP-0476, this causes verification errors on some https servers
         # so disable by default.
         import ssl
-        ssl_context = None
         if hasattr(ssl, '_create_unverified_context'):
-            ssl_context = ssl._create_unverified_context()
-
-        if exported_proxies == True and ssl_context is not None:
-            opener = urllib2.build_opener(urllib2.ProxyHandler, CacheHTTPHandler,
-                    urllib2.HTTPSHandler(context=ssl_context))
-        elif exported_proxies == False and ssl_context is not None:
-            opener = urllib2.build_opener(CacheHTTPHandler,
-                    urllib2.HTTPSHandler(context=ssl_context))
-        elif exported_proxies == True and ssl_context is None:
-            opener = urllib2.build_opener(urllib2.ProxyHandler, CacheHTTPHandler)
-        else:
-            opener = urllib2.build_opener(CacheHTTPHandler)
-
-        urllib2.Request.get_method = head_method
-        urllib2.install_opener(opener)
-
-        uri = ud.url.split(";")[0]
+            handlers.append(urllib2.HTTPSHandler(context=ssl._create_unverified_context()))
+        opener = urllib2.build_opener(*handlers)
 
         try:
-            urllib2.urlopen(uri)
-        except:
+            uri = ud.url.split(";")[0]
+            r = urllib2.Request(uri)
+            r.get_method = lambda: "HEAD"
+            opener.open(r)
+        except urllib2.URLError as e:
+            # debug for now to avoid spamming the logs in e.g. remote sstate searches
+            logger.debug(2, "checkstatus() urlopen failed: %s" % e)
             return False
         return True
 

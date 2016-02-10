@@ -21,6 +21,7 @@ import argparse
 import glob
 import fnmatch
 import re
+import json
 import logging
 import scriptutils
 import urlparse
@@ -39,7 +40,78 @@ def tinfoil_init(instance):
     global tinfoil
     tinfoil = instance
 
-class RecipeHandler():
+class RecipeHandler(object):
+    recipelibmap = {}
+    recipeheadermap = {}
+
+    @staticmethod
+    def load_libmap(d):
+        '''Load library->recipe mapping'''
+        import oe.package
+
+        if RecipeHandler.recipelibmap:
+            return
+        # First build up library->package mapping
+        shlib_providers = oe.package.read_shlib_providers(d)
+        libdir = d.getVar('libdir', True)
+        base_libdir = d.getVar('base_libdir', True)
+        libpaths = list(set([base_libdir, libdir]))
+        libname_re = re.compile('^lib(.+)\.so.*$')
+        pkglibmap = {}
+        for lib, item in shlib_providers.iteritems():
+            for path, pkg in item.iteritems():
+                if path in libpaths:
+                    res = libname_re.match(lib)
+                    if res:
+                        libname = res.group(1)
+                        if not libname in pkglibmap:
+                            pkglibmap[libname] = pkg[0]
+                    else:
+                        logger.debug('unable to extract library name from %s' % lib)
+
+        # Now turn it into a library->recipe mapping
+        pkgdata_dir = d.getVar('PKGDATA_DIR', True)
+        for libname, pkg in pkglibmap.iteritems():
+            try:
+                with open(os.path.join(pkgdata_dir, 'runtime', pkg)) as f:
+                    for line in f:
+                        if line.startswith('PN:'):
+                            RecipeHandler.recipelibmap[libname] = line.split(':', 1)[-1].strip()
+                            break
+            except IOError as ioe:
+                if ioe.errno == 2:
+                    logger.warn('unable to find a pkgdata file for package %s' % pkg)
+                else:
+                    raise
+
+        # Some overrides - these should be mapped to the virtual
+        RecipeHandler.recipelibmap['GL'] = 'virtual/libgl'
+        RecipeHandler.recipelibmap['EGL'] = 'virtual/egl'
+        RecipeHandler.recipelibmap['GLESv2'] = 'virtual/libgles2'
+
+    @staticmethod
+    def load_headermap(d):
+        '''Build up lib headerfile->recipe mapping'''
+        if RecipeHandler.recipeheadermap:
+            return
+        includedir = d.getVar('includedir', True)
+        for pkg in glob.glob(os.path.join(pkgdata_dir, 'runtime', '*-dev')):
+            with open(os.path.join(pkgdata_dir, 'runtime', pkg)) as f:
+                pn = None
+                headers = []
+                for line in f:
+                    if line.startswith('PN:'):
+                        pn = line.split(':', 1)[-1].strip()
+                    elif line.startswith('FILES_INFO:'):
+                        val = line.split(':', 1)[1].strip()
+                        dictval = json.loads(val)
+                        for fullpth in sorted(dictval):
+                            if fullpth.startswith(includedir) and fullpth.endswith('.h'):
+                                headers.append(os.path.relpath(fullpth, includedir))
+                if pn and headers:
+                    for header in headers:
+                        RecipeHandler.recipeheadermap[header] = pn
+
     @staticmethod
     def checkfiles(path, speclist, recursive=False):
         results = []
@@ -53,6 +125,74 @@ class RecipeHandler():
             for spec in speclist:
                 results.extend(glob.glob(os.path.join(path, spec)))
         return results
+
+    @staticmethod
+    def handle_depends(libdeps, pcdeps, deps, outlines, values, d):
+        if pcdeps:
+            recipemap = read_pkgconfig_provides(d)
+        if libdeps:
+            RecipeHandler.load_libmap(d)
+
+        ignorelibs = ['socket']
+        ignoredeps = ['gcc-runtime', 'glibc', 'uclibc', 'musl', 'tar-native', 'binutils-native']
+
+        unmappedpc = []
+        pcdeps = list(set(pcdeps))
+        for pcdep in pcdeps:
+            if isinstance(pcdep, basestring):
+                recipe = recipemap.get(pcdep, None)
+                if recipe:
+                    deps.append(recipe)
+                else:
+                    if not pcdep.startswith('$'):
+                        unmappedpc.append(pcdep)
+            else:
+                for item in pcdep:
+                    recipe = recipemap.get(pcdep, None)
+                    if recipe:
+                        deps.append(recipe)
+                        break
+                else:
+                    unmappedpc.append('(%s)' % ' or '.join(pcdep))
+
+        unmappedlibs = []
+        for libdep in libdeps:
+            if isinstance(libdep, tuple):
+                lib, header = libdep
+            else:
+                lib = libdep
+                header = None
+
+            if lib in ignorelibs:
+                logger.debug('Ignoring library dependency %s' % lib)
+                continue
+
+            recipe = RecipeHandler.recipelibmap.get(lib, None)
+            if recipe:
+                deps.append(recipe)
+            elif recipe is None:
+                if header:
+                    RecipeHandler.load_headermap(d)
+                    recipe = RecipeHandler.recipeheadermap.get(header, None)
+                    if recipe:
+                        deps.append(recipe)
+                    elif recipe is None:
+                        unmappedlibs.append(lib)
+                else:
+                    unmappedlibs.append(lib)
+
+        deps = set(deps).difference(set(ignoredeps))
+
+        if unmappedpc:
+            outlines.append('# NOTE: unable to map the following pkg-config dependencies: %s' % ' '.join(unmappedpc))
+            outlines.append('#       (this is based on recipes that have previously been built and packaged)')
+
+        if unmappedlibs:
+            outlines.append('# NOTE: the following library dependencies are unknown, ignoring: %s' % ' '.join(list(set(unmappedlibs))))
+            outlines.append('#       (this is based on recipes that have previously been built and packaged)')
+
+        if deps:
+            values['DEPENDS'] = ' '.join(deps)
 
     def genfunction(self, outlines, funcname, content, python=False, forcespace=False):
         if python:
@@ -90,9 +230,9 @@ def determine_from_filename(srcfile):
     """Determine name and version from a filename"""
     part = ''
     if '.tar.' in srcfile:
-        namepart = srcfile.split('.tar.')[0]
+        namepart = srcfile.split('.tar.')[0].lower()
     else:
-        namepart = os.path.splitext(srcfile)[0]
+        namepart = os.path.splitext(srcfile)[0].lower()
     splitval = namepart.rsplit('_', 1)
     if len(splitval) == 1:
         splitval = namepart.rsplit('-', 1)
@@ -120,6 +260,14 @@ def supports_srcrev(uri):
             return True
     return False
 
+def reformat_git_uri(uri):
+    '''Convert any http[s]://....git URI into git://...;protocol=http[s]'''
+    res = re.match('(https?)://([^;]+\.git)(;.*)?$', uri)
+    if res:
+        # Need to switch the URI around so that the git fetcher is used
+        return 'git://%s;protocol=%s%s' % (res.group(2), res.group(1), res.group(3) or '')
+    return uri
+
 def create_recipe(args):
     import bb.process
     import tempfile
@@ -135,16 +283,11 @@ def create_recipe(args):
     srcrev = '${AUTOREV}'
     if '://' in args.source:
         # Fetch a URL
-        fetchuri = urlparse.urldefrag(args.source)[0]
+        fetchuri = reformat_git_uri(urlparse.urldefrag(args.source)[0])
         if args.binary:
             # Assume the archive contains the directory structure verbatim
             # so we need to extract to a subdirectory
             fetchuri += ';subdir=%s' % os.path.splitext(os.path.basename(urlparse.urlsplit(fetchuri).path))[0]
-        git_re = re.compile('(https?)://([^;]+\.git)(;.*)?')
-        res = git_re.match(fetchuri)
-        if res:
-            # Need to switch the URI around so that the git fetcher is used
-            fetchuri = 'git://%s;protocol=%s%s' % (res.group(2), res.group(1), res.group(3) or '')
         srcuri = fetchuri
         rev_re = re.compile(';rev=([^;]+)')
         res = rev_re.search(srcuri)
@@ -156,8 +299,8 @@ def create_recipe(args):
         logger.info('Fetching %s...' % srcuri)
         try:
             checksums = scriptutils.fetch_uri(tinfoil.config_data, fetchuri, srctree, srcrev)
-        except bb.fetch2.FetchError:
-            # Error already printed
+        except bb.fetch2.BBFetchException as e:
+            logger.error(str(e).rstrip())
             sys.exit(1)
         dirlist = os.listdir(srctree)
         if 'git.indirectionsymlink' in dirlist:
@@ -181,8 +324,27 @@ def create_recipe(args):
         if not os.path.isdir(args.source):
             logger.error('Invalid source directory %s' % args.source)
             sys.exit(1)
-        srcuri = ''
         srctree = args.source
+        srcuri = ''
+        if os.path.exists(os.path.join(srctree, '.git')):
+            # Try to get upstream repo location from origin remote
+            try:
+                stdout, _ = bb.process.run('git remote -v', cwd=srctree, shell=True)
+            except bb.process.ExecutionError as e:
+                stdout = None
+            if stdout:
+                for line in stdout.splitlines():
+                    splitline = line.split()
+                    if len(splitline) > 1:
+                        if splitline[0] == 'origin' and '://' in splitline[1]:
+                            srcuri = reformat_git_uri(splitline[1])
+                            break
+
+    if args.src_subdir:
+        srcsubdir = os.path.join(srcsubdir, args.src_subdir)
+        srctree_use = os.path.join(srctree, args.src_subdir)
+    else:
+        srctree_use = srctree
 
     if args.outfile and os.path.isdir(args.outfile):
         outfile = None
@@ -203,7 +365,7 @@ def create_recipe(args):
     lines_before.append('# (Feel free to remove these comments when editing.)')
     lines_before.append('#')
 
-    licvalues = guess_license(srctree)
+    licvalues = guess_license(srctree_use)
     lic_files_chksum = []
     if licvalues:
         licenses = []
@@ -232,6 +394,8 @@ def create_recipe(args):
     lines_before.append('LIC_FILES_CHKSUM = "%s"' % ' \\\n                    '.join(lic_files_chksum))
     lines_before.append('')
 
+    classes = []
+
     # FIXME This is kind of a hack, we probably ought to be using bitbake to do this
     pn = None
     pv = None
@@ -249,6 +413,16 @@ def create_recipe(args):
 
     if args.name:
         pn = args.name
+        if args.name.endswith('-native'):
+            if args.also_native:
+                logger.error('--also-native cannot be specified for a recipe named *-native (*-native denotes a recipe that is already only for native) - either remove the -native suffix from the name or drop --also-native')
+                sys.exit(1)
+            classes.append('native')
+        elif args.name.startswith('nativesdk-'):
+            if args.also_native:
+                logger.error('--also-native cannot be specified for a recipe named nativesdk-* (nativesdk-* denotes a recipe that is already only for nativesdk)')
+                sys.exit(1)
+            classes.append('nativesdk')
 
     if pv and pv not in 'git svn hg'.split():
         realpv = pv
@@ -258,7 +432,7 @@ def create_recipe(args):
     if srcuri and not realpv or not pn:
         parseres = urlparse.urlparse(srcuri)
         if parseres.path:
-            srcfile = os.path.basename(parseres.path)
+            srcfile = os.path.basename(parseres.path.rstrip('/'))
             name_pn, name_pv = determine_from_filename(srcfile)
             logger.debug('Determined from filename: name = "%s", version = "%s"' % (name_pn, name_pv))
             if name_pn and not pn:
@@ -312,7 +486,6 @@ def create_recipe(args):
     handlers = [item[0] for item in handlers]
 
     # Apply the handlers
-    classes = []
     handled = []
 
     if args.binary:
@@ -321,7 +494,7 @@ def create_recipe(args):
 
     extravalues = {}
     for handler in handlers:
-        handler.process(srctree, classes, lines_before, lines_after, handled, extravalues)
+        handler.process(srctree_use, classes, lines_before, lines_after, handled, extravalues)
 
     if not realpv:
         realpv = extravalues.get('PV', None)
@@ -388,9 +561,27 @@ def create_recipe(args):
                 line = re.sub('"[^+]*\+', '"%s+' % realpv, line)
         lines_before.append(line)
 
+    if args.also_native:
+        lines = lines_after
+        lines_after = []
+        bbclassextend = None
+        for line in lines:
+            if line.startswith('BBCLASSEXTEND ='):
+                splitval = line.split('"')
+                if len(splitval) > 1:
+                    bbclassextend = splitval[1].split()
+                    if not 'native' in bbclassextend:
+                        bbclassextend.insert(0, 'native')
+                line = 'BBCLASSEXTEND = "%s"' % ' '.join(bbclassextend)
+            lines_after.append(line)
+        if not bbclassextend:
+            lines_after.append('BBCLASSEXTEND = "native"')
+
     outlines = []
     outlines.extend(lines_before)
     if classes:
+        if outlines[-1] and not outlines[-1].startswith('#'):
+            outlines.append('')
         outlines.append('inherit %s' % ' '.join(classes))
         outlines.append('')
     outlines.extend(lines_after)
@@ -460,11 +651,14 @@ def get_license_md5sums(d, static_only=False):
     md5sums['5f30f0716dfdd0d91eb439ebec522ec2'] = 'LGPLv2'
     md5sums['55ca817ccb7d5b5b66355690e9abc605'] = 'LGPLv2'
     md5sums['252890d9eee26aab7b432e8b8a616475'] = 'LGPLv2'
+    md5sums['3214f080875748938ba060314b4f727d'] = 'LGPLv2'
+    md5sums['db979804f025cf55aabec7129cb671ed'] = 'LGPLv2'
     md5sums['d32239bcb673463ab874e80d47fae504'] = 'GPLv3'
     md5sums['f27defe1e96c2e1ecd4e0c9be8967949'] = 'GPLv3'
     md5sums['6a6a8e020838b23406c81b19c1d46df6'] = 'LGPLv3'
     md5sums['3b83ef96387f14655fc854ddc3c6bd57'] = 'Apache-2.0'
     md5sums['385c55653886acac3821999a3ccd17b3'] = 'Artistic-1.0 | GPL-2.0' # some perl modules
+    md5sums['54c7042be62e169199200bc6477f04d1'] = 'BSD-3-Clause'
     return md5sums
 
 def guess_license(srctree):
@@ -586,5 +780,7 @@ def register_commands(subparsers):
     parser_create.add_argument('-N', '--name', help='Name to use within recipe (PN)')
     parser_create.add_argument('-V', '--version', help='Version to use within recipe (PV)')
     parser_create.add_argument('-b', '--binary', help='Treat the source tree as something that should be installed verbatim (no compilation, same directory structure)', action='store_true')
+    parser_create.add_argument('--also-native', help='Also add native variant (i.e. support building recipe for the build host as well as the target machine)', action='store_true')
+    parser_create.add_argument('--src-subdir', help='Specify subdirectory within source tree to use', metavar='SUBDIR')
     parser_create.set_defaults(func=create_recipe)
 

@@ -113,8 +113,8 @@ zap_empty_root_password () {
 #
 ssh_allow_empty_password () {
 	if [ -e ${IMAGE_ROOTFS}${sysconfdir}/ssh/sshd_config ]; then
-		sed -i 's/^[#[:space:]]*PermitRootLogin.*/PermitRootLogin yes/' ${IMAGE_ROOTFS}${sysconfdir}/ssh/sshd_config
-		sed -i 's/^[#[:space:]]*PermitEmptyPasswords.*/PermitEmptyPasswords yes/' ${IMAGE_ROOTFS}${sysconfdir}/ssh/sshd_config
+		sed -i 's/^[#[:space:]]*PermitRootLogin.*/PermitRootLogin yes/' ${IMAGE_ROOTFS}${sysconfdir}/ssh/sshd_config ${IMAGE_ROOTFS}${sysconfdir}/ssh/sshd_config_readonly
+		sed -i 's/^[#[:space:]]*PermitEmptyPasswords.*/PermitEmptyPasswords yes/' ${IMAGE_ROOTFS}${sysconfdir}/ssh/sshd_config ${IMAGE_ROOTFS}${sysconfdir}/ssh/sshd_config_readonly
 	fi
 
 	if [ -e ${IMAGE_ROOTFS}${sbindir}/dropbear ] ; then
@@ -207,9 +207,25 @@ insert_feed_uris () {
 
 python write_image_manifest () {
     from oe.rootfs import image_list_installed_packages
-    with open(d.getVar('IMAGE_MANIFEST', True), 'w+') as image_manifest:
-        image_manifest.write(image_list_installed_packages(d, 'ver'))
+    from oe.utils import format_pkg_list
+
+    deploy_dir = d.getVar('DEPLOY_DIR_IMAGE', True)
+    link_name = d.getVar('IMAGE_LINK_NAME', True)
+    manifest_name = d.getVar('IMAGE_MANIFEST', True)
+
+    pkgs = image_list_installed_packages(d)
+    with open(manifest_name, 'w+') as image_manifest:
+        image_manifest.write(format_pkg_list(pkgs, "ver"))
         image_manifest.write("\n")
+
+    if manifest_name is not None and os.path.exists(manifest_name):
+        manifest_link = deploy_dir + "/" + link_name + ".manifest"
+        if os.path.exists(manifest_link):
+            if d.getVar('RM_OLD_IMAGE', True) == "1" and \
+                    os.path.exists(os.path.realpath(manifest_link)):
+                os.remove(os.path.realpath(manifest_link))
+            os.remove(manifest_link)
+        os.symlink(os.path.basename(manifest_name), manifest_link)
 }
 
 # Can be use to create /etc/timestamp during image construction to give a reasonably 

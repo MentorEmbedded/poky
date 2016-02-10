@@ -32,7 +32,7 @@
 <!--               <link linkend='var-glossary-n'>N</link> -->
        <link linkend='var-OBJCOPY'>O</link>
        <link linkend='var-P'>P</link>
-       <link linkend='var-QMAKE_PROFILES'>Q</link>
+<!--               <link linkend='var-glossary-q'>Q</link> -->
        <link linkend='var-RANLIB'>R</link>
        <link linkend='var-S'>S</link>
        <link linkend='var-T'>T</link>
@@ -1200,17 +1200,13 @@
 
         <glossentry id='var-BBMASK'><glossterm>BBMASK</glossterm>
             <info>
-                BBMASK[doc] = "Prevents BitBake from processing specific recipes or recipe append files. Use the BBMASK variable from within conf/local.conf."
+                BBMASK[doc] = "Prevents BitBake from processing specific recipes or recipe append files."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
                     Prevents BitBake from processing recipes and recipe
                     append files.
-                    Use the <filename>BBMASK</filename> variable from within the
-                    <filename>conf/local.conf</filename> file found
-                    in the
-                    <ulink url='&YOCTO_DOCS_DEV_URL;#build-directory'>Build Directory</ulink>.
                 </para>
 
                 <para>
@@ -1218,14 +1214,14 @@
                     to "hide" these <filename>.bb</filename> and
                     <filename>.bbappend</filename> files.
                     BitBake ignores any recipe or recipe append files that
-                    match the expression.
+                    match any of the expressions.
                     It is as if BitBake does not see them at all.
                     Consequently, matching files are not parsed or otherwise
                     used by BitBake.</para>
                 <para>
-                    The value you provide is passed to Python's regular
+                    The values you provide are passed to Python's regular
                     expression compiler.
-                    The expression is compared against the full paths to
+                    The expressions are compared against the full paths to
                     the files.
                     For complete syntax information, see Python's
                     documentation at
@@ -1241,18 +1237,16 @@
      BBMASK = "meta-ti/recipes-misc/"
                     </literallayout>
                     If you want to mask out multiple directories or recipes,
-                    use the vertical bar to separate the regular expression
-                    fragments.
+                    you can specify multiple regular expression fragments.
                     This next example masks out multiple directories and
                     individual recipes:
                     <literallayout class='monospaced'>
-     BBMASK = "meta-ti/recipes-misc/|meta-ti/recipes-ti/packagegroup/"
-     BBMASK .= "|.*meta-oe/recipes-support/"
-     BBMASK .= "|.*openldap"
-     BBMASK .= "|.*opencv"
-     BBMASK .= "|.*lzma"
+     BBMASK += "/meta-ti/recipes-misc/ meta-ti/recipes-ti/packagegroup/"
+     BBMASK += "/meta-oe/recipes-support/"
+     BBMASK += "/meta-foo/.*/openldap"
+     BBMASK += "opencv.*\.bbappend"
+     BBMASK += "lzma"
                     </literallayout>
-                    Notice how the vertical bar is used to append the fragments.
                     <note>
                         When specifying a directory name, use the trailing
                         slash character to ensure you match just that directory
@@ -3939,50 +3933,6 @@
                     class, this variable specifies additional configuration
                     options you want to pass to the
                     <filename>scons</filename> command line.
-                </para>
-            </glossdef>
-        </glossentry>
-
-        <glossentry id='var-EXTRA_QMAKEVARS_POST'><glossterm>EXTRA_QMAKEVARS_POST</glossterm>
-            <info>
-                EXTRA_QMAKEVARS_POST[doc] = "Configuration variables or options you want to pass to qmake when the arguments need to be after the .pro file list on the command line."
-            </info>
-            <glossdef>
-                <para role="glossdeffirst">
-<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Configuration variables or options you want to pass to
-                    <filename>qmake</filename>.
-                    Use this variable when the arguments need to be after the
-                    <filename>.pro</filename> file list on the command line.
-                </para>
-
-                <para>
-                    This variable is used with recipes that inherit the
-                    <link linkend='ref-classes-qmake*'><filename>qmake_base</filename></link>
-                    class or other classes that inherit
-                    <filename>qmake_base</filename>.
-                </para>
-            </glossdef>
-        </glossentry>
-
-       <glossentry id='var-EXTRA_QMAKEVARS_PRE'><glossterm>EXTRA_QMAKEVARS_PRE</glossterm>
-            <info>
-                EXTRA_QMAKEVARS_PRE[doc] = "Configuration variables or options you want to pass to qmake when the arguments need to be before the .pro file list on the command line."
-            </info>
-            <glossdef>
-                <para role="glossdeffirst">
-<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Configuration variables or options you want to pass to
-                    <filename>qmake</filename>.
-                    Use this variable when the arguments need to be before the
-                    <filename>.pro</filename> file list on the command line.
-                </para>
-
-                <para>
-                    This variable is used with recipes that inherit the
-                    <link linkend='ref-classes-qmake*'><filename>qmake_base</filename></link>
-                    class or other classes that inherit
-                    <filename>qmake_base</filename>.
                 </para>
             </glossdef>
         </glossentry>
@@ -7179,6 +7129,39 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
             </glossdef>
         </glossentry>
 
+        <glossentry id='var-LICENSE_CREATE_PACKAGE'><glossterm>LICENSE_CREATE_PACKAGE</glossterm>
+            <info>
+                LICENSE_CREATE_PACKAGE[doc] = "Creates an extra package (i.e. ${PN}-lic) for each recipe and adds that package to the RRECOMMENDS+${PN}."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                        Setting <filename>LICENSE_CREATE_PACKAGE</filename>
+                        to "1" causes the OpenEmbedded build system to create
+                        an extra package (i.e.
+                        <filename>${</filename><link linkend='var-PN'><filename>PN</filename></link><filename>}-lic</filename>)
+                        for each recipe and to add those packages to the
+                        <link linkend='var-RRECOMMENDS'><filename>RRECOMMENDS</filename></link><filename>_${PN}</filename>.
+                </para>
+
+                <para>
+                    The <filename>${PN}-lic</filename> package installs a
+                    directory in <filename>/usr/share/licenses</filename>
+                    named <filename>${PN}</filename>, which is the recipe's
+                    base name, and installs files in that directory that
+                    contain license and copyright information (i.e. copies of
+                    the appropriate license files from
+                    <filename>meta/common-licenses</filename> that match the
+                    licenses specified in the
+                    <link linkend='var-LICENSE'><filename>LICENSE</filename></link>
+                    variable of the recipe metadata and copies of files marked
+                    in
+                    <link linkend='var-LIC_FILES_CHKSUM'><filename>LIC_FILES_CHKSUM</filename></link>
+                    as containing license text).
+                </para>
+            </glossdef>
+        </glossentry>
+
         <glossentry id='var-LICENSE_FLAGS'><glossterm>LICENSE_FLAGS</glossterm>
             <info>
                 LICENSE_FLAGS[doc] = "Specifies additional flags for a recipe you must whitelist through LICENSE_FLAGS_WHITELIST in order to allow the recipe to be built."
@@ -9854,35 +9837,6 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
     </glossdiv>
 
-    <glossdiv id='var-glossary-q'><title>Q</title>
-
-        <glossentry id='var-QMAKE_PROFILES'><glossterm>QMAKE_PROFILES</glossterm>
-            <info>
-                QMAKE_PROFILES[doc] = "Specifies your own subset of .pro files to be built for use with qmake."
-            </info>
-            <glossdef>
-                <para role="glossdeffirst">
-<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Specifies your own subset of <filename>.pro</filename>
-                    files to be built for use with
-                    <filename>qmake</filename>.
-                    If you do not set this variable, all
-                    <filename>.pro</filename> files in the directory pointed to
-                    by <link linkend='var-S'><filename>S</filename></link>
-                    will be built by default.
-                </para>
-
-                <para>
-                    This variable is used with recipes that inherit the
-                    <link linkend='ref-classes-qmake*'><filename>qmake_base</filename></link>
-                    class or other classes that inherit
-                    <filename>qmake_base</filename>.
-                </para>
-            </glossdef>
-        </glossentry>
-
-    </glossdiv>
-
     <glossdiv id='var-glossary-r'><title>R</title>
 
         <glossentry id='var-RANLIB'><glossterm>RANLIB</glossterm>
@@ -10814,7 +10768,8 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    The toolchain binary prefix used for nativesdk recipes.
+                    The toolchain binary prefix used for
+                    <filename>nativesdk</filename> recipes.
                     The OpenEmbedded build system uses the
                     <filename>SDK_PREFIX</filename> value to set the
                     <link linkend='var-TARGET_PREFIX'><filename>TARGET_PREFIX</filename></link>

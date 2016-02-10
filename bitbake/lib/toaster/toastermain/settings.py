@@ -229,7 +229,7 @@ CACHES = {
     #        },
            'default': {
                'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-               'LOCATION': '/tmp/django-default-cache',
+               'LOCATION': '/tmp/toaster_cache_%d' % os.getuid(),
                'TIMEOUT': 1,
             }
           }
@@ -399,12 +399,3 @@ class InvalidString(str):
             "Undefined variable or unknown value for: \"%s\"" % other)
 
 TEMPLATE_STRING_IF_INVALID = InvalidString("%s")
-
-import sys
-sys.path.append(
-    os.path.join(
-    os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "contrib"),
-            "django-aggregate-if-master")
-    )

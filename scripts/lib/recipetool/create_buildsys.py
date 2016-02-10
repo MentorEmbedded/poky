@@ -17,7 +17,7 @@
 
 import re
 import logging
-from recipetool.create import RecipeHandler, read_pkgconfig_provides, validate_pv
+from recipetool.create import RecipeHandler, validate_pv
 
 logger = logging.getLogger('recipetool')
 
@@ -36,6 +36,7 @@ class CmakeRecipeHandler(RecipeHandler):
         if RecipeHandler.checkfiles(srctree, ['CMakeLists.txt']):
             classes.append('cmake')
             values = CmakeRecipeHandler.extract_cmake_deps(lines_before, srctree, extravalues)
+            classes.extend(values.pop('inherit', '').split())
             for var, value in values.iteritems():
                 lines_before.append('%s = "%s"' % (var, value))
             lines_after.append('# Specify any options you want to pass to cmake using EXTRA_OECMAKE:')
@@ -48,18 +49,185 @@ class CmakeRecipeHandler(RecipeHandler):
     @staticmethod
     def extract_cmake_deps(outlines, srctree, extravalues, cmakelistsfile=None):
         values = {}
+        inherits = []
 
         if cmakelistsfile:
             srcfiles = [cmakelistsfile]
         else:
             srcfiles = RecipeHandler.checkfiles(srctree, ['CMakeLists.txt'])
 
-        proj_re = re.compile('project\(([^)]*)\)', re.IGNORECASE)
-        with open(srcfiles[0], 'r') as f:
-            for line in f:
-                res = proj_re.match(line.strip())
-                if res:
-                    extravalues['PN'] = res.group(1).split()[0]
+        # Note that some of these are non-standard, but probably better to
+        # be able to map them anyway if we see them
+        cmake_pkgmap = {'alsa': 'alsa-lib',
+                        'aspell': 'aspell',
+                        'atk': 'atk',
+                        'bison': 'bison-native',
+                        'boost': 'boost',
+                        'bzip2': 'bzip2',
+                        'cairo': 'cairo',
+                        'cups': 'cups',
+                        'curl': 'curl',
+                        'curses': 'ncurses',
+                        'cvs': 'cvs',
+                        'drm': 'libdrm',
+                        'dbus': 'dbus',
+                        'dbusglib': 'dbus-glib',
+                        'egl': 'virtual/egl',
+                        'expat': 'expat',
+                        'flex': 'flex-native',
+                        'fontconfig': 'fontconfig',
+                        'freetype': 'freetype',
+                        'gettext': '',
+                        'git': '',
+                        'gio': 'glib-2.0',
+                        'giounix': 'glib-2.0',
+                        'glew': 'glew',
+                        'glib': 'glib-2.0',
+                        'glib2': 'glib-2.0',
+                        'glu': 'libglu',
+                        'glut': 'freeglut',
+                        'gobject': 'glib-2.0',
+                        'gperf': 'gperf-native',
+                        'gnutls': 'gnutls',
+                        'gtk2': 'gtk+',
+                        'gtk3': 'gtk+3',
+                        'gtk': 'gtk+3',
+                        'harfbuzz': 'harfbuzz',
+                        'icu': 'icu',
+                        'intl': 'virtual/libintl',
+                        'jpeg': 'jpeg',
+                        'libarchive': 'libarchive',
+                        'libiconv': 'virtual/libiconv',
+                        'liblzma': 'xz',
+                        'libxml2': 'libxml2',
+                        'libxslt': 'libxslt',
+                        'opengl': 'virtual/libgl',
+                        'openmp': '',
+                        'openssl': 'openssl',
+                        'pango': 'pango',
+                        'perl': '',
+                        'perllibs': '',
+                        'pkgconfig': '',
+                        'png': 'libpng',
+                        'pthread': '',
+                        'pythoninterp': '',
+                        'pythonlibs': '',
+                        'ruby': 'ruby-native',
+                        'sdl': 'libsdl',
+                        'sdl2': 'libsdl2',
+                        'subversion': 'subversion-native',
+                        'swig': 'swig-native',
+                        'tcl': 'tcl-native',
+                        'threads': '',
+                        'tiff': 'tiff',
+                        'wget': 'wget',
+                        'x11': 'libx11',
+                        'xcb': 'libxcb',
+                        'xext': 'libxext',
+                        'xfixes': 'libxfixes',
+                        'zlib': 'zlib',
+                        }
+
+        pcdeps = []
+        libdeps = []
+        deps = []
+        unmappedpkgs = []
+
+        proj_re = re.compile('project\s*\(([^)]*)\)', re.IGNORECASE)
+        pkgcm_re = re.compile('pkg_check_modules\s*\(\s*[a-zA-Z0-9-_]+\s*(REQUIRED)?\s+([^)\s]+)\s*\)', re.IGNORECASE)
+        pkgsm_re = re.compile('pkg_search_module\s*\(\s*[a-zA-Z0-9-_]+\s*(REQUIRED)?((\s+[^)\s]+)+)\s*\)', re.IGNORECASE)
+        findpackage_re = re.compile('find_package\s*\(\s*([a-zA-Z0-9-_]+)\s*.*', re.IGNORECASE)
+        checklib_re = re.compile('check_library_exists\s*\(\s*([^\s)]+)\s*.*', re.IGNORECASE)
+        include_re = re.compile('include\s*\(\s*([^)\s]*)\s*\)', re.IGNORECASE)
+        subdir_re = re.compile('add_subdirectory\s*\(\s*([^)\s]*)\s*([^)\s]*)\s*\)', re.IGNORECASE)
+        dep_re = re.compile('([^ ><=]+)( *[<>=]+ *[^ ><=]+)?')
+
+        def interpret_value(value):
+            return value.strip('"')
+
+        def parse_cmake_file(fn, paths=None):
+            searchpaths = (paths or []) + [os.path.dirname(fn)]
+            logger.debug('Parsing file %s' % fn)
+            with open(fn, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    res = include_re.match(line)
+                    if res:
+                        includefn = bb.utils.which(':'.join(searchpaths), res.group(1))
+                        if includefn:
+                            parse_cmake_file(includefn, searchpaths)
+                        else:
+                            logger.debug('Unable to recurse into include file %s' % res.group(1))
+                        continue
+                    res = subdir_re.match(line)
+                    if res:
+                        subdirfn = os.path.join(os.path.dirname(fn), res.group(1), 'CMakeLists.txt')
+                        if os.path.exists(subdirfn):
+                            parse_cmake_file(subdirfn, searchpaths)
+                        else:
+                            logger.debug('Unable to recurse into subdirectory file %s' % subdirfn)
+                        continue
+                    res = proj_re.match(line)
+                    if res:
+                        extravalues['PN'] = interpret_value(res.group(1).split()[0])
+                        continue
+                    res = pkgcm_re.match(line)
+                    if res:
+                        res = dep_re.findall(res.group(2))
+                        if res:
+                            pcdeps.extend([interpret_value(x[0]) for x in res])
+                        inherits.append('pkgconfig')
+                        continue
+                    res = pkgsm_re.match(line)
+                    if res:
+                        res = dep_re.findall(res.group(2))
+                        if res:
+                            # Note: appending a tuple here!
+                            item = tuple((interpret_value(x[0]) for x in res))
+                            if len(item) == 1:
+                                item = item[0]
+                            pcdeps.append(item)
+                        inherits.append('pkgconfig')
+                        continue
+                    res = findpackage_re.match(line)
+                    if res:
+                        origpkg = res.group(1)
+                        pkg = interpret_value(origpkg.lower())
+                        if pkg == 'gettext':
+                            inherits.append('gettext')
+                        elif pkg == 'perl':
+                            inherits.append('perlnative')
+                        elif pkg == 'pkgconfig':
+                            inherits.append('pkgconfig')
+                        elif pkg == 'pythoninterp':
+                            inherits.append('pythonnative')
+                        elif pkg == 'pythonlibs':
+                            inherits.append('python-dir')
+                        else:
+                            dep = cmake_pkgmap.get(pkg, None)
+                            if dep:
+                                deps.append(dep)
+                            elif dep is None:
+                                unmappedpkgs.append(origpkg)
+                        continue
+                    res = checklib_re.match(line)
+                    if res:
+                        lib = interpret_value(res.group(1))
+                        if not lib.startswith('$'):
+                            libdeps.append(lib)
+                    if line.lower().startswith('useswig'):
+                        deps.append('swig-native')
+                        continue
+
+        parse_cmake_file(srcfiles[0])
+
+        if unmappedpkgs:
+            outlines.append('# NOTE: unable to map the following CMake package dependencies: %s' % ' '.join(unmappedpkgs))
+
+        RecipeHandler.handle_depends(libdeps, pcdeps, deps, outlines, values, tinfoil.config_data)
+
+        if inherits:
+            values['inherit'] = ' '.join(list(set(inherits)))
 
         return values
 
@@ -143,7 +311,6 @@ class AutotoolsRecipeHandler(RecipeHandler):
     @staticmethod
     def extract_autotools_deps(outlines, srctree, extravalues=None, acfile=None):
         import shlex
-        import oe.package
 
         values = {}
         inherits = []
@@ -157,50 +324,15 @@ class AutotoolsRecipeHandler(RecipeHandler):
         progclassmap = {'gconftool-2': 'gconf',
                 'pkg-config': 'pkgconfig'}
 
-        ignoredeps = ['gcc-runtime', 'glibc', 'uclibc', 'tar-native', 'binutils-native']
-        ignorelibs = ['socket']
-
-        pkg_re = re.compile('PKG_CHECK_MODULES\(\[?[a-zA-Z0-9]*\]?, \[?([^,\]]*)[),].*')
-        lib_re = re.compile('AC_CHECK_LIB\(\[?([a-zA-Z0-9]*)\]?, .*')
-        progs_re = re.compile('_PROGS?\(\[?[a-zA-Z0-9]*\]?, \[?([^,\]]*)\]?[),].*')
+        pkg_re = re.compile('PKG_CHECK_MODULES\(\[?[a-zA-Z0-9_]*\]?, *\[?([^,\]]*)\]?[),].*')
+        pkgce_re = re.compile('PKG_CHECK_EXISTS\(\[?([^,\]]*)\]?[),].*')
+        lib_re = re.compile('AC_CHECK_LIB\(\[?([^,\]]*)\]?,.*')
+        libx_re = re.compile('AX_CHECK_LIBRARY\(\[?[^,\]]*\]?, *\[?([^,\]]*)\]?, *\[?([a-zA-Z0-9-]*)\]?,.*')
+        progs_re = re.compile('_PROGS?\(\[?[a-zA-Z0-9_]*\]?, \[?([^,\]]*)\]?[),].*')
         dep_re = re.compile('([^ ><=]+)( [<>=]+ [^ ><=]+)?')
         ac_init_re = re.compile('AC_INIT\(([^,]+), *([^,]+)[,)].*')
         am_init_re = re.compile('AM_INIT_AUTOMAKE\(([^,]+), *([^,]+)[,)].*')
         define_re = re.compile(' *(m4_)?define\(([^,]+), *([^,]+)\)')
-
-        # Build up lib library->package mapping
-        shlib_providers = oe.package.read_shlib_providers(tinfoil.config_data)
-        libdir = tinfoil.config_data.getVar('libdir', True)
-        base_libdir = tinfoil.config_data.getVar('base_libdir', True)
-        libpaths = list(set([base_libdir, libdir]))
-        libname_re = re.compile('^lib(.+)\.so.*$')
-        pkglibmap = {}
-        for lib, item in shlib_providers.iteritems():
-            for path, pkg in item.iteritems():
-                if path in libpaths:
-                    res = libname_re.match(lib)
-                    if res:
-                        libname = res.group(1)
-                        if not libname in pkglibmap:
-                            pkglibmap[libname] = pkg[0]
-                    else:
-                        logger.debug('unable to extract library name from %s' % lib)
-
-        # Now turn it into a library->recipe mapping
-        recipelibmap = {}
-        pkgdata_dir = tinfoil.config_data.getVar('PKGDATA_DIR', True)
-        for libname, pkg in pkglibmap.iteritems():
-            try:
-                with open(os.path.join(pkgdata_dir, 'runtime', pkg)) as f:
-                    for line in f:
-                        if line.startswith('PN:'):
-                            recipelibmap[libname] = line.split(':', 1)[-1].strip()
-                            break
-            except IOError as ioe:
-                if ioe.errno == 2:
-                    logger.warn('unable to find a pkgdata file for package %s' % pkg)
-                else:
-                    raise
 
         defines = {}
         def subst_defines(value):
@@ -237,13 +369,20 @@ class AutotoolsRecipeHandler(RecipeHandler):
             srcfiles = RecipeHandler.checkfiles(srctree, ['acinclude.m4', 'configure.ac', 'configure.in'])
 
         pcdeps = []
+        libdeps = []
         deps = []
         unmapped = []
-        unmappedlibs = []
 
         def process_macro(keyword, value):
             if keyword == 'PKG_CHECK_MODULES':
                 res = pkg_re.search(value)
+                if res:
+                    res = dep_re.findall(res.group(1))
+                    if res:
+                        pcdeps.extend([x[0] for x in res])
+                inherits.append('pkgconfig')
+            elif keyword == 'PKG_CHECK_EXISTS':
+                res = pkgce_re.search(value)
                 if res:
                     res = dep_re.findall(res.group(1))
                     if res:
@@ -255,7 +394,7 @@ class AutotoolsRecipeHandler(RecipeHandler):
                 deps.append('intltool-native')
             elif keyword == 'AM_PATH_GLIB_2_0':
                 deps.append('glib-2.0')
-            elif keyword == 'AC_CHECK_PROG' or keyword == 'AC_PATH_PROG':
+            elif keyword in ('AC_CHECK_PROG', 'AC_PATH_PROG', 'AX_WITH_PROG'):
                 res = progs_re.search(value)
                 if res:
                     for prog in shlex.split(res.group(1)):
@@ -274,18 +413,53 @@ class AutotoolsRecipeHandler(RecipeHandler):
                 res = lib_re.search(value)
                 if res:
                     lib = res.group(1)
-                    if lib in ignorelibs:
-                        logger.debug('Ignoring library dependency %s' % lib)
-                    else:
-                        libdep = recipelibmap.get(lib, None)
-                        if libdep:
-                            deps.append(libdep)
-                        else:
-                            if libdep is None:
-                                if not lib.startswith('$'):
-                                    unmappedlibs.append(lib)
+                    if not lib.startswith('$'):
+                        libdeps.append(lib)
+            elif keyword == 'AX_CHECK_LIBRARY':
+                res = libx_re.search(value)
+                if res:
+                    lib = res.group(2)
+                    if not lib.startswith('$'):
+                        header = res.group(1)
+                        libdeps.add((lib, header))
             elif keyword == 'AC_PATH_X':
                 deps.append('libx11')
+            elif keyword in ('AX_BOOST', 'BOOST_REQUIRE'):
+                deps.append('boost')
+            elif keyword in ('AC_PROG_LEX', 'AM_PROG_LEX', 'AX_PROG_FLEX'):
+                deps.append('flex-native')
+            elif keyword in ('AC_PROG_YACC', 'AX_PROG_BISON'):
+                deps.append('bison-native')
+            elif keyword == 'AX_CHECK_ZLIB':
+                deps.append('zlib')
+            elif keyword in ('AX_CHECK_OPENSSL', 'AX_LIB_CRYPTO'):
+                deps.append('openssl')
+            elif keyword == 'AX_LIB_CURL':
+                deps.append('curl')
+            elif keyword == 'AX_LIB_BEECRYPT':
+                deps.append('beecrypt')
+            elif keyword == 'AX_LIB_EXPAT':
+                deps.append('expat')
+            elif keyword == 'AX_LIB_GCRYPT':
+                deps.append('libgcrypt')
+            elif keyword == 'AX_LIB_NETTLE':
+                deps.append('nettle')
+            elif keyword == 'AX_LIB_READLINE':
+                deps.append('readline')
+            elif keyword == 'AX_LIB_SQLITE3':
+                deps.append('sqlite3')
+            elif keyword == 'AX_LIB_TAGLIB':
+                deps.append('taglib')
+            elif keyword == 'AX_PKG_SWIG':
+                deps.append('swig')
+            elif keyword == 'AX_PROG_XSLTPROC':
+                deps.append('libxslt-native')
+            elif keyword == 'AX_WITH_CURSES':
+                deps.append('ncurses')
+            elif keyword == 'AX_PATH_BDB':
+                deps.append('db')
+            elif keyword == 'AX_PATH_LIB_PCRE':
+                deps.append('libpcre')
             elif keyword == 'AC_INIT':
                 if extravalues is not None:
                     res = ac_init_re.match(value)
@@ -313,6 +487,7 @@ class AutotoolsRecipeHandler(RecipeHandler):
                         defines[key] = value
 
         keywords = ['PKG_CHECK_MODULES',
+                    'PKG_CHECK_EXISTS',
                     'AM_GNU_GETTEXT',
                     'AM_GLIB_GNU_GETTEXT',
                     'GETTEXT_PACKAGE',
@@ -321,8 +496,33 @@ class AutotoolsRecipeHandler(RecipeHandler):
                     'AM_PATH_GLIB_2_0',
                     'AC_CHECK_PROG',
                     'AC_PATH_PROG',
+                    'AX_WITH_PROG',
                     'AC_CHECK_LIB',
+                    'AX_CHECK_LIBRARY',
                     'AC_PATH_X',
+                    'AX_BOOST',
+                    'BOOST_REQUIRE',
+                    'AC_PROG_LEX',
+                    'AM_PROG_LEX',
+                    'AX_PROG_FLEX',
+                    'AC_PROG_YACC',
+                    'AX_PROG_BISON',
+                    'AX_CHECK_ZLIB',
+                    'AX_CHECK_OPENSSL',
+                    'AX_LIB_CRYPTO',
+                    'AX_LIB_CURL',
+                    'AX_LIB_BEECRYPT',
+                    'AX_LIB_EXPAT',
+                    'AX_LIB_GCRYPT',
+                    'AX_LIB_NETTLE',
+                    'AX_LIB_READLINE'
+                    'AX_LIB_SQLITE3',
+                    'AX_LIB_TAGLIB',
+                    'AX_PKG_SWIG',
+                    'AX_PROG_XSLTPROC',
+                    'AX_WITH_CURSES',
+                    'AX_PATH_BDB',
+                    'AX_PATH_LIB_PCRE',
                     'AC_INIT',
                     'AM_INIT_AUTOMAKE',
                     'define(',
@@ -369,28 +569,7 @@ class AutotoolsRecipeHandler(RecipeHandler):
         if unmapped:
             outlines.append('# NOTE: the following prog dependencies are unknown, ignoring: %s' % ' '.join(list(set(unmapped))))
 
-        if unmappedlibs:
-            outlines.append('# NOTE: the following library dependencies are unknown, ignoring: %s' % ' '.join(list(set(unmappedlibs))))
-            outlines.append('#       (this is based on recipes that have previously been built and packaged)')
-
-        recipemap = read_pkgconfig_provides(tinfoil.config_data)
-        unmapped = []
-        for pcdep in pcdeps:
-            recipe = recipemap.get(pcdep, None)
-            if recipe:
-                deps.append(recipe)
-            else:
-                if not pcdep.startswith('$'):
-                    unmapped.append(pcdep)
-
-        deps = set(deps).difference(set(ignoredeps))
-
-        if unmapped:
-            outlines.append('# NOTE: unable to map the following pkg-config dependencies: %s' % ' '.join(unmapped))
-            outlines.append('#       (this is based on recipes that have previously been built and packaged)')
-
-        if deps:
-            values['DEPENDS'] = ' '.join(deps)
+        RecipeHandler.handle_depends(libdeps, pcdeps, deps, outlines, values, tinfoil.config_data)
 
         if inherits:
             values['inherit'] = ' '.join(list(set(inherits)))

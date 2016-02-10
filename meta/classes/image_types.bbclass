@@ -93,7 +93,7 @@ IMAGE_CMD_squashfs-lzo = "mksquashfs ${IMAGE_ROOTFS} ${DEPLOY_DIR_IMAGE}/${IMAGE
 IMAGE_CMD_TAR ?= "tar"
 IMAGE_CMD_tar = "${IMAGE_CMD_TAR} -cvf ${DEPLOY_DIR_IMAGE}/${IMAGE_NAME}.rootfs.tar -C ${IMAGE_ROOTFS} ."
 
-do_rootfs[cleandirs] += "${WORKDIR}/cpio_append"
+do_image_cpio[cleandirs] += "${WORKDIR}/cpio_append"
 IMAGE_CMD_cpio () {
 	(cd ${IMAGE_ROOTFS} && find . | cpio -o -H newc >${DEPLOY_DIR_IMAGE}/${IMAGE_NAME}.rootfs.cpio)
 	if [ ! -L ${IMAGE_ROOTFS}/init -a ! -e ${IMAGE_ROOTFS}/init ]; then
@@ -126,18 +126,18 @@ multiubi_mkfs() {
 		local vname="_$3"
 	fi
 
-	echo \[ubifs\] > ubinize${vname}.cfg
-	echo mode=ubi >> ubinize${vname}.cfg
-	echo image=${DEPLOY_DIR_IMAGE}/${IMAGE_NAME}${vname}.rootfs.ubifs >> ubinize${vname}.cfg
-	echo vol_id=0 >> ubinize${vname}.cfg
-	echo vol_type=dynamic >> ubinize${vname}.cfg
-	echo vol_name=${UBI_VOLNAME} >> ubinize${vname}.cfg
-	echo vol_flags=autoresize >> ubinize${vname}.cfg
+	echo \[ubifs\] > ubinize${vname}-${IMAGE_NAME}.cfg
+	echo mode=ubi >> ubinize${vname}-${IMAGE_NAME}.cfg
+	echo image=${DEPLOY_DIR_IMAGE}/${IMAGE_NAME}${vname}.rootfs.ubifs >> ubinize${vname}-${IMAGE_NAME}.cfg
+	echo vol_id=0 >> ubinize${vname}-${IMAGE_NAME}.cfg
+	echo vol_type=dynamic >> ubinize${vname}-${IMAGE_NAME}.cfg
+	echo vol_name=${UBI_VOLNAME} >> ubinize${vname}-${IMAGE_NAME}.cfg
+	echo vol_flags=autoresize >> ubinize${vname}-${IMAGE_NAME}.cfg
 	mkfs.ubifs -r ${IMAGE_ROOTFS} -o ${DEPLOY_DIR_IMAGE}/${IMAGE_NAME}${vname}.rootfs.ubifs ${mkubifs_args}
-	ubinize -o ${DEPLOY_DIR_IMAGE}/${IMAGE_NAME}${vname}.rootfs.ubi ${ubinize_args} ubinize${vname}.cfg
+	ubinize -o ${DEPLOY_DIR_IMAGE}/${IMAGE_NAME}${vname}.rootfs.ubi ${ubinize_args} ubinize${vname}-${IMAGE_NAME}.cfg
 
 	# Cleanup cfg file
-	mv ubinize${vname}.cfg ${DEPLOY_DIR_IMAGE}/
+	mv ubinize${vname}-${IMAGE_NAME}.cfg ${DEPLOY_DIR_IMAGE}/
 
 	# Create own symlinks for 'named' volumes
 	if [ -n "$vname" ]; then
@@ -200,8 +200,7 @@ IMAGE_CMD_wic[vardepsexclude] = "WKS_FULL_PATH WKS_FILES"
 
 # Rebuild when the wks file or vars in WICVARS change
 USING_WIC = "${@bb.utils.contains_any('IMAGE_FSTYPES', 'wic ' + ' '.join('wic.%s' % c for c in '${COMPRESSIONTYPES}'.split()), '1', '', d)}"
-do_rootfs[file-checksums] += "${@'${WKS_FULL_PATH}:%s' % os.path.exists('${WKS_FULL_PATH}') if '${USING_WIC}' else ''}"
-do_rootfs[vardeps] += "${@bb.utils.contains("USING_WIC", "1", "${WICVARS}", "", d)}"
+do_image_wic[file-checksums] += "${@'${WKS_FULL_PATH}:%s' % os.path.exists('${WKS_FULL_PATH}') if '${USING_WIC}' else ''}"
 
 EXTRA_IMAGECMD = ""
 

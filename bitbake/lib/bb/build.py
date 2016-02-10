@@ -277,9 +277,8 @@ bb_exit_handler() {
     case $ret in
     0)  ;;
     *)  case $BASH_VERSION in
-        "")   echo "WARNING: exit code $ret from a shell command.";;
-        *)    echo "WARNING: ${BASH_SOURCE[0]}:${BASH_LINENO[0]} exit $ret from
-  \"$BASH_COMMAND\"";;
+        "") echo "WARNING: exit code $ret from a shell command.";;
+        *)  echo "WARNING: ${BASH_SOURCE[0]}:${BASH_LINENO[0]} exit $ret from '$BASH_COMMAND'";;
         esac
         exit $ret
     esac
@@ -319,7 +318,7 @@ exit $ret
     os.chmod(runfile, 0775)
 
     cmd = runfile
-    if d.getVarFlag(func, 'fakeroot'):
+    if d.getVarFlag(func, 'fakeroot', False):
         fakerootcmd = d.getVar('FAKEROOT', True)
         if fakerootcmd:
             cmd = [fakerootcmd, runfile]
@@ -394,7 +393,7 @@ def _exec_task(fn, task, d, quieterr):
     Execution of a task involves a bit more setup than executing a function,
     running it with its own local metadata, and with some useful variables set.
     """
-    if not d.getVarFlag(task, 'task'):
+    if not d.getVarFlag(task, 'task', False):
         event.fire(TaskInvalid(task, d), d)
         logger.error("No such task: %s" % task)
         return 1
@@ -533,7 +532,7 @@ def _exec_task(fn, task, d, quieterr):
             bb.utils.remove(loglink)
     event.fire(TaskSucceeded(task, logfn, localdata), localdata)
 
-    if not localdata.getVarFlag(task, 'nostamp') and not localdata.getVarFlag(task, 'selfstamp'):
+    if not localdata.getVarFlag(task, 'nostamp', False) and not localdata.getVarFlag(task, 'selfstamp', False):
         make_stamp(task, localdata)
 
     return 0
@@ -541,7 +540,7 @@ def _exec_task(fn, task, d, quieterr):
 def exec_task(fn, task, d, profile = False):
     try:
         quieterr = False
-        if d.getVarFlag(task, "quieterrors") is not None:
+        if d.getVarFlag(task, "quieterrors", False) is not None:
             quieterr = True
 
         if profile:
@@ -582,10 +581,10 @@ def stamp_internal(taskname, d, file_name, baseonly=False):
         taskflagname = taskname.replace("_setscene", "")
 
     if file_name:
-        stamp = d.stamp_base[file_name].get(taskflagname) or d.stamp[file_name]
+        stamp = d.stamp[file_name]
         extrainfo = d.stamp_extrainfo[file_name].get(taskflagname) or ""
     else:
-        stamp = d.getVarFlag(taskflagname, 'stamp-base', True) or d.getVar('STAMP', True)
+        stamp = d.getVar('STAMP', True)
         file_name = d.getVar('BB_FILENAME', True)
         extrainfo = d.getVarFlag(taskflagname, 'stamp-extra-info', True) or ""
 
@@ -616,10 +615,10 @@ def stamp_cleanmask_internal(taskname, d, file_name):
         taskflagname = taskname.replace("_setscene", "")
 
     if file_name:
-        stamp = d.stamp_base_clean[file_name].get(taskflagname) or d.stampclean[file_name]
+        stamp = d.stampclean[file_name]
         extrainfo = d.stamp_extrainfo[file_name].get(taskflagname) or ""
     else:
-        stamp = d.getVarFlag(taskflagname, 'stamp-base-clean', True) or d.getVar('STAMPCLEAN', True)
+        stamp = d.getVar('STAMPCLEAN', True)
         file_name = d.getVar('BB_FILENAME', True)
         extrainfo = d.getVarFlag(taskflagname, 'stamp-extra-info', True) or ""
 
@@ -746,7 +745,7 @@ def addtask(task, before, after, d):
         bbtasks.append(task)
     d.setVar('__BBTASKS', bbtasks)
 
-    existing = d.getVarFlag(task, "deps") or []
+    existing = d.getVarFlag(task, "deps", False) or []
     if after is not None:
         # set up deps for function
         for entry in after.split():
@@ -756,7 +755,7 @@ def addtask(task, before, after, d):
     if before is not None:
         # set up things that depend on this func
         for entry in before.split():
-            existing = d.getVarFlag(entry, "deps") or []
+            existing = d.getVarFlag(entry, "deps", False) or []
             if task not in existing:
                 d.setVarFlag(entry, "deps", [task] + existing)
 
@@ -771,7 +770,7 @@ def deltask(task, d):
 
     d.delVarFlag(task, 'deps')
     for bbtask in d.getVar('__BBTASKS', False) or []:
-        deps = d.getVarFlag(bbtask, 'deps') or []
+        deps = d.getVarFlag(bbtask, 'deps', False) or []
         if task in deps:
             deps.remove(task)
             d.setVarFlag(bbtask, 'deps', deps)
