@@ -332,6 +332,32 @@ var libtoaster = (function (){
     $("#change-notification, #change-notification *").fadeIn();
   }
 
+  function _createCustomRecipe(name, baseRecipeId, doneCb){
+    var data = {
+      'name' : name,
+      'project' : libtoaster.ctx.projectId,
+      'base' : baseRecipeId,
+    };
+
+    $.ajax({
+        type: "POST",
+        url: libtoaster.ctx.xhrCustomRecipeUrl,
+        data: data,
+        headers: { 'X-CSRFToken' : $.cookie('csrftoken')},
+        success: function (ret) {
+          if (doneCb){
+            doneCb(ret);
+          } else if (ret.error !== "ok") {
+            console.warn(ret.error);
+          }
+        },
+        error: function (ret) {
+          console.warn("Call failed");
+          console.warn(ret);
+        }
+    });
+  }
+
 
   return {
     reload_params : reload_params,
@@ -347,6 +373,7 @@ var libtoaster = (function (){
     addRmLayer : _addRmLayer,
     makeLayerAddRmAlertMsg : _makeLayerAddRmAlertMsg,
     showChangeNotification : _showChangeNotification,
+    createCustomRecipe: _createCustomRecipe,
   };
 })();
 
@@ -443,8 +470,12 @@ $(document).ready(function() {
         $('.tooltip').hide();
     });
 
-    // enable help information tooltip
-    $(".get-help").tooltip({container:'body', html:true, delay:{show:300}});
+    /* Initialise bootstrap tooltips */
+    $(".get-help, [data-toggle=tooltip]").tooltip({
+      container : 'body',
+      html : true,
+      delay: { show : 300 }
+    });
 
     // show help bubble only on hover inside tables
     $(".hover-help").css("visibility","hidden");

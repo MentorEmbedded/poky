@@ -653,7 +653,7 @@ class BBCooker:
         data.expandKeys(envdata)
         for e in envdata.keys():
             if data.getVarFlag( e, 'python', envdata ):
-                logger.plain("\npython %s () {\n%s}\n", e, envdata.getVar(e, True))
+                logger.plain("\npython %s () {\n%s}\n", e, envdata.getVar(e, False))
 
 
     def buildTaskData(self, pkgs_to_build, task, abort, allowincomplete=False):
@@ -908,7 +908,7 @@ class BBCooker:
         logger.info("PN build list saved to 'pn-buildlist'")
         for pn in depgraph["depends"]:
             for depend in depgraph["depends"][pn]:
-                print('"%s" -> "%s"' % (pn, depend), file=depends_file)
+                print('"%s" -> "%s" [style=solid]' % (pn, depend), file=depends_file)
         for pn in depgraph["rdepends-pn"]:
             for rdepend in depgraph["rdepends-pn"][pn]:
                 print('"%s" -> "%s" [style=dashed]' % (pn, rdepend), file=depends_file)
@@ -926,13 +926,13 @@ class BBCooker:
             else:
                 print('"%s" [label="%s(%s) %s\\n%s"]' % (package, package, pn, version, fn), file=depends_file)
             for depend in depgraph["depends"][pn]:
-                print('"%s" -> "%s"' % (package, depend), file=depends_file)
+                print('"%s" -> "%s" [style=solid]' % (package, depend), file=depends_file)
         for package in depgraph["rdepends-pkg"]:
             for rdepend in depgraph["rdepends-pkg"][package]:
                 print('"%s" -> "%s" [style=dashed]' % (package, rdepend), file=depends_file)
         for package in depgraph["rrecs-pkg"]:
             for rdepend in depgraph["rrecs-pkg"][package]:
-                print('"%s" -> "%s" [style=dashed]' % (package, rdepend), file=depends_file)
+                print('"%s" -> "%s" [style=dotted]' % (package, rdepend), file=depends_file)
         print("}", file=depends_file)
         logger.info("Package dependencies saved to 'package-depends.dot'")
 
@@ -1429,14 +1429,21 @@ class BBCooker:
         dump = {}
         for k in self.data.keys():
             try:
-                v = self.data.getVar(k, True)
+                expand = True
+                flags = self.data.getVarFlags(k)
+                if flags and "func" in flags and "python" in flags:
+                    expand = False
+                v = self.data.getVar(k, expand)
                 if not k.startswith("__") and not isinstance(v, bb.data_smart.DataSmart):
                     dump[k] = {
     'v' : v ,
     'history' : self.data.varhistory.variable(k),
                     }
                     for d in flaglist:
-                        dump[k][d] = self.data.getVarFlag(k, d)
+                        if flags and d in flags:
+                            dump[k][d] = flags[d]
+                        else:
+                            dump[k][d] = None
             except Exception as e:
                 print(e)
         return dump

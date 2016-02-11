@@ -22,7 +22,7 @@ DEPENDS = "kmod docbook-sgml-dtd-4.1-native intltool-native gperf-native acl rea
 
 SECTION = "base/shell"
 
-inherit useradd pkgconfig autotools perlnative update-rc.d update-alternatives qemu systemd ptest gettext
+inherit useradd pkgconfig autotools perlnative update-rc.d update-alternatives qemu systemd ptest gettext bash-completion
 
 SRCREV = "dd050decb6ad131ebdeabb71c4f9ecb4733269c0"
 
@@ -64,18 +64,61 @@ PACKAGECONFIG ??= "compat xz ldconfig \
                    ${@bb.utils.contains('DISTRO_FEATURES', 'pam', 'pam', '', d)} \
                    ${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'xkbcommon', '', d)} \
                    ${@bb.utils.contains('DISTRO_FEATURES', 'selinux', 'selinux', '', d)} \
+                   ${@bb.utils.contains('DISTRO_FEATURES', 'wifi', 'rfkill', '', d)} \
+                   ${@bb.utils.contains('MACHINE_FEATURES', 'efi', 'efi', '', d)} \
+                   sysusers \
+                   binfmt \
+                   randomseed \
+                   machined \
+                   backlight \
+                   quotacheck \
+                   bootchart \
+                   hostnamed \
+                   myhostname \
+                   hibernate \
+                   timedated \
+                   timesyncd \
+                   localed \
+                   kdbus \
+                   ima \
+                   smack \
+                   logind \
+                   firstboot \
+                   utmp \
+                   polkit \
                   "
 PACKAGECONFIG[journal-upload] = "--enable-libcurl,--disable-libcurl,curl"
 # Sign the journal for anti-tampering
 PACKAGECONFIG[gcrypt] = "--enable-gcrypt,--disable-gcrypt,libgcrypt"
-# regardless of PACKAGECONFIG, libgcrypt is always required to expand
-# the AM_PATH_LIBGCRYPT autoconf macro
-DEPENDS += "libgcrypt"
 PACKAGECONFIG[cryptsetup] = "--enable-libcryptsetup,--disable-libcryptsetup,cryptsetup"
 PACKAGECONFIG[microhttpd] = "--enable-microhttpd,--disable-microhttpd,libmicrohttpd"
 PACKAGECONFIG[elfutils] = "--enable-elfutils,--disable-elfutils,elfutils"
 PACKAGECONFIG[resolved] = "--enable-resolved,--disable-resolved"
 PACKAGECONFIG[networkd] = "--enable-networkd,--disable-networkd"
+PACKAGECONFIG[machined] = "--enable-machined,--disable-machined"
+PACKAGECONFIG[backlight] = "--enable-backlight,--disable-backlight"
+PACKAGECONFIG[quotacheck] = "--enable-quotacheck,--disable-quotacheck"
+PACKAGECONFIG[bootchart] = "--enable-bootchart,--disable-bootchart"
+PACKAGECONFIG[hostnamed] = "--enable-hostnamed,--disable-hostnamed"
+PACKAGECONFIG[myhostname] = "--enable-myhostname,--disable-myhostname"
+PACKAGECONFIG[rfkill] = "--enable-rfkill,--disable-rfkill"
+PACKAGECONFIG[hibernate] = "--enable-hibernate,--disable-hibernate"
+PACKAGECONFIG[timedated] = "--enable-timedated,--disable-timedated"
+PACKAGECONFIG[timesyncd] = "--enable-timesyncd,--disable-timesyncd"
+PACKAGECONFIG[localed] = "--enable-localed,--disable-localed"
+PACKAGECONFIG[efi] = "--enable-efi,--disable-efi"
+PACKAGECONFIG[kdbus] = "--enable-kdbus,--disable-kdbus"
+PACKAGECONFIG[ima] = "--enable-ima,--disable-ima"
+PACKAGECONFIG[smack] = "--enable-smack,--disable-smack"
+# libseccomp is found in meta-security
+PACKAGECONFIG[seccomp] = "--enable-seccomp,--disable-seccomp,libseccomp"
+PACKAGECONFIG[logind] = "--enable-logind,--disable-logind"
+PACKAGECONFIG[sysusers] = "--enable-sysusers,--disable-sysusers"
+PACKAGECONFIG[firstboot] = "--enable-firstboot,--disable-firstboot"
+PACKAGECONFIG[randomseed] = "--enable-randomseed,--disable-randomseed"
+PACKAGECONFIG[binfmt] = "--enable-binfmt,--disable-binfmt"
+PACKAGECONFIG[utmp] = "--enable-utmp,--disable-utmp"
+PACKAGECONFIG[polkit] = "--enable-polkit,--disable-polkit"
 # importd requires curl/xz/zlib/bzip2/gcrypt
 PACKAGECONFIG[importd] = "--enable-importd,--disable-importd"
 PACKAGECONFIG[libidn] = "--enable-libidn,--disable-libidn,libidn"
@@ -186,17 +229,20 @@ do_install() {
         # Delete journal README, as log can be symlinked inside volatile.
         rm -f ${D}/${localstatedir}/log/README
 
-	# Create symlinks for systemd-update-utmp-runlevel.service
 	install -d ${D}${systemd_unitdir}/system/graphical.target.wants
 	install -d ${D}${systemd_unitdir}/system/multi-user.target.wants
 	install -d ${D}${systemd_unitdir}/system/poweroff.target.wants
 	install -d ${D}${systemd_unitdir}/system/reboot.target.wants
 	install -d ${D}${systemd_unitdir}/system/rescue.target.wants
-	ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/graphical.target.wants/systemd-update-utmp-runlevel.service
-	ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/multi-user.target.wants/systemd-update-utmp-runlevel.service
-	ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/poweroff.target.wants/systemd-update-utmp-runlevel.service
-	ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/reboot.target.wants/systemd-update-utmp-runlevel.service
-	ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/rescue.target.wants/systemd-update-utmp-runlevel.service
+
+	# Create symlinks for systemd-update-utmp-runlevel.service
+	if ${@bb.utils.contains('PACKAGECONFIG', 'utmp', 'true', 'false', d)}; then
+		ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/graphical.target.wants/systemd-update-utmp-runlevel.service
+		ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/multi-user.target.wants/systemd-update-utmp-runlevel.service
+		ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/poweroff.target.wants/systemd-update-utmp-runlevel.service
+		ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/reboot.target.wants/systemd-update-utmp-runlevel.service
+		ln -sf ../systemd-update-utmp-runlevel.service ${D}${systemd_unitdir}/system/rescue.target.wants/systemd-update-utmp-runlevel.service
+	fi
 
 	# Enable journal to forward message to syslog daemon
 	sed -i -e 's/.*ForwardToSyslog.*/ForwardToSyslog=yes/' ${D}${sysconfdir}/systemd/journald.conf
@@ -237,14 +283,26 @@ python populate_packages_prepend (){
 }
 PACKAGES_DYNAMIC += "^lib(udev|systemd).*"
 
-PACKAGES =+ "${PN}-gui ${PN}-vconsole-setup ${PN}-initramfs ${PN}-analyze ${PN}-kernel-install \
-             ${PN}-rpm-macros ${PN}-binfmt ${PN}-pam ${PN}-zsh ${PN}-xorg-xinitrc"
+PACKAGES =+ "\
+    ${PN}-gui \
+    ${PN}-vconsole-setup \
+    ${PN}-initramfs \
+    ${PN}-analyze \
+    ${PN}-kernel-install \
+    ${PN}-rpm-macros \
+    ${PN}-binfmt \
+    ${PN}-pam \
+    ${PN}-zsh-completion \
+    ${PN}-xorg-xinitrc \
+    ${PN}-extra-utils \
+"
 
 SYSTEMD_PACKAGES = "${PN}-binfmt"
 SYSTEMD_SERVICE_${PN}-binfmt = "systemd-binfmt.service"
 
 USERADD_PACKAGES = "${PN}"
-USERADD_PARAM_${PN} += "--system systemd-journal-gateway; --system systemd-timesync"
+USERADD_PARAM_${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'microhttpd', '--system -d / -M --shell /bin/nologin systemd-journal-gateway;', '', d)}"
+USERADD_PARAM_${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'timesyncd', '--system -d / -M --shell /bin/nologin systemd-timesync;', '', d)}"
 GROUPADD_PARAM_${PN} = "-r lock; -r systemd-journal"
 
 FILES_${PN}-analyze = "${bindir}/systemd-analyze"
@@ -271,7 +329,7 @@ FILES_${PN}-rpm-macros = "${exec_prefix}/lib/rpm \
 
 FILES_${PN}-xorg-xinitrc = "${sysconfdir}/X11/xinit/xinitrc.d/*"
 
-FILES_${PN}-zsh = "${datadir}/zsh/site-functions"
+FILES_${PN}-zsh-completion = "${datadir}/zsh/site-functions"
 
 FILES_${PN}-binfmt = "${sysconfdir}/binfmt.d/ \
                       ${exec_prefix}/lib/binfmt.d \
@@ -282,6 +340,51 @@ RRECOMMENDS_${PN}-binfmt = "kernel-module-binfmt-misc"
 
 RRECOMMENDS_${PN}-vconsole-setup = "kbd kbd-consolefonts kbd-keymaps"
 
+FILES_${PN}-extra-utils = "\
+                        ${base_bindir}/systemd-escape \
+                        ${base_bindir}/systemd-inhibit \
+                        ${bindir}/systemd-detect-virt \
+                        ${bindir}/systemd-path \
+                        ${bindir}/systemd-run \
+                        ${bindir}/systemd-cat \
+                        ${bindir}/systemd-delta \
+                        ${bindir}/systemd-cgls \
+                        ${bindir}/systemd-cgtop \
+                        ${bindir}/systemd-stdio-bridge \
+                        ${base_bindir}/systemd-ask-password \
+                        ${base_bindir}/systemd-tty-ask-password-agent \
+                        ${systemd_unitdir}/system/systemd-ask-password-console.path \
+                        ${systemd_unitdir}/system/systemd-ask-password-console.service \
+                        ${systemd_unitdir}/system/systemd-ask-password-wall.path \
+                        ${systemd_unitdir}/system/systemd-ask-password-wall.service \
+                        ${systemd_unitdir}/system/sysinit.target.wants/systemd-ask-password-console.path \
+                        ${systemd_unitdir}/system/sysinit.target.wants/systemd-ask-password-wall.path \
+                        ${systemd_unitdir}/system/multi-user.target.wants/systemd-ask-password-wall.path \
+                        ${rootlibexecdir}/systemd/systemd-resolve-host \
+                        ${rootlibexecdir}/systemd/systemd-ac-power \
+                        ${rootlibexecdir}/systemd/systemd-activate \
+                        ${bindir}/systemd-nspawn \
+                        ${exec_prefix}/lib/tmpfiles.d/systemd-nspawn.conf \
+                        ${systemd_unitdir}/system/systemd-nspawn@.service \
+                        ${rootlibexecdir}/systemd/systemd-bus-proxyd \
+                        ${systemd_unitdir}/system/systemd-bus-proxyd.service \
+                        ${systemd_unitdir}/system/systemd-bus-proxyd.socket \
+                        ${rootlibexecdir}/systemd/systemd-socket-proxyd \
+                        ${rootlibexecdir}/systemd/systemd-reply-password \
+                        ${rootlibexecdir}/systemd/systemd-sleep \
+                        ${rootlibexecdir}/systemd/system-sleep \
+                        ${systemd_unitdir}/system/systemd-hibernate.service \
+                        ${systemd_unitdir}/system/systemd-hybrid-sleep.service \
+                        ${systemd_unitdir}/system/systemd-suspend.service \
+                        ${systemd_unitdir}/system/sleep.target \
+                        ${rootlibexecdir}/systemd/systemd-initctl \
+                        ${systemd_unitdir}/system/systemd-initctl.service \
+                        ${systemd_unitdir}/system/systemd-initctl.socket \
+                        ${systemd_unitdir}/system/sockets.target.wants/systemd-initctl.socket \
+                        ${rootlibexecdir}/systemd/system-generators/systemd-gpt-auto-generator \
+                        ${rootlibexecdir}/systemd/systemd-cgroups-agent \
+"
+
 CONFFILES_${PN} = "${sysconfdir}/machine-id \
                 ${sysconfdir}/systemd/coredump.conf \
                 ${sysconfdir}/systemd/journald.conf \
@@ -290,13 +393,11 @@ CONFFILES_${PN} = "${sysconfdir}/machine-id \
                 ${sysconfdir}/systemd/user.conf"
 
 FILES_${PN} = " ${base_bindir}/* \
-                ${datadir}/bash-completion \
                 ${datadir}/dbus-1/services \
                 ${datadir}/dbus-1/system-services \
                 ${datadir}/polkit-1 \
                 ${datadir}/${BPN} \
                 ${datadir}/factory \
-                ${sysconfdir}/bash_completion.d/ \
                 ${sysconfdir}/dbus-1/ \
                 ${sysconfdir}/machine-id \
                 ${sysconfdir}/modules-load.d/ \
@@ -338,6 +439,7 @@ RDEPENDS_${PN} += "kmod dbus util-linux-mount udev (= ${EXTENDPKGV})"
 RDEPENDS_${PN} += "volatile-binds update-rc.d"
 
 RRECOMMENDS_${PN} += "systemd-serialgetty systemd-vconsole-setup \
+                      systemd-extra-utils \
                       systemd-compat-units udev-hwdb \
                       util-linux-agetty  util-linux-fsck e2fsprogs-e2fsck \
                       kernel-module-autofs4 kernel-module-unix kernel-module-ipv6 \
