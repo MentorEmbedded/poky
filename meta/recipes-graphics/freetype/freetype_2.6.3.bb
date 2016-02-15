@@ -5,32 +5,32 @@ images). It can be used in graphics libraries, display servers, font conversion 
 image generation tools, and many other products as well."
 HOMEPAGE = "http://www.freetype.org/"
 BUGTRACKER = "https://savannah.nongnu.org/bugs/?group=freetype"
+SECTION = "libs"
 
 LICENSE = "FreeType | GPLv2+"
-LIC_FILES_CHKSUM = "file://docs/LICENSE.TXT;md5=c017ff17fc6f0794adf93db5559ccd56 \
+LIC_FILES_CHKSUM = "file://docs/LICENSE.TXT;md5=4af6221506f202774ef74f64932878a1 \
                     file://docs/FTL.TXT;md5=d479e83797f699fe873b38dadd0fcd4c \
                     file://docs/GPLv2.TXT;md5=8ef380476f642c20ebf40fecb0add2ec"
 
-SECTION = "libs"
-
 SRC_URI = "${SOURCEFORGE_MIRROR}/freetype/freetype-${PV}.tar.bz2 \
            file://use-right-libtool.patch"
-SRC_URI[md5sum] = "86109d0c998787d81ac582bad9adf82e"
-SRC_URI[sha256sum] = "baf6bdef7cdcc12ac270583f76ef245efe936267dbecef835f02a3409fcbb892"
 
-BINCONFIG = "${bindir}/freetype-config"
+SRC_URI[md5sum] = "0037b25a8c090bc8a1218e867b32beb1"
+SRC_URI[sha256sum] = "371e707aa522acf5b15ce93f11183c725b8ed1ee8546d7b3af549863045863a2"
 
 inherit autotools pkgconfig binconfig-disabled multilib_header
 
-EXTRA_OECONF = "CC_BUILD='${BUILD_CC}'"
-TARGET_CPPFLAGS += "-D_FILE_OFFSET_BITS=64"
-
 PACKAGECONFIG ??= "zlib"
+
 PACKAGECONFIG[bzip2] = "--with-bzip2,--without-bzip2,bzip2"
-PACKAGECONFIG[zlib] = "--with-zlib,--without-zlib,zlib"
-PACKAGECONFIG[pixmap] = "--with-png,--without-png,libpng"
-# This results in a circular dependency so enabling is non-trivial
+# harfbuzz results in a circular dependency so enabling is non-trivial
 PACKAGECONFIG[harfbuzz] = "--with-harfbuzz,--without-harfbuzz,harfbuzz"
+PACKAGECONFIG[pixmap] = "--with-png,--without-png,libpng"
+PACKAGECONFIG[zlib] = "--with-zlib,--without-zlib,zlib"
+
+EXTRA_OECONF = "CC_BUILD='${BUILD_CC}'"
+
+TARGET_CPPFLAGS += "-D_FILE_OFFSET_BITS=64"
 
 do_configure() {
 	# Need this because although the autotools infrastructure is in
@@ -48,5 +48,7 @@ do_configure() {
 do_install_append() {
 	oe_multilib_header freetype2/freetype/config/ftconfig.h
 }
+
+BINCONFIG = "${bindir}/freetype-config"
 
 BBCLASSEXTEND = "native"
