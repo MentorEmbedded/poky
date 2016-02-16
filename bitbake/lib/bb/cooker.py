@@ -144,6 +144,10 @@ class BBCooker:
         self.watcher.bbwatchedfiles = []
         self.notifier = pyinotify.Notifier(self.watcher, self.notifications)
 
+        # If being called by something like tinfoil, we need to clean cached data 
+        # which may now be invalid
+        bb.parse.__mtime_cache = {}
+        bb.parse.BBHandler.cached_statements = {}
 
         self.initConfigurationData()
 
@@ -197,13 +201,13 @@ class BBCooker:
     def config_notifications(self, event):
         if not event.pathname in self.configwatcher.bbwatchedfiles:
             return
-        if not event.path in self.inotify_modified_files:
-            self.inotify_modified_files.append(event.path)
+        if not event.pathname in self.inotify_modified_files:
+            self.inotify_modified_files.append(event.pathname)
         self.baseconfig_valid = False
 
     def notifications(self, event):
-        if not event.path in self.inotify_modified_files:
-            self.inotify_modified_files.append(event.path)
+        if not event.pathname in self.inotify_modified_files:
+            self.inotify_modified_files.append(event.pathname)
         self.parsecache_valid = False
 
     def add_filewatch(self, deps, watcher=None):
@@ -653,7 +657,7 @@ class BBCooker:
         data.expandKeys(envdata)
         for e in envdata.keys():
             if data.getVarFlag( e, 'python', envdata ):
-                logger.plain("\npython %s () {\n%s}\n", e, envdata.getVar(e, True))
+                logger.plain("\npython %s () {\n%s}\n", e, envdata.getVar(e, False))
 
 
     def buildTaskData(self, pkgs_to_build, task, abort, allowincomplete=False):
@@ -908,7 +912,7 @@ class BBCooker:
         logger.info("PN build list saved to 'pn-buildlist'")
         for pn in depgraph["depends"]:
             for depend in depgraph["depends"][pn]:
-                print('"%s" -> "%s"' % (pn, depend), file=depends_file)
+                print('"%s" -> "%s" [style=solid]' % (pn, depend), file=depends_file)
         for pn in depgraph["rdepends-pn"]:
             for rdepend in depgraph["rdepends-pn"][pn]:
                 print('"%s" -> "%s" [style=dashed]' % (pn, rdepend), file=depends_file)
@@ -926,13 +930,13 @@ class BBCooker:
             else:
                 print('"%s" [label="%s(%s) %s\\n%s"]' % (package, package, pn, version, fn), file=depends_file)
             for depend in depgraph["depends"][pn]:
-                print('"%s" -> "%s"' % (package, depend), file=depends_file)
+                print('"%s" -> "%s" [style=solid]' % (package, depend), file=depends_file)
         for package in depgraph["rdepends-pkg"]:
             for rdepend in depgraph["rdepends-pkg"][package]:
                 print('"%s" -> "%s" [style=dashed]' % (package, rdepend), file=depends_file)
         for package in depgraph["rrecs-pkg"]:
             for rdepend in depgraph["rrecs-pkg"][package]:
-                print('"%s" -> "%s" [style=dashed]' % (package, rdepend), file=depends_file)
+                print('"%s" -> "%s" [style=dotted]' % (package, rdepend), file=depends_file)
         print("}", file=depends_file)
         logger.info("Package dependencies saved to 'package-depends.dot'")
 
@@ -1429,14 +1433,21 @@ class BBCooker:
         dump = {}
         for k in self.data.keys():
             try:
-                v = self.data.getVar(k, True)
+                expand = True
+                flags = self.data.getVarFlags(k)
+                if flags and "func" in flags and "python" in flags:
+                    expand = False
+                v = self.data.getVar(k, expand)
                 if not k.startswith("__") and not isinstance(v, bb.data_smart.DataSmart):
                     dump[k] = {
     'v' : v ,
     'history' : self.data.varhistory.variable(k),
                     }
                     for d in flaglist:
-                        dump[k][d] = self.data.getVarFlag(k, d)
+                        if flags and d in flags:
+                            dump[k][d] = flags[d]
+                        else:
+                            dump[k][d] = None
             except Exception as e:
                 print(e)
         return dump
@@ -1498,6 +1509,8 @@ class BBCooker:
         # reload files for which we got notifications
         for p in self.inotify_modified_files:
             bb.parse.update_cache(p)
+            if p in bb.parse.BBHandler.cached_statements:
+                del bb.parse.BBHandler.cached_statements[p]
         self.inotify_modified_files = []
 
         if not self.baseconfig_valid:
@@ -2051,6 +2064,7 @@ class CookerParser(object):
             self.feeder_quit.put(None)
             for process in self.processes:
                 self.jobs.put(None)
+                self.parser_quit.put(None)
         else:
             self.feeder_quit.put('cancel')
 

@@ -247,6 +247,35 @@ def determine_from_filename(srcfile):
         pv = None
     return (pn, pv)
 
+def determine_from_url(srcuri):
+    """Determine name and version from a URL"""
+    pn = None
+    pv = None
+    parseres = urlparse.urlparse(srcuri.lower().split(';', 1)[0])
+    if parseres.path:
+        if 'github.com' in parseres.netloc:
+            res = re.search(r'.*/(.*?)/archive/(.*)-final\.(tar|zip)', parseres.path)
+            if res:
+                pn = res.group(1).strip().replace('_', '-')
+                pv = res.group(2).strip().replace('_', '.')
+            else:
+                res = re.search(r'.*/(.*?)/archive/v?(.*)\.(tar|zip)', parseres.path)
+                if res:
+                    pn = res.group(1).strip().replace('_', '-')
+                    pv = res.group(2).strip().replace('_', '.')
+        elif 'bitbucket.org' in parseres.netloc:
+            res = re.search(r'.*/(.*?)/get/[a-zA-Z_-]*([0-9][0-9a-zA-Z_.]*)\.(tar|zip)', parseres.path)
+            if res:
+                pn = res.group(1).strip().replace('_', '-')
+                pv = res.group(2).strip().replace('_', '.')
+
+        if not pn and not pv:
+            srcfile = os.path.basename(parseres.path.rstrip('/'))
+            pn, pv = determine_from_filename(srcfile)
+
+    logger.debug('Determined from source URL: name = "%s", version = "%s"' % (pn, pv))
+    return (pn, pv)
+
 def supports_srcrev(uri):
     localdata = bb.data.createCopy(tinfoil.config_data)
     # This is a bit sad, but if you don't have this set there can be some
@@ -262,10 +291,12 @@ def supports_srcrev(uri):
 
 def reformat_git_uri(uri):
     '''Convert any http[s]://....git URI into git://...;protocol=http[s]'''
-    res = re.match('(https?)://([^;]+\.git)(;.*)?$', uri)
-    if res:
-        # Need to switch the URI around so that the git fetcher is used
-        return 'git://%s;protocol=%s%s' % (res.group(2), res.group(1), res.group(3) or '')
+    checkuri = uri.split(';', 1)[0]
+    if checkuri.endswith('.git') or '/git/' in checkuri:
+        res = re.match('(https?)://([^;]+(\.git)?)(;.*)?$', uri)
+        if res:
+            # Need to switch the URI around so that the git fetcher is used
+            return 'git://%s;protocol=%s%s' % (res.group(2), res.group(1), res.group(4) or '')
     return uri
 
 def create_recipe(args):
@@ -338,6 +369,7 @@ def create_recipe(args):
                     if len(splitline) > 1:
                         if splitline[0] == 'origin' and '://' in splitline[1]:
                             srcuri = reformat_git_uri(splitline[1])
+                            srcsubdir = 'git'
                             break
 
     if args.src_subdir:
@@ -430,15 +462,12 @@ def create_recipe(args):
         realpv = None
 
     if srcuri and not realpv or not pn:
-        parseres = urlparse.urlparse(srcuri)
-        if parseres.path:
-            srcfile = os.path.basename(parseres.path.rstrip('/'))
-            name_pn, name_pv = determine_from_filename(srcfile)
-            logger.debug('Determined from filename: name = "%s", version = "%s"' % (name_pn, name_pv))
-            if name_pn and not pn:
-                pn = name_pn
-            if name_pv and not realpv:
-                realpv = name_pv
+        name_pn, name_pv = determine_from_url(srcuri)
+        if name_pn and not pn:
+            pn = name_pn
+        if name_pv and not realpv:
+            realpv = name_pv
+
 
     if not srcuri:
         lines_before.append('# No information for SRC_URI yet (only an external source tree was specified)')

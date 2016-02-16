@@ -46,7 +46,7 @@ enabled tests are listed here, the do_package_qa task will run under fakeroot."
 
 ALL_QA = "${WARN_QA} ${ERROR_QA}"
 
-UNKNOWN_CONFIGURE_WHITELIST ?= "--enable-nls --disable-nls --disable-silent-rules --disable-dependency-tracking --with-libtool-sysroot"
+UNKNOWN_CONFIGURE_WHITELIST ?= "--enable-nls --disable-nls --disable-silent-rules --disable-dependency-tracking --with-libtool-sysroot --disable-static"
 
 #
 # dictionary for elf headers
@@ -127,6 +127,9 @@ def package_qa_get_machine_dict():
                         "mipsel":     (   8,     0,    0,          True,          32),
                         "mips64":     (   8,     0,    0,          False,         64),
                         "mips64el":   (   8,     0,    0,          True,          64),
+                        "microblaze":  (189,     0,    0,          False,         32),
+                        "microblazeeb":(189,     0,    0,          False,         32),
+                        "microblazeel":(189,     0,    0,          True,          32),
                       },
             "uclinux-uclibc" : {
                         "bfin":       ( 106,     0,    0,          True,         32),

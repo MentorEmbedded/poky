@@ -13,9 +13,11 @@ SRC_URI = " \
     file://configure-allow-to-disable-libssh2.patch \
     file://fix-maybe-uninitialized-warnings-when-compiling-with-Os.patch \
     file://avoid-including-sys-poll.h-directly.patch \
+    file://ensure-valid-sentinels-for-gst_structure_get-etc.patch \
 "
 
 PV = "1.7.1+git${SRCPV}"
+UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>(\d+(\.\d+)+))"
 
 SRCREV_base = "3a088ecc9330d5cb8888ff43de0fe4f61c23a607"
 SRCREV_common = "86e46630ed8af8d94796859db550a9c3d89c9f65"

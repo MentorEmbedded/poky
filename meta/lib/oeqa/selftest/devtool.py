@@ -201,6 +201,43 @@ class DevtoolTests(DevtoolBase):
             bindir = bindir[1:]
         self.assertTrue(os.path.isfile(os.path.join(installdir, bindir, 'pv')), 'pv binary not found in D')
 
+    def test_devtool_add_git_local(self):
+        # Fetch source from a remote URL, but do it outside of devtool
+        tempdir = tempfile.mkdtemp(prefix='devtoolqa')
+        self.track_for_cleanup(tempdir)
+        pn = 'dbus-wait'
+        # We choose an https:// git URL here to check rewriting the URL works
+        url = 'https://git.yoctoproject.org/git/dbus-wait'
+        # Force fetching to "noname" subdir so we verify we're picking up the name from autoconf
+        # instead of the directory name
+        result = runCmd('git clone %s noname' % url, cwd=tempdir)
+        srcdir = os.path.join(tempdir, 'noname')
+        self.assertTrue(os.path.isfile(os.path.join(srcdir, 'configure.ac')), 'Unable to find configure script in source directory')
+        # Test devtool add
+        self.track_for_cleanup(self.workspacedir)
+        self.add_command_to_tearDown('bitbake-layers remove-layer */workspace')
+        # Don't specify a name since we should be able to auto-detect it
+        result = runCmd('devtool add %s' % srcdir)
+        self.assertTrue(os.path.exists(os.path.join(self.workspacedir, 'conf', 'layer.conf')), 'Workspace directory not created')
+        # Check the recipe name is correct
+        recipefile = get_bb_var('FILE', pn)
+        self.assertIn('%s_git.bb' % pn, recipefile, 'Recipe file incorrectly named')
+        self.assertIn(recipefile, result.output)
+        # Test devtool status
+        result = runCmd('devtool status')
+        self.assertIn(pn, result.output)
+        self.assertIn(srcdir, result.output)
+        self.assertIn(recipefile, result.output)
+        checkvars = {}
+        checkvars['LICENSE'] = 'GPLv2'
+        checkvars['LIC_FILES_CHKSUM'] = 'file://COPYING;md5=b234ee4d69f5fce4486a80fdaf4a4263'
+        checkvars['S'] = '${WORKDIR}/git'
+        checkvars['PV'] = '0.1+git${SRCPV}'
+        checkvars['SRC_URI'] = 'git://git.yoctoproject.org/git/dbus-wait;protocol=https'
+        checkvars['SRCREV'] = '${AUTOREV}'
+        checkvars['DEPENDS'] = set(['dbus'])
+        self._test_recipe_contents(recipefile, checkvars, [])
+
     @testcase(1162)
     def test_devtool_add_library(self):
         # We don't have the ability to pick up this dependency automatically yet...
@@ -570,7 +607,8 @@ class DevtoolTests(DevtoolBase):
         self.track_for_cleanup(self.workspacedir)
         self.add_command_to_tearDown('bitbake-layers remove-layer */workspace')
         # (don't bother with cleaning the recipe on teardown, we won't be building it)
-        result = runCmd('devtool modify %s -x %s' % (testrecipe, tempdir))
+        # We don't use -x here so that we test the behaviour of devtool modify without it
+        result = runCmd('devtool modify %s %s' % (testrecipe, tempdir))
         # Check git repo
         self._check_src_repo(tempdir)
         # Add a couple of commits
@@ -987,7 +1025,7 @@ class DevtoolTests(DevtoolBase):
         result = runCmd('devtool deploy-target -n %s root@localhost' % testrecipe)
         self.assertIn('  %s' % testfile, result.output)
         # Boot the image
-        with runqemu(testimage, self) as qemu:
+        with runqemu(testimage) as qemu:
             # Now really test deploy-target
             result = runCmd('devtool deploy-target -c %s root@%s' % (testrecipe, qemu.ip))
             # Run a test command to see if it was installed properly

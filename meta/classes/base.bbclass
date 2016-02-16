@@ -549,6 +549,7 @@ python () {
                 elif pn in htincompatwl:
                     bb.note("INCLUDING " + pn + " as buildable despite INCOMPATIBLE_LICENSE because it has been whitelisted for HOSTTOOLS")
 
+    needsrcrev = False
     srcuri = d.getVar('SRC_URI', True)
     for uri in srcuri.split():
         (scheme, _ , path) = bb.fetch.decodeurl(uri)[:3]
@@ -559,14 +560,17 @@ python () {
 
         # Svn packages should DEPEND on subversion-native
         if scheme == "svn":
+            needsrcrev = True
             d.appendVarFlag('do_fetch', 'depends', ' subversion-native:do_populate_sysroot')
 
         # Git packages should DEPEND on git-native
-        elif scheme == "git":
+        elif scheme in ("git", "gitsm"):
+            needsrcrev = True
             d.appendVarFlag('do_fetch', 'depends', ' git-native:do_populate_sysroot')
 
         # Mercurial packages should DEPEND on mercurial-native
         elif scheme == "hg":
+            needsrcrev = True
             d.appendVarFlag('do_fetch', 'depends', ' mercurial-native:do_populate_sysroot')
 
         # OSC packages should DEPEND on osc-native
@@ -592,6 +596,9 @@ python () {
         # file is needed by rpm2cpio.sh
         elif path.endswith('.src.rpm'):
             d.appendVarFlag('do_unpack', 'depends', ' file-native:do_populate_sysroot')
+
+    if needsrcrev:
+        d.setVar("SRCPV", "${@bb.fetch2.get_srcrev(d)}")
 
     set_packagetriplet(d)
 
@@ -644,8 +651,9 @@ addtask cleansstate after do_clean
 python do_cleansstate() {
         sstate_clean_cachefiles(d)
 }
-
 addtask cleanall after do_cleansstate
+do_cleansstate[nostamp] = "1"
+
 python do_cleanall() {
     src_uri = (d.getVar('SRC_URI', True) or "").split()
     if len(src_uri) == 0:
