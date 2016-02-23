@@ -21,6 +21,8 @@ SDK_EXT_task-populate-sdk-ext = "-ext"
 # Options are full or minimal
 SDK_EXT_TYPE ?= "full"
 
+SDK_RECRDEP_TASKS ?= ""
+
 SDK_LOCAL_CONF_WHITELIST ?= ""
 SDK_LOCAL_CONF_BLACKLIST ?= "CONF_VERSION \
                              BB_NUMBER_THREADS \
@@ -32,7 +34,18 @@ SDK_INHERIT_BLACKLIST ?= "buildhistory icecc"
 SDK_UPDATE_URL ?= ""
 
 SDK_TARGETS ?= "${PN}"
-SDK_INSTALL_TARGETS = "${@SDK_TARGETS if d.getVar('SDK_EXT_TYPE', True) != 'minimal' else ''} ${@'meta-world-pkgdata:do_allpackagedata' if d.getVar('SDK_INCLUDE_PKGDATA', True) == '1' else ''}"
+
+def get_sdk_install_targets(d):
+    sdk_install_targets = ''
+    if d.getVar('SDK_EXT_TYPE', True) != 'minimal':
+        sdk_install_targets = d.getVar('SDK_TARGETS', True)
+
+    if d.getVar('SDK_INCLUDE_PKGDATA', True) == '1':
+        sdk_install_targets += ' meta-world-pkgdata:do_allpackagedata'
+
+    return sdk_install_targets
+
+SDK_INSTALL_TARGETS = "${@get_sdk_install_targets(d)}"
 OE_INIT_ENV_SCRIPT ?= "oe-init-build-env"
 
 # The files from COREBASE that you want preserved in the COREBASE copied
@@ -175,7 +188,15 @@ python copy_buildsystem () {
         # Hide the config information from bitbake output (since it's fixed within the SDK)
         f.write('BUILDCFG_HEADER = ""\n')
 
+        # Allow additional config through sdk-extra.conf
+        fn = bb.cookerdata.findConfigFile('sdk-extra.conf', d)
+        if fn:
+            with open(fn, 'r') as xf:
+                for line in xf:
+                    f.write(line)
+
         # If you define a sdk_extraconf() function then it can contain additional config
+        # (Though this is awkward; sdk-extra.conf should probably be used instead)
         extraconf = (d.getVar('sdk_extraconf', True) or '').strip()
         if extraconf:
             # Strip off any leading / trailing spaces
@@ -348,7 +369,7 @@ addtask sdk_depends
 do_sdk_depends[dirs] = "${WORKDIR}"
 do_sdk_depends[depends] = "${@get_ext_sdk_depends(d)}"
 do_sdk_depends[recrdeptask] = "${@d.getVarFlag('do_populate_sdk', 'recrdeptask', False)}"
-do_sdk_depends[recrdeptask] += "do_populate_lic do_package_qa do_populate_sysroot do_deploy"
+do_sdk_depends[recrdeptask] += "do_populate_lic do_package_qa do_populate_sysroot do_deploy ${SDK_RECRDEP_TASKS}"
 do_sdk_depends[rdepends] = "${@get_sdk_ext_rdepends(d)}"
 
 def get_sdk_ext_rdepends(d):
