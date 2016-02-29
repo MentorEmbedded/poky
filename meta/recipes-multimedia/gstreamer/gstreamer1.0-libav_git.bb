@@ -33,11 +33,6 @@ SRCREV_FORMAT = "base"
 
 S = "${WORKDIR}/git"
 
-LIBAV_EXTRA_CONFIGURE_COMMON_ARG = "--target-os=linux \
-  --cc='${CC}' --as='${CC}' --ld='${CC}' --nm='${NM}' --ar='${AR}' \
-  ${GSTREAMER_1_0_DEBUG} \
-  --cross-prefix='${HOST_PREFIX}'"
-
 do_configure_prepend() {
 	${S}/autogen.sh --noconfigure
 }

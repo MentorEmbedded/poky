@@ -22,7 +22,7 @@ def run_test_context(CTestContext, d, testdir, tcname, pn, *args):
     targets = glob.glob(d.expand(testdir + "/tc/environment-setup-*"))
     for sdkenv in targets:
         bb.plain("Testing %s" % sdkenv)
-        tc = CTestContext(d, testdir, sdkenv, args)
+        tc = CTestContext(d, testdir, sdkenv, tcname, args)
 
         # this is a dummy load of tests
         # we are doing that to find compile errors in the tests themselves
@@ -88,30 +88,19 @@ def testsdkext_main(d):
     import os
     import oeqa.sdkext
     import subprocess
-    from oeqa.oetest import SDKTestContext, SDKExtTestContext
     from bb.utils import export_proxies
+    from oeqa.oetest import SDKTestContext, SDKExtTestContext
+    from oeqa.utils import avoid_paths_in_environ
+
 
     # extensible sdk use network
     export_proxies(d)
 
-    # extensible sdk shows a warning if found bitbake in the path
-    # because can cause problems so clean it
-    new_path = ''
-    paths_to_avoid = ['bitbake/bin', 'poky/scripts',
-                       d.getVar('STAGING_DIR', True),
-                       d.getVar('BASE_WORKDIR', True)]
-    for p in os.environ['PATH'].split(':'):
-       avoid = False
-       for pa in paths_to_avoid:
-           if pa in p:
-              avoid = True
-              break
-       if avoid:
-           continue
-
-       new_path = new_path + p + ':'
-    new_path = new_path[:-1]
-    os.environ['PATH'] = new_path
+    # extensible sdk can be contaminated if native programs are
+    # in PATH, i.e. use perl-native instead of eSDK one.
+    paths_to_avoid = [d.getVar('STAGING_DIR', True),
+                      d.getVar('BASE_WORKDIR', True)]
+    os.environ['PATH'] = avoid_paths_in_environ(paths_to_avoid)
 
     pn = d.getVar("PN", True)
     bb.utils.mkdirhier(d.getVar("TEST_LOG_SDKEXT_DIR", True))
