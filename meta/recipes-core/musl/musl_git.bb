@@ -3,9 +3,9 @@
 
 require musl.inc
 
-SRCREV = "cf115059ba0ecd611008c89c78c37b62f8e6d6af"
+SRCREV = "074e6b3fe3f2ad89b991f3d8ab0932035b312a62"
 
-PV = "1.1.13+git${SRCPV}"
+PV = "1.1.14+git${SRCPV}"
 
 # mirror is at git://github.com/kraj/musl.git
 
@@ -20,6 +20,7 @@ PROVIDES += "virtual/libc virtual/${TARGET_PREFIX}libc-for-gcc virtual/libiconv 
 DEPENDS = "virtual/${TARGET_PREFIX}binutils \
            virtual/${TARGET_PREFIX}gcc-initial \
            libgcc-initial \
+           linux-libc-headers \
            bsd-headers \
           "
 

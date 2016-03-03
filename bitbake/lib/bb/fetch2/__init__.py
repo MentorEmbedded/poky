@@ -327,7 +327,7 @@ class URI(object):
     def path(self, path):
         self._path = path
 
-        if re.compile("^/").match(path):
+        if not path or re.compile("^/").match(path):
             self.relative = False
         else:
             self.relative = True
@@ -375,9 +375,12 @@ def decodeurl(url):
     if locidx != -1 and type.lower() != 'file':
         host = location[:locidx]
         path = location[locidx:]
-    else:
+    elif type.lower() == 'file':
         host = ""
         path = location
+    else:
+        host = location
+        path = ""
     if user:
         m = re.compile('(?P<user>[^:]+)(:?(?P<pswd>.*))').match(user)
         if m:
@@ -623,6 +626,9 @@ def verify_donestamp(ud, d, origud=None):
     Returns True, if the donestamp exists and is valid, False otherwise. When
     returning False, any existing done stamps are removed.
     """
+    if not ud.needdonestamp:
+        return True
+
     if not os.path.exists(ud.donestamp):
         return False
 
@@ -681,6 +687,9 @@ def update_stamp(ud, d):
         donestamp is file stamp indicating the whole fetching is done
         this function update the stamp after verifying the checksum
     """
+    if not ud.needdonestamp:
+        return
+
     if os.path.exists(ud.donestamp):
         # Touch the done stamp file to show active use of the download
         try:
@@ -935,8 +944,9 @@ def try_mirror_url(fetch, origud, ud, ld, check = False):
         dldir = ld.getVar("DL_DIR", True)
         if os.path.basename(ud.localpath) != os.path.basename(origud.localpath):
             # Create donestamp in old format to avoid triggering a re-download
-            bb.utils.mkdirhier(os.path.dirname(ud.donestamp))
-            open(ud.donestamp, 'w').close()
+            if ud.donestamp:
+                bb.utils.mkdirhier(os.path.dirname(ud.donestamp))
+                open(ud.donestamp, 'w').close()
             dest = os.path.join(dldir, os.path.basename(ud.localpath))
             if not os.path.exists(dest):
                 os.symlink(ud.localpath, dest)
@@ -1119,6 +1129,7 @@ class FetchData(object):
     def __init__(self, url, d, localonly = False):
         # localpath is the location of a downloaded result. If not set, the file is local.
         self.donestamp = None
+        self.needdonestamp = True
         self.localfile = ""
         self.localpath = None
         self.lockfile = None
@@ -1183,13 +1194,20 @@ class FetchData(object):
             self.localpath = self.method.localpath(self, d)
 
         dldir = d.getVar("DL_DIR", True)
+
+        if not self.needdonestamp:
+            return
+
         # Note: .done and .lock files should always be in DL_DIR whereas localpath may not be.
         if self.localpath and self.localpath.startswith(dldir):
             basepath = self.localpath
         elif self.localpath:
             basepath = dldir + os.sep + os.path.basename(self.localpath)
-        else:
+        elif self.basepath or self.basename:
             basepath = dldir + os.sep + (self.basepath or self.basename)
+        else:
+             bb.fatal("Can't determine lock path for url %s" % url)
+
         self.donestamp = basepath + '.done'
         self.lockfile = basepath + '.lock'
 
@@ -1530,7 +1548,8 @@ class Fetch(object):
             m = ud.method
             localpath = ""
 
-            lf = bb.utils.lockfile(ud.lockfile)
+            if ud.lockfile:
+                lf = bb.utils.lockfile(ud.lockfile)
 
             try:
                 self.d.setVar("BB_NO_NETWORK", network)
@@ -1596,7 +1615,8 @@ class Fetch(object):
                 raise
 
             finally:
-                bb.utils.unlockfile(lf)
+                if ud.lockfile:
+                    bb.utils.unlockfile(lf)
 
     def checkstatus(self, urls=None):
         """
@@ -1724,6 +1744,7 @@ from . import hg
 from . import osc
 from . import repo
 from . import clearcase
+from . import npm
 
 methods.append(local.Local())
 methods.append(wget.Wget())
@@ -1740,3 +1761,4 @@ methods.append(hg.Hg())
 methods.append(osc.Osc())
 methods.append(repo.Repo())
 methods.append(clearcase.ClearCase())
+methods.append(npm.Npm())
