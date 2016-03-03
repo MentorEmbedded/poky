@@ -173,6 +173,7 @@ class Wic_PartData(FC4_PartData):
             if self.fstype and self.fstype == "swap":
                 self.prepare_swap_partition(cr_workdir, oe_builddir,
                                             native_sysroot)
+                self.source_file = "%s/fs.%s" % (cr_workdir, self.fstype)
             elif self.fstype:
                 rootfs = "%s/fs_%s.%s.%s" % (cr_workdir, self.label,
                                              self.lineno, self.fstype)
