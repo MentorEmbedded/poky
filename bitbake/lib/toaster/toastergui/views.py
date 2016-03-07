@@ -2577,9 +2577,6 @@ if True:
             else:
                 all_current_packages = recipe.get_all_packages()
 
-                # TODO currently we ignore packgegroups as we don't have a
-                # way to deal with them yet.
-
                 # Dependencies for package which aren't satisfied by the
                 # current packages in the custom image recipe
                 deps = package.package_dependencies_source.annotate(
@@ -2587,8 +2584,10 @@ if True:
                     pk=F('depends_on__pk'),
                     size=F('depends_on__size'),
                 ).values("name", "pk", "size").filter(
-                    ~Q(pk__in=all_current_packages) &
-                    Q(dep_type=Package_Dependency.TYPE_TRDEPENDS)
+                    # There are two depends types we don't know why
+                    (Q(dep_type=Package_Dependency.TYPE_TRDEPENDS) |
+                    Q(dep_type=Package_Dependency.TYPE_RDEPENDS)) &
+                    ~Q(pk__in=all_current_packages)
                 )
 
                 # Reverse dependencies which are needed by packages that are
@@ -2653,6 +2652,13 @@ if True:
                                            name=dep.depends_on.name)
 
                         recipe.includes_set.add(cust_package)
+                        try:
+                            # when adding the pre-requisite package make sure it's not in the
+                            #   excluded list from a prior removal.
+                            recipe.excludes_set.remove(cust_package)
+                        except Package.DoesNotExist:
+                            #   Don't care if the package had never been excluded
+                            pass
                     except:
                         logger.warning("Could not add package's suggested"
                                        "dependencies to the list")

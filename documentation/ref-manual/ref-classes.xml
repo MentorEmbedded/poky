@@ -1146,8 +1146,8 @@
     <title><filename>gzipnative.bbclass</filename></title>
 
     <para>
-        The <filename>gzipnative</filename>
-        class enables the use of native versions of <filename>gzip</filename>
+        The <filename>gzipnative</filename> class enables the use of
+        different native versions of <filename>gzip</filename>
         and <filename>pigz</filename> rather than the versions of these tools
         from the build host.
     </para>
@@ -3189,10 +3189,10 @@
     <title><filename>staging.bbclass</filename></title>
 
     <para>
-        The <filename>staging</filename> class provides support for staging
-        files into the sysroot during the
+        The <filename>staging</filename> class provides the
         <link linkend='ref-tasks-populate_sysroot'><filename>do_populate_sysroot</filename></link>
-        task.
+        task, which stages files into the sysroot to make them available to
+        other recipes at build time.
         The class is enabled by default because it is inherited by the
         <link linkend='ref-classes-base'><filename>base</filename></link>
         class.
