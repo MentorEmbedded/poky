@@ -428,7 +428,7 @@ def package_qa_check_unsafe_references_in_scripts(path, name, d, elf, messages):
         if bool(statinfo.st_mode & stat.S_IXUSR):
             # grep shell scripts for possible references to /exec_prefix/
             exec_prefix = d.getVar('exec_prefix', True)
-            statement = "grep -e '%s/' %s > /dev/null" % (exec_prefix, path)
+            statement = "grep -e '%s/[^ :]\{1,\}/[^ :]\{1,\}' %s > /dev/null" % (exec_prefix, path)
             if subprocess.call(statement, shell=True) == 0:
                 error_msg = pn + ": Found a reference to %s/ in %s" % (exec_prefix, path)
                 package_qa_handle_error("unsafe-references-in-scripts", error_msg, d)
@@ -1094,12 +1094,17 @@ python do_package_qa () {
                continue
             if w in testmatrix and testmatrix[w] in g:
                 warnchecks.append(g[testmatrix[w]])
+            if w == 'unsafe-references-in-binaries':
+                oe.utils.write_ld_so_conf(d)
+
         errorchecks = []
         for e in (d.getVar("ERROR_QA", True) or "").split():
             if e in skip:
                continue
             if e in testmatrix and testmatrix[e] in g:
                 errorchecks.append(g[testmatrix[e]])
+            if e == 'unsafe-references-in-binaries':
+                oe.utils.write_ld_so_conf(d)
 
         bb.note("Checking Package: %s" % package)
         # Check package name
