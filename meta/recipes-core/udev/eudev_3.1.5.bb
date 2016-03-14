@@ -18,6 +18,7 @@ SRC_URI = "https://github.com/gentoo/${BPN}/archive/v${PV}.tar.gz \
            file://udev-cache.default \
            file://udev.rules \
 "
+UPSTREAM_CHECK_URI = "https://github.com/gentoo/eudev/releases"
 
 SRC_URI[md5sum] = "e130f892d8744e292cb855db79935f68"
 SRC_URI[sha256sum] = "ce9d5fa91e3a42c7eb95512ca0fa2a631e89833053066bb6cdf42046b2a88553"
@@ -58,8 +59,6 @@ do_install_append() {
 
 	# hid2hci has moved to bluez4. removed in udev as of version 169
 	rm -f ${D}${base_libdir}/udev/hid2hci
-
-	echo 'udev_run="/var/run/udev"' >> ${D}${sysconfdir}/udev/udev.conf
 }
 
 INITSCRIPT_PACKAGES = "eudev udev-cache"

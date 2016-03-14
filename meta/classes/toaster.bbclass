@@ -112,6 +112,26 @@ def _toaster_load_pkgdatafile(dirpath, filepath):
                 pass    # ignore lines without valid key: value pairs
     return pkgdata
 
+python toaster_package_dumpdata_setscene() {
+    """
+    Dumps the data created by package_setscene
+    """
+    # replicate variables from the package.bbclass
+    packages = d.getVar('PACKAGES', True)
+    pkgdatadir = d.getVar('PKGDATA_DIR', True)
+    # scan and send data for each package
+    lpkgdata = {}
+    for pkg in packages.split():
+        try:
+          lpkgdata = _toaster_load_pkgdatafile(pkgdatadir + "/runtime/", pkg)
+        except:
+          # these are typically foo-locale which actually point into foo-locale-<language> in runtime-rprovides
+          bb.note("toaster_package_dumpdata_setscene: failed to load pkg information for: %s:%s"%(pkg,sys.exc_info()[0]))
+        # Fire an event containing the pkg data
+        bb.event.fire(bb.event.MetadataEvent("SinglePackageInfo", lpkgdata), d)
+
+}
+
 
 python toaster_package_dumpdata() {
     """
@@ -120,8 +140,6 @@ python toaster_package_dumpdata() {
     # replicate variables from the package.bbclass
 
     packages = d.getVar('PACKAGES', True)
-    pkgdest = d.getVar('PKGDEST', True)
-
     pkgdatadir = d.getVar('PKGDESTWORK', True)
 
     # scan and send data for each package
@@ -202,25 +220,37 @@ python toaster_collect_task_stats() {
     import bb.utils
     import os
 
+    toaster_statlist_file = os.path.join(e.data.getVar('BUILDSTATS_BASE', True), "toasterstatlist")
+
     if not e.data.getVar('BUILDSTATS_BASE', True):
         return  # if we don't have buildstats, we cannot collect stats
+
+    def stat_to_float(value):
+        return float(value.strip('% \n\r'))
 
     def _append_read_list(v):
         lock = bb.utils.lockfile(e.data.expand("${TOPDIR}/toaster.lock"), False, True)
 
-        with open(os.path.join(e.data.getVar('BUILDSTATS_BASE', True), "toasterstatlist"), "a") as fout:
+        with open(toaster_statlist_file, "a") as fout:
             taskdir = e.data.expand("${BUILDSTATS_BASE}/${BUILDNAME}/${PF}")
             fout.write("%s::%s::%s::%s\n" % (e.taskfile, e.taskname, os.path.join(taskdir, e.task), e.data.expand("${PN}")))
 
         bb.utils.unlockfile(lock)
 
     def _read_stats(filename):
-        cpu_usage = 0
-        disk_io = 0
-        started = '0'
-        ended = '0'
-        pn = ''
+        # seconds
+        cpu_time_user = 0
+        cpu_time_system = 0
+
+        # bytes
+        disk_io_read = 0
+        disk_io_write = 0
+
+        started = 0
+        ended = 0
+
         taskname = ''
+
         statinfo = {}
 
         with open(filename, 'r') as task_bs:
@@ -228,41 +258,49 @@ python toaster_collect_task_stats() {
                 k,v = line.strip().split(": ", 1)
                 statinfo[k] = v
 
-        if "CPU usage" in statinfo:
-            cpu_usage = str(statinfo["CPU usage"]).strip('% \n\r')
-
-        if "IO write_bytes" in statinfo:
-            disk_io = disk_io + int(statinfo["IO write_bytes"].strip('% \n\r'))
-
-        if "IO read_bytes" in statinfo:
-            disk_io = disk_io + int(statinfo["IO read_bytes"].strip('% \n\r'))
-
         if "Started" in statinfo:
-            started = str(statinfo["Started"]).strip('% \n\r')
+            started = stat_to_float(statinfo["Started"])
 
         if "Ended" in statinfo:
-            ended = str(statinfo["Ended"]).strip('% \n\r')
+            ended = stat_to_float(statinfo["Ended"])
 
-        elapsed_time = float(ended) - float(started)
+        if "Child rusage ru_utime" in statinfo:
+            cpu_time_user = cpu_time_user + stat_to_float(statinfo["Child rusage ru_utime"])
 
-        cpu_usage = float(cpu_usage)
+        if "Child rusage ru_stime" in statinfo:
+            cpu_time_system = cpu_time_system + stat_to_float(statinfo["Child rusage ru_stime"])
 
-        return {'cpu_usage': cpu_usage, 'disk_io': disk_io, 'elapsed_time': elapsed_time}
+        if "IO write_bytes" in statinfo:
+            write_bytes = int(statinfo["IO write_bytes"].strip('% \n\r'))
+            disk_io_write = disk_io_write + write_bytes
 
+        if "IO read_bytes" in statinfo:
+            read_bytes = int(statinfo["IO read_bytes"].strip('% \n\r'))
+            disk_io_read = disk_io_read + read_bytes
+
+        return {
+            'stat_file': filename,
+            'cpu_time_user': cpu_time_user,
+            'cpu_time_system': cpu_time_system,
+            'disk_io_read': disk_io_read,
+            'disk_io_write': disk_io_write,
+            'started': started,
+            'ended': ended
+        }
 
     if isinstance(e, (bb.build.TaskSucceeded, bb.build.TaskFailed)):
         _append_read_list(e)
         pass
 
-
-    if isinstance(e, bb.event.BuildCompleted) and os.path.exists(os.path.join(e.data.getVar('BUILDSTATS_BASE', True), "toasterstatlist")):
+    if isinstance(e, bb.event.BuildCompleted) and os.path.exists(toaster_statlist_file):
         events = []
-        with open(os.path.join(e.data.getVar('BUILDSTATS_BASE', True), "toasterstatlist"), "r") as fin:
+        with open(toaster_statlist_file, "r") as fin:
             for line in fin:
                 (taskfile, taskname, filename, recipename) = line.strip().split("::")
-                events.append((taskfile, taskname, _read_stats(filename), recipename))
+                stats = _read_stats(filename)
+                events.append((taskfile, taskname, stats, recipename))
         bb.event.fire(bb.event.MetadataEvent("BuildStatsList", events), e.data)
-        os.unlink(os.path.join(e.data.getVar('BUILDSTATS_BASE', True), "toasterstatlist"))
+        os.unlink(toaster_statlist_file)
 }
 
 # dump relevant build history data as an event when the build is completed
@@ -361,6 +399,9 @@ toaster_collect_task_stats[eventmask] = "bb.event.BuildCompleted bb.build.TaskSu
 
 addhandler toaster_buildhistory_dump
 toaster_buildhistory_dump[eventmask] = "bb.event.BuildCompleted"
+
+do_packagedata_setscene[postfuncs] += "toaster_package_dumpdata_setscene "
+do_packagedata_setscene[vardepsexclude] += "toaster_package_dumpdata_setscene "
 
 do_package[postfuncs] += "toaster_package_dumpdata "
 do_package[vardepsexclude] += "toaster_package_dumpdata "
