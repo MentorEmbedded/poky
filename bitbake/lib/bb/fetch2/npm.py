@@ -75,12 +75,12 @@ class Npm(FetchMethod):
         # TODO: find a way to get an sha1/sha256 manifest of pkg & all deps
         ud.pkgname = ud.parm.get("name", None)
         if not ud.pkgname:
-            raise ParameterError("NPM fetcher requires a name parameter")
+            raise ParameterError("NPM fetcher requires a name parameter", ud.url)
         ud.version = ud.parm.get("version", None)
         if not ud.version:
-            raise ParameterError("NPM fetcher requires a version parameter")
+            raise ParameterError("NPM fetcher requires a version parameter", ud.url)
         ud.bbnpmmanifest = "%s-%s.deps.json" % (ud.pkgname, ud.version)
-        ud.registry = "http://%s" % ud.basename
+        ud.registry = "http://%s" % (ud.url.replace('npm://', '', 1).split(';'))[0]
         prefixdir = "npm/%s" % ud.pkgname
         ud.pkgdatadir = d.expand("${DL_DIR}/%s" % prefixdir)
         if not os.path.exists(ud.pkgdatadir):
@@ -142,36 +142,62 @@ class Npm(FetchMethod):
 
         self._unpackdep(ud, ud.pkgname, workobj,  "%s/npmpkg" % destdir, dldir, d)
 
-    def _getdependencies(self, pkg, data, version, d, ud):
+    def _parse_view(self, output):
+        '''
+        Parse the output of npm view --json; the last JSON result
+        is assumed to be the one that we're interested in.
+        '''
+        pdata = None
+        outdeps = {}
+        datalines = []
+        bracelevel = 0
+        for line in output.splitlines():
+            if bracelevel:
+                datalines.append(line)
+            elif '{' in line:
+                datalines = []
+                datalines.append(line)
+            bracelevel = bracelevel + line.count('{') - line.count('}')
+        if datalines:
+            pdata = json.loads('\n'.join(datalines))
+        return pdata
+
+    def _getdependencies(self, pkg, data, version, d, ud, optional=False):
         pkgfullname = pkg
         if version != '*' and not '/' in version:
-            pkgfullname += "@%s" % version
+            pkgfullname += "@'%s'" % version
         logger.debug(2, "Calling getdeps on %s" % pkg)
-        fetchcmd = "npm view %s dist.tarball --registry %s" % (pkgfullname, ud.registry)
+        fetchcmd = "npm view %s --json --registry %s" % (pkgfullname, ud.registry)
         output = runfetchcmd(fetchcmd, d, True)
-        # npm may resolve multiple versions
-        outputarray = output.strip().splitlines()
-        if not outputarray:
+        pdata = self._parse_view(output)
+        if not pdata:
             raise FetchError("The command '%s' returned no output" % fetchcmd)
-        # we just take the latest version npm resolved
+        if optional:
+            pkg_os = pdata.get('os', None)
+            if pkg_os:
+                if not isinstance(pkg_os, list):
+                    pkg_os = [pkg_os]
+                if 'linux' not in pkg_os or '!linux' in pkg_os:
+                    logger.debug(2, "Skipping %s since it's incompatible with Linux" % pkg)
+                    return
         #logger.debug(2, "Output URL is %s - %s - %s" % (ud.basepath, ud.basename, ud.localfile))
-        outputurl = outputarray[len(outputarray)-1].rstrip()
-        if (len(outputarray) > 1):
-            # remove the preceding version/name from npm output and then the
-            # first and last quotes
-            outputurl = outputurl.split(" ")[1][1:-1]
+        outputurl = pdata['dist']['tarball']
         data[pkg] = {}
         data[pkg]['tgz'] = os.path.basename(outputurl)
         self._runwget(ud, d, "%s %s" % (self.basecmd, outputurl), False)
-        #fetchcmd = "npm view %s@%s dependencies --json" % (pkg, version)
-        fetchcmd = "npm view %s dependencies --json --registry %s" % (pkgfullname, ud.registry)
-        output = runfetchcmd(fetchcmd, d, True)
-        try:
-          depsfound = json.loads(output)
-        except:
-            # just assume there is no deps to be loaded here
-            return
+
+        dependencies = pdata.get('dependencies', {})
+        optionalDependencies = pdata.get('optionalDependencies', {})
+        depsfound = {}
+        optdepsfound = {}
         data[pkg]['deps'] = {}
+        for dep in dependencies:
+            if dep in optionalDependencies:
+                optdepsfound[dep] = dependencies[dep]
+            else:
+                depsfound[dep] = dependencies[dep]
+        for dep, version in optdepsfound.iteritems():
+            self._getdependencies(dep, data[pkg]['deps'], version, d, ud, optional=True)
         for dep, version in depsfound.iteritems():
             self._getdependencies(dep, data[pkg]['deps'], version, d, ud)
 
