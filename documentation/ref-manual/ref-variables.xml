@@ -1134,66 +1134,12 @@
        /home/scottrif/poky/meta-yocto-bsp \
        /home/scottrif/poky/meta-mykernel \
        "
-
-     BBLAYERS_NON_REMOVABLE ?= " \
-       /home/scottrif/poky/meta \
-       /home/scottrif/poky/meta-yocto \
-       "
                     </literallayout>
-                    <note>
-                        The
-                        <link linkend='var-BBLAYERS_NON_REMOVABLE'><filename>BBLAYERS_NON_REMOVABLE</filename></link>
-                        variable exists only for
-                        <ulink url='https://www.yoctoproject.org/tools-resources/projects/hob'>Hob</ulink>.
-                        The OpenEmbedded build system does not use this
-                        variable.
-                    </note>
                 </para>
 
                 <para>
                     This example enables four layers, one of which is a custom, user-defined layer
                     named <filename>meta-mykernel</filename>.
-                </para>
-            </glossdef>
-        </glossentry>
-
-        <glossentry id='var-BBLAYERS_NON_REMOVABLE'><glossterm>BBLAYERS_NON_REMOVABLE</glossterm>
-            <info>
-                BBLAYERS_NON_REMOVABLE[doc] = "Lists core layers that cannot be removed from the bblayers.conf file."
-            </info>
-            <glossdef>
-                <para role="glossdeffirst">
-<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Lists core layers that cannot be removed from the
-                    <filename>bblayers.conf</filename> file during a build
-                    using the
-                    <ulink url='https://www.yoctoproject.org/tools-resources/projects/hob'>Hob</ulink>.
-                    <note>
-                        When building an image outside of Hob, the OpenEmbedded
-                        build system ignores this variable.
-                    </note>
-                </para>
-
-                <para>
-                    In order for BitBake to build your image using Hob, your
-                    <filename>bblayers.conf</filename> file must include the
-                    <filename>meta</filename> and <filename>meta-yocto</filename>
-                    core layers.
-                    Here is an example that shows these two layers listed in
-                    the <filename>BBLAYERS_NON_REMOVABLE</filename> statement:
-                    <literallayout class='monospaced'>
-     BBLAYERS = " \
-       /home/scottrif/poky/meta \
-       /home/scottrif/poky/meta-yocto \
-       /home/scottrif/poky/meta-yocto-bsp \
-       /home/scottrif/poky/meta-mykernel \
-       "
-
-     BBLAYERS_NON_REMOVABLE ?= " \
-       /home/scottrif/poky/meta \
-       /home/scottrif/poky/meta-yocto \
-       "
-                    </literallayout>
                 </para>
             </glossdef>
         </glossentry>
@@ -2465,8 +2411,8 @@
                 </para>
 
                 <para>
-                    Being able to list explicit files is needed because
-                    <filename>COREBASE</filename> typically contains build
+                    Explicitly listing files in <filename>COREBASE</filename>
+                    is needed because it typically contains build
                     directories and other files that should not normally
                     be copied into the extensible SDK.
                     Consequently, the value of
@@ -11194,14 +11140,13 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-SDKMACHINE'><glossterm>SDKMACHINE</glossterm>
             <info>
-                SDKMACHINE[doc] = "Specifies the architecture (i.e. i686 or x86_64) for which to build SDK and ADT items."
+                SDKMACHINE[doc] = "Specifies the architecture (i.e. i686 or x86_64) for which to build SDK items."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    The machine for which the Application Development Toolkit
-                    (ADT) or SDK is built.
-                    In other words, the SDK or ADT is built such that it
+                    The machine for which the SDK is built.
+                    In other words, the SDK is built such that it
                     runs on the target you specify with the
                     <filename>SDKMACHINE</filename> value.
                     The value points to a corresponding
@@ -13631,8 +13576,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     section.
                     For information on setting up a cross-development
                     environment, see the
-                    "<ulink url='&YOCTO_DOCS_ADT_URL;#installing-the-adt'>Installing the ADT and Toolchains</ulink>"
-                    section in the Yocto Project Application Developer's Guide.
+                    <ulink url='&YOCTO_DOCS_SDK_URL;#sdk-manual'>Yocto Project Software Development Kit (SDK) Developer's Guide</ulink>.
                 </para>
             </glossdef>
         </glossentry>
@@ -13683,8 +13627,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     section.
                     For information on setting up a cross-development
                     environment, see the
-                    "<ulink url='&YOCTO_DOCS_ADT_URL;#installing-the-adt'>Installing the ADT and Toolchains</ulink>"
-                    section in the Yocto Project Application Developer's Guide.
+                    <ulink url='&YOCTO_DOCS_SDK_URL;#sdk-manual'>Yocto Project Software Development Kit (SDK) Developer's Guide</ulink>.
                 </para>
             </glossdef>
         </glossentry>

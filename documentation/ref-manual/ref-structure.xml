@@ -227,7 +227,6 @@
          core-image-minimal
          core-image-sato
          meta-toolchain
-         adt-installer
          meta-ide-support
 
      You can also run generated qemu images with a command like 'runqemu qemux86'
@@ -366,7 +365,6 @@
          core-image-minimal
          core-image-sato
          meta-toolchain
-         adt-installer
          meta-ide-support
 
      You can also run generated qemu images with a command like 'runqemu qemux86'
@@ -738,8 +736,7 @@
         <para>
             Be careful when deleting files in this directory.
             You can safely delete old images from this directory (e.g.
-            <filename>core-image-*</filename>, <filename>hob-image-*</filename>,
-            etc.).
+            <filename>core-image-*</filename>).
             However, the kernel (<filename>*zImage*</filename>, <filename>*uImage*</filename>, etc.),
             bootloader and other supplementary files might be deployed here prior to building an
             image.
@@ -767,8 +764,8 @@
             toolchain installer scripts, which when executed, install the
             sysroot that matches your target hardware.
             You can find out more about these installers in the
-            "<ulink url='&YOCTO_DOCS_ADT_URL;#optionally-building-a-toolchain-installer'>Optionally Building a Toolchain Installer</ulink>"
-            section in the Yocto Project Application Developer's Guide.
+            "<ulink url='&YOCTO_DOCS_SDK_URL;#sdk-building-an-sdk-installer'>Building an SDK Installer</ulink>"
+            section in the Yocto Project Software Development Kit (SDK) Developer's Guide.
         </para>
     </section>
 

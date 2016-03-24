@@ -714,7 +714,9 @@
         provides for automatic checking for upstream recipe updates.
         The class creates a comma-separated value (CSV) spreadsheet that
         contains information about the recipes.
-        The information provides the <filename>do_distrodata</filename> and
+        The information provides the
+        <link linkend='ref-tasks-distrodata'><filename>do_distrodata</filename></link>
+        and
         <filename>do_distro_check</filename> tasks, which do upstream checking
         and also verify if a package is used in multiple major distributions.
     </para>
@@ -727,6 +729,13 @@
         <literallayout class='monospaced'>
      INHERIT+= "distrodata"
         </literallayout>
+    </para>
+
+    <para>
+        The <filename>distrodata</filename> class also provides the
+        <link linkend='ref-tasks-checkpkg'><filename>do_checkpkg</filename></link>
+        task, which can be used against a simple recipe or against an
+        image to get all its recipe information.
     </para>
 </section>
 
@@ -2558,22 +2567,6 @@
     </para>
 </section>
 
-<section id='ref-classes-packageinfo'>
-    <title><filename>packageinfo.bbclass</filename></title>
-
-    <para>
-        The <filename>packageinfo</filename> class
-        gives a BitBake user interface the ability to retrieve information
-        about output packages from the <filename>pkgdata</filename> files.
-    </para>
-
-    <para>
-        This class is enabled automatically when using the
-        <ulink url='&YOCTO_HOME_URL;/tools-resources/projects/hob'>Hob</ulink>
-        user interface.
-    </para>
-</section>
-
 <section id='ref-classes-patch'>
     <title><filename>patch.bbclass</filename></title>
 
@@ -2654,8 +2647,8 @@
         toolchain using the
         <link linkend='ref-tasks-populate_sdk'><filename>do_populate_sdk</filename></link>
         task, see the
-        "<ulink url='&YOCTO_DOCS_ADT_URL;#optionally-building-a-toolchain-installer'>Optionally Building a Toolchain Installer</ulink>"
-        section in the Yocto Project Application Developer's Guide.
+        "<ulink url='&YOCTO_DOCS_SDK_URL;#sdk-building-an-sdk-installer'>Building an SDK Installer</ulink>"
+        section in the Yocto Project Software Development Kit (SDK) Developer's Guide.
     </para>
 </section>
 
@@ -2734,8 +2727,9 @@
         cross-development toolchain using the
         <link linkend='ref-tasks-populate_sdk'><filename>do_populate_sdk</filename></link>
         task, see the
-        "<ulink url='&YOCTO_DOCS_ADT_URL;#optionally-building-a-toolchain-installer'>Optionally Building a Toolchain Installer</ulink>"
-        section in the Yocto Project Application Developer's Guide.
+        "<ulink url='&YOCTO_DOCS_SDK_URL;#sdk-building-an-sdk-installer'>Building an SDK Installer</ulink>"
+        section in the Yocto Project Software Development Kit (SDK) Developer's
+        Guide.
     </para>
 </section>
 
