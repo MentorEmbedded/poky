@@ -20,7 +20,7 @@
 do_bootimg[depends] += "${MLPREFIX}syslinux:do_populate_sysroot \
                         syslinux-native:do_populate_sysroot"
 
-ISOLINUXDIR = "/isolinux"
+ISOLINUXDIR ?= "/isolinux"
 SYSLINUXDIR = "/"
 # The kernel has an internal default console, which you can override with
 # a console=...some_tty...
@@ -30,25 +30,13 @@ SYSLINUX_SERIAL_TTY ?= "console=ttyS0,115200"
 SYSLINUX_PROMPT ?= "0"
 SYSLINUX_TIMEOUT ?= "50"
 AUTO_SYSLINUXMENU ?= "1"
-ISO_BOOTIMG = "isolinux/isolinux.bin"
-ISO_BOOTCAT = "isolinux/boot.cat"
-MKISOFS_OPTIONS = "-no-emul-boot -boot-load-size 4 -boot-info-table"
+SYSLINUX_ROOT ?= "${ROOT}"
+SYSLINUX_CFG_VM  ?= "${S}/syslinux_vm.cfg"
+SYSLINUX_CFG_LIVE ?= "${S}/syslinux_live.cfg"
 APPEND_prepend = " ${SYSLINUX_ROOT} "
 
 # Need UUID utility code.
 inherit fs-uuid
-
-# Some of the vars for vm and live image are conflicted, this function
-# is used for fixing the problem.
-def syslinux_set_vars(d, suffix):
-    vars = ['SYSLINUX_ROOT', 'SYSLINUX_CFG', 'LABELS', 'INITRD']
-    for var in vars:
-        var_with_suffix = var + '_' + suffix
-        if d.getVar(var, True):
-            bb.warn('Found potential conflicted var %s, please use %s rather than %s' % \
-                (var, var_with_suffix, var))
-        elif d.getVar(var_with_suffix, True):
-            d.setVar(var, d.getVar(var_with_suffix, True))
 
 syslinux_populate() {
 	DEST=$1

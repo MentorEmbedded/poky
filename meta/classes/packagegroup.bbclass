@@ -22,12 +22,18 @@ inherit ${@oe.utils.ifelse(d.getVar('PACKAGE_ARCH_EXPANDED', True) == 'all', 'al
 # Also mark all packages as ALLOW_EMPTY
 python () {
     packages = d.getVar('PACKAGES', True).split()
-    genpackages = []
     for pkg in packages:
         d.setVar("ALLOW_EMPTY_%s" % pkg, "1")
-        for postfix in ['-dbg', '-dev', '-ptest']:
-            genpackages.append(pkg+postfix)
     if d.getVar('PACKAGEGROUP_DISABLE_COMPLEMENTARY', True) != '1':
+        # Add complementary packagegroups
+        genpackages = []
+        complementary_types = ['-dbg', '-dev']
+        if bb.utils.contains('DISTRO_FEATURES', 'ptest', True, False, d):
+            complementary_types.append('-ptest')
+        for pkg in packages:
+            for postfix in complementary_types:
+                genpackages.append(pkg+postfix)
+                d.setVar("ALLOW_EMPTY_%s" % pkg+postfix, "1")
         d.setVar('PACKAGES', ' '.join(packages+genpackages))
 }
 

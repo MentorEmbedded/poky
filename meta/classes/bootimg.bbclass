@@ -40,6 +40,11 @@ EFIIMGDIR = "${S}/efi_img"
 COMPACT_ISODIR = "${S}/iso.z"
 COMPRESSISO ?= "0"
 
+ISOLINUXDIR ?= "/isolinux"
+ISO_BOOTIMG = "isolinux/isolinux.bin"
+ISO_BOOTCAT = "isolinux/boot.cat"
+MKISOFS_OPTIONS = "-no-emul-boot -boot-load-size 4 -boot-info-table"
+
 BOOTIMG_VOLUME_ID   ?= "boot"
 BOOTIMG_EXTRA_SPACE ?= "512"
 
@@ -48,8 +53,6 @@ EFI_PROVIDER ?= "grub-efi"
 EFI_CLASS = "${@bb.utils.contains("MACHINE_FEATURES", "efi", "${EFI_PROVIDER}", "", d)}"
 
 KERNEL_IMAGETYPE ??= "bzImage"
-
-LABELS ?= "boot install"
 
 # Include legacy boot if MACHINE_FEATURES includes "pcbios" or if it does not
 # contain "efi". This way legacy is supported by default if neither is
@@ -61,10 +64,10 @@ def pcbios(d):
     return pcbios
 
 PCBIOS = "${@pcbios(d)}"
+PCBIOS_CLASS = "${@['','syslinux'][d.getVar('PCBIOS', True) == '1']}"
 
-# The syslinux is required for the isohybrid command and boot catalog
-inherit syslinux
 inherit ${EFI_CLASS}
+inherit ${PCBIOS_CLASS}
 
 populate() {
 	DEST=$1
@@ -282,8 +285,8 @@ build_hddimg() {
 }
 
 python do_bootimg() {
+    set_live_vm_vars(d, 'LIVE')
     if d.getVar("PCBIOS", True) == "1":
-        syslinux_set_vars(d, 'LIVE')
         bb.build.exec_func('build_syslinux_cfg', d)
     if d.getVar("EFI", True) == "1":
         bb.build.exec_func('build_efi_cfg', d)
