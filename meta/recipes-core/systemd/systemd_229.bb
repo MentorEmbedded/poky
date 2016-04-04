@@ -53,6 +53,7 @@ SRC_URI = "git://github.com/systemd/systemd.git;protocol=git \
            file://0020-check-for-uchar.h-in-configure.patch \
            file://0021-include-missing.h-for-getting-secure_getenv-definiti.patch \
            file://0022-socket-util-don-t-fail-if-libc-doesn-t-support-IDN.patch \
+           file://0023-build-sys-fix-build-with-libgrcypt-disabled.patch \
 "
 SRC_URI_append_libc-uclibc = "\
            file://0002-units-Prefer-getty-to-agetty-in-console-setup-system.patch \
@@ -101,7 +102,6 @@ PACKAGECONFIG[gcrypt] = "--enable-gcrypt,--disable-gcrypt,libgcrypt"
 PACKAGECONFIG[cryptsetup] = "--enable-libcryptsetup,--disable-libcryptsetup,cryptsetup"
 PACKAGECONFIG[microhttpd] = "--enable-microhttpd,--disable-microhttpd,libmicrohttpd"
 PACKAGECONFIG[elfutils] = "--enable-elfutils,--disable-elfutils,elfutils"
-# resolved needs gcrypt
 PACKAGECONFIG[resolved] = "--enable-resolved,--disable-resolved"
 PACKAGECONFIG[networkd] = "--enable-networkd,--disable-networkd"
 PACKAGECONFIG[machined] = "--enable-machined,--disable-machined"
@@ -197,6 +197,8 @@ do_configure_prepend() {
 	else
 		cp -r ${S}/units ${S}/units.pre_sed
 	fi
+	sed -i -e 's:-DTEST_DIR=\\\".*\\\":-DTEST_DIR=\\\"${PTEST_PATH}/tests/test\\\":' ${S}/Makefile.am
+	sed -i -e 's:-DCATALOG_DIR=\\\".*\\\":-DCATALOG_DIR=\\\"${PTEST_PATH}/tests/catalog\\\":' ${S}/Makefile.am
 }
 
 do_install() {
@@ -264,19 +266,27 @@ do_install() {
 }
 
 do_install_ptest () {
-       install -d ${D}${PTEST_PATH}/test
-       cp -rfL ${S}/test/* ${D}${PTEST_PATH}/test
-       install -m 0755  ${B}/test-udev ${D}${PTEST_PATH}/
-       install -d ${D}${PTEST_PATH}/build-aux
-       cp ${S}/build-aux/test-driver ${D}${PTEST_PATH}/build-aux/
-       cp -rf ${B}/rules ${D}${PTEST_PATH}/
+       # install data files needed for tests
+       install -d ${D}${PTEST_PATH}/tests/test
+       cp -rfL ${S}/test/* ${D}${PTEST_PATH}/tests/test
+       sed -i 's/"tree"/"ls"/' ${D}${PTEST_PATH}/tests/test/udev-test.pl
+
+       install -d ${D}${PTEST_PATH}/tests/catalog
+       install ${S}/catalog/* ${D}${PTEST_PATH}/tests/catalog/
+
+       install -D ${S}/build-aux/test-driver ${D}${PTEST_PATH}/tests/build-aux/test-driver
+
+       install -d ${D}${PTEST_PATH}/tests/rules
+       install ${B}/rules/* ${D}${PTEST_PATH}/tests/rules/
+
        # This directory needs to be there for udev-test.pl to work.
        install -d ${D}${libdir}/udev/rules.d
-       cp ${B}/Makefile ${D}${PTEST_PATH}/
-       cp ${S}/test/sys.tar.xz ${D}${PTEST_PATH}/test
-       sed -i 's/"tree"/"ls"/' ${D}${PTEST_PATH}/test/udev-test.pl
-       sed -i 's#${S}#${PTEST_PATH}#g' ${D}${PTEST_PATH}/Makefile
-       sed -i 's#${B}#${PTEST_PATH}#g' ${D}${PTEST_PATH}/Makefile
+
+       # install actual test binaries
+       install -m 0755 ${B}/test-* ${D}${PTEST_PATH}/tests/
+       install -m 0755 ${B}/.libs/test-* ${D}${PTEST_PATH}/tests/
+
+       install ${B}/Makefile ${D}${PTEST_PATH}/tests/
 }
 
 python populate_packages_prepend (){
@@ -312,7 +322,12 @@ FILES_${PN}-analyze = "${bindir}/systemd-analyze"
 FILES_${PN}-initramfs = "/init"
 RDEPENDS_${PN}-initramfs = "${PN}"
 
-RDEPENDS_${PN}-ptest += "perl python bash"
+RDEPENDS_${PN}-ptest += "gawk make perl python bash xz \
+                         tzdata tzdata-americas tzdata-asia \
+                         tzdata-europe tzdata-africa tzdata-antarctica \
+                         tzdata-arctic tzdata-atlantic tzdata-australia \
+                         tzdata-pacific tzdata-posix"
+
 FILES_${PN}-ptest += "${libdir}/udev/rules.d"
 
 FILES_${PN}-gui = "${bindir}/systemadm"

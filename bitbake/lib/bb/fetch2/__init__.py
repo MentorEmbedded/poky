@@ -677,7 +677,8 @@ def verify_donestamp(ud, d, origud=None):
         # incorrect stamp file.
         logger.warn("Checksum mismatch for local file %s\n"
                     "Cleaning and trying again." % ud.localpath)
-        rename_bad_checksum(ud, e.checksum)
+        if os.path.exists(ud.localpath):
+            rename_bad_checksum(ud, e.checksum)
         bb.utils.remove(ud.donestamp)
     return False
 
@@ -698,11 +699,21 @@ def update_stamp(ud, d):
             # Errors aren't fatal here
             pass
     else:
-        checksums = verify_checksum(ud, d)
-        # Store the checksums for later re-verification against the recipe
-        with open(ud.donestamp, "wb") as cachefile:
-            p = pickle.Pickler(cachefile, pickle.HIGHEST_PROTOCOL)
-            p.dump(checksums)
+        try:
+            checksums = verify_checksum(ud, d)
+            # Store the checksums for later re-verification against the recipe
+            with open(ud.donestamp, "wb") as cachefile:
+                p = pickle.Pickler(cachefile, pickle.HIGHEST_PROTOCOL)
+                p.dump(checksums)
+        except ChecksumError as e:
+            # Checksums failed to verify, trigger re-download and remove the
+            # incorrect stamp file.
+            logger.warn("Checksum mismatch for local file %s\n"
+                        "Cleaning and trying again." % ud.localpath)
+            if os.path.exists(ud.localpath):
+                rename_bad_checksum(ud, e.checksum)
+            bb.utils.remove(ud.donestamp)
+            raise
 
 def subprocess_setup():
     # Python installs a SIGPIPE handler by default. This is usually not what
@@ -713,7 +724,7 @@ def subprocess_setup():
 def get_autorev(d):
     #  only not cache src rev in autorev case
     if d.getVar('BB_SRCREV_POLICY', True) != "cache":
-        d.setVar('__BB_DONT_CACHE', '1')
+        d.setVar('BB_DONT_CACHE', '1')
     return "AUTOINC"
 
 def get_srcrev(d, method_name='sortable_revision'):
@@ -919,6 +930,10 @@ def rename_bad_checksum(ud, suffix):
 def try_mirror_url(fetch, origud, ud, ld, check = False):
     # Return of None or a value means we're finished
     # False means try another url
+
+    if ud.lockfile and ud.lockfile != origud.lockfile:
+        lf = bb.utils.lockfile(ud.lockfile)
+
     try:
         if check:
             found = ud.method.checkstatus(fetch, ud, ld)
@@ -972,7 +987,8 @@ def try_mirror_url(fetch, origud, ud, ld, check = False):
         if isinstance(e, ChecksumError):
             logger.warn("Mirror checksum failure for url %s (original url: %s)\nCleaning and trying again." % (ud.url, origud.url))
             logger.warn(str(e))
-            rename_bad_checksum(ud, e.checksum)
+            if os.path.exists(ud.localpath):
+                rename_bad_checksum(ud, e.checksum)
         elif isinstance(e, NoChecksumError):
             raise
         else:
@@ -983,6 +999,10 @@ def try_mirror_url(fetch, origud, ud, ld, check = False):
         except UnboundLocalError:
             pass
         return False
+    finally:
+        if ud.lockfile and ud.lockfile != origud.lockfile:
+            bb.utils.unlockfile(lf)
+
 
 def try_mirrors(fetch, d, origud, mirrors, check = False):
     """
@@ -1027,6 +1047,7 @@ def trusted_network(d, url):
     if not network:
         return True
 
+    network = network.split(':')[0]
     network = network.lower()
 
     for host in trusted_hosts.split(" "):
@@ -1578,7 +1599,8 @@ class Fetch(object):
                         if isinstance(e, ChecksumError):
                             logger.warn("Checksum failure encountered with download of %s - will attempt other sources if available" % u)
                             logger.debug(1, str(e))
-                            rename_bad_checksum(ud, e.checksum)
+                            if os.path.exists(ud.localpath):
+                                rename_bad_checksum(ud, e.checksum)
                         elif isinstance(e, NoChecksumError):
                             raise
                         else:

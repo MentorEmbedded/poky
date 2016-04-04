@@ -54,6 +54,7 @@ x86_common = [
     'wrong ELF class',
     'Could not enable PowerButton event',
     'probe of LNXPWRBN:00 failed with error -22',
+    'pmd_set_huge: Cannot satisfy',
 ] + common_errors
 
 qemux86_common = [
@@ -110,6 +111,7 @@ ignore_errors = {
         '(EE) open /dev/fb0: No such file or directory',
         '(EE) AIGLX: reverting to software rendering',
         ] + x86_common,
+    'intel-corei7-64' : x86_common,
     'crownbay' : x86_common,
     'genericx86' : x86_common,
     'genericx86-64' : x86_common,
@@ -129,6 +131,17 @@ class ParseLogsTest(oeRuntimeTest):
     @classmethod
     def setUpClass(self):
         self.errors = errors
+
+        # When systemd is enabled we need to notice errors on
+        # circular dependencies in units.
+        if self.hasFeature("systemd"):
+            self.errors.extend([
+                'Found ordering cycle on',
+                'Breaking ordering cycle by deleting job',
+                'deleted to break ordering cycle',
+                'Ordering cycle found, skipping',
+                ])
+
         self.ignore_errors = ignore_errors
         self.log_locations = log_locations
         self.msg = ""

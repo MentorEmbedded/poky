@@ -85,22 +85,22 @@ python () {
         d.prependVarFlag('do_compile', 'prefuncs', "externalsrc_compile_prefunc ")
         d.prependVarFlag('do_configure', 'prefuncs', "externalsrc_configure_prefunc ")
 
-        # Ensure compilation happens every time
-        d.setVarFlag('do_compile', 'nostamp', '1')
+        # Force the recipe to be always re-parsed so that the file_checksums
+        # function is run every time
+        d.setVar('BB_DONT_CACHE', '1')
+        d.setVarFlag('do_compile', 'file-checksums', '${@srctree_hash_files(d)}')
 
         # We don't want the workdir to go away
         d.appendVar('RM_WORK_EXCLUDE', ' ' + d.getVar('PN', True))
 
         # If B=S the same builddir is used even for different architectures.
-        # Thus, use a shared CONFIGURESTAMPFILE so that change of do_configure
-        # task hash is correctly detected if e.g. MACHINE changes. In addition,
-        # do_configure needs to depend on the stamp file so that the task is
-        # re-run when the stamp was changed since the last run on this
-        # architecture.
+        # Thus, use a shared CONFIGURESTAMPFILE and STAMP directory so that
+        # change of do_configure task hash is correctly detected and stamps are
+        # invalidated if e.g. MACHINE changes.
         if d.getVar('S', True) == d.getVar('B', True):
             configstamp = '${TMPDIR}/work-shared/${PN}/${EXTENDPE}${PV}-${PR}/configure.sstate'
             d.setVar('CONFIGURESTAMPFILE', configstamp)
-            d.setVarFlag('do_configure', 'file-checksums', configstamp + ':True')
+            d.setVar('STAMP', '${STAMPS_DIR}/work-shared/${PN}/${EXTENDPE}${PV}-${PR}')
 }
 
 python externalsrc_configure_prefunc() {
@@ -126,3 +126,28 @@ python externalsrc_compile_prefunc() {
     # Make it obvious that this is happening, since forgetting about it could lead to much confusion
     bb.plain('NOTE: %s: compiling from external source tree %s' % (d.getVar('PN', True), d.getVar('EXTERNALSRC', True)))
 }
+
+def srctree_hash_files(d):
+    import shutil
+    import subprocess
+
+    s_dir = d.getVar('EXTERNALSRC', True)
+    git_dir = os.path.join(s_dir, '.git')
+    oe_index_file = os.path.join(git_dir, 'oe-devtool-index')
+    oe_hash_file = os.path.join(git_dir, 'oe-devtool-tree-sha1')
+
+    ret = " "
+    if os.path.exists(git_dir):
+        # Clone index
+        shutil.copy2(os.path.join(git_dir, 'index'), oe_index_file)
+        # Update our custom index
+        env = os.environ.copy()
+        env['GIT_INDEX_FILE'] = oe_index_file
+        subprocess.check_output(['git', 'add', '.'], cwd=s_dir, env=env)
+        sha1 = subprocess.check_output(['git', 'write-tree'], cwd=s_dir, env=env)
+        with open(oe_hash_file, 'w') as fobj:
+            fobj.write(sha1)
+        ret = oe_hash_file + ':True'
+    else:
+        ret = d.getVar('EXTERNALSRC', True) + '/*:True'
+    return ret

@@ -42,7 +42,7 @@ from orm.models import Variable, VariableHistory
 from orm.models import Package, Package_File, Target_Installed_Package, Target_File
 from orm.models import Task_Dependency, Package_Dependency
 from orm.models import Recipe_Dependency, Provides
-from orm.models import Project, CustomImagePackage
+from orm.models import Project, CustomImagePackage, CustomImageRecipe
 
 from bldcontrol.models import BuildEnvironment, BuildRequest
 
@@ -352,7 +352,7 @@ class ORMWrapper(object):
             # Special case the toaster-custom-images layer which is created
             # on the fly so don't update the values which may cause the layer
             # to be duplicated on a future get_or_create
-            if layer_obj.layer.name == "toaster-custom-images":
+            if layer_obj.layer.name == CustomImageRecipe.LAYER_NAME:
                 return layer_obj
             # We already found our layer version for this build so just
             # update it with the new build information
@@ -363,12 +363,17 @@ class ORMWrapper(object):
 
             # create a new copy of this layer version as a snapshot for
             # historical purposes
-            layer_copy, c = Layer_Version.objects.get_or_create(build=build_obj,
-                            layer=layer_obj.layer,
-                            commit=layer_version_information['commit'],
-                            local_path = layer_version_information['local_path'],
-                            )
-            logger.info("created new historical layer version %d", layer_copy.pk)
+            layer_copy, c = Layer_Version.objects.get_or_create(
+                build=build_obj,
+                layer=layer_obj.layer,
+                up_branch=layer_obj.up_branch,
+                branch=layer_version_information['branch'],
+                commit=layer_version_information['commit'],
+                local_path=layer_version_information['local_path'],
+            )
+
+            logger.info("created new historical layer version %d",
+                        layer_copy.pk)
 
             self.layer_version_built.append(layer_copy)
 
@@ -590,11 +595,15 @@ class ORMWrapper(object):
                 packagedict[p]['object'].package_dependencies_target.all().delete()
                 packagedict[p]['object'].package_dependencies_source.all().delete()
                 try:
-                    recipe = self._cached_get(Recipe,
-                                              name=built_recipe.name,
-                                              layer_version__build=None,
-                                              file_path=built_recipe.file_path,
-                                              version=built_recipe.version)
+                    recipe = self._cached_get(
+                        Recipe,
+                        name=built_recipe.name,
+                        layer_version__build=None,
+                        layer_version__up_branch=
+                        built_recipe.layer_version.up_branch,
+                        file_path=built_recipe.file_path,
+                        version=built_recipe.version
+                    )
                 except (Recipe.DoesNotExist,
                         Recipe.MultipleObjectsReturned) as e:
                     logger.info("We did not find one recipe for the"
@@ -1303,6 +1312,9 @@ class BuildInfoHelper(object):
                 for cls in event._depgraph['pn'][pn]['inherits']:
                     if cls.endswith('/image.bbclass'):
                         recipe.is_image = True
+                        recipe_info['is_image'] = True
+                        # Save the is_image state to the relevant recipe objects
+                        self.orm_wrapper.get_update_recipe_object(recipe_info)
                         break
             if recipe.is_image:
                 for t in self.internal_state['targets']:
