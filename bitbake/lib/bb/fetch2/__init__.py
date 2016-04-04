@@ -1047,6 +1047,7 @@ def trusted_network(d, url):
     if not network:
         return True
 
+    network = network.split(':')[0]
     network = network.lower()
 
     for host in trusted_hosts.split(" "):
