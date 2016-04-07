@@ -3415,6 +3415,9 @@
                     see this specific question in the
                     "<link linkend='how-does-the-yocto-project-obtain-source-code-and-will-it-work-behind-my-firewall-or-proxy-server'>FAQ</link>"
                     chapter.
+                    You can also refer to the
+                    "<ulink url='&YOCTO_WIKI_URL;/wiki/Working_Behind_a_Network_Proxy'>Working Behind a Network Proxy</ulink>"
+                    Wiki page.
                 </para>
             </glossdef>
         </glossentry>
@@ -3815,9 +3818,6 @@
 
 "tools-debug" - Adds debugging tools such as gdb and
                 strace.
-
-"tools-profile" - Adds profiling tools such as oprofile,
-                  exmap, lttng and valgrind (x86 only).
 
 "tools-sdk" - Adds development tools such as gcc, make,
               pkgconfig and so forth.
@@ -9588,6 +9588,23 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     <literallayout class='monospaced'>
      PREFERRED_VERSION_python = "2.7.3"
      PREFERRED_VERSION_linux-yocto = "3.19%"
+                    </literallayout>
+                    Sometimes the <filename>PREFERRED_VERSION</filename>
+                    variable can be set by configuration files in a way that
+                    is hard to change.
+                    You can use
+                    <link linkend='var-OVERRIDES'><filename>OVERRIDES</filename></link>
+                    to set a machine-specific override.
+                    Here is an example:
+                    <literallayout class='monospaced'>
+     PREFERRED_VERSION_linux-yocto_qemux86 = "3.4%"
+                    </literallayout>
+                    Although not recommended, worst case, you can also use the
+                    "forcevariable" override, which is the strongest override
+                    possible.
+                    Here is an example:
+                    <literallayout class='monospaced'>
+     PREFERRED_VERSION_linux-yocto_forcevariable = "3.4%"
                     </literallayout>
                 </para>
             </glossdef>
