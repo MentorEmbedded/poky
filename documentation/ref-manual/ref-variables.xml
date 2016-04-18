@@ -1130,7 +1130,7 @@
                     <literallayout class='monospaced'>
      BBLAYERS = " \
        /home/scottrif/poky/meta \
-       /home/scottrif/poky/meta-yocto \
+       /home/scottrif/poky/meta-poky \
        /home/scottrif/poky/meta-yocto-bsp \
        /home/scottrif/poky/meta-mykernel \
        "
@@ -3112,7 +3112,7 @@
                     For example, the distribution configuration file for the
                     Poky distribution is named <filename>poky.conf</filename>
                     and resides in the
-                    <filename>meta-yocto/conf/distro</filename> directory of
+                    <filename>meta-poky/conf/distro</filename> directory of
                     the
                     <ulink url='&YOCTO_DOCS_DEV_URL;#source-directory'>Source Directory</ulink>.
                 </para>
@@ -3415,6 +3415,9 @@
                     see this specific question in the
                     "<link linkend='how-does-the-yocto-project-obtain-source-code-and-will-it-work-behind-my-firewall-or-proxy-server'>FAQ</link>"
                     chapter.
+                    You can also refer to the
+                    "<ulink url='&YOCTO_WIKI_URL;/wiki/Working_Behind_a_Network_Proxy'>Working Behind a Network Proxy</ulink>"
+                    Wiki page.
                 </para>
             </glossdef>
         </glossentry>
@@ -3816,9 +3819,6 @@
 "tools-debug" - Adds debugging tools such as gdb and
                 strace.
 
-"tools-profile" - Adds profiling tools such as oprofile,
-                  exmap, lttng and valgrind (x86 only).
-
 "tools-sdk" - Adds development tools such as gcc, make,
               pkgconfig and so forth.
 
@@ -3925,6 +3925,12 @@
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
                     Additional GNU <filename>make</filename> options.
+                </para>
+
+                <para>
+                    Because the <filename>EXTRA_OEMAKE</filename> defaults to
+                    "", you need to set the variable to specify any required
+                    GNU options.
                 </para>
             </glossdef>
         </glossentry>
@@ -6029,7 +6035,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
                 <para>
                     See the
-                    <ulink url='&YOCTO_GIT_URL;/cgit/cgit.cgi/poky/tree/meta-yocto/conf/local.conf.sample.extended'><filename>local.conf.sample.extended</filename></ulink>
+                    <ulink url='&YOCTO_GIT_URL;/cgit/cgit.cgi/poky/tree/meta-poky/conf/local.conf.sample.extended'><filename>local.conf.sample.extended</filename></ulink>
                     file for additional information.
                     You can also reference the
                     <ulink url='&YOCTO_GIT_URL;/cgit/cgit.cgi/poky/tree/meta/classes/kernel.bbclass'><filename>kernel.bbclass</filename></ulink>
@@ -6083,7 +6089,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                         You cannot set the variable in a recipe file.
                     </note>
                     See the
-                    <ulink url='&YOCTO_GIT_URL;/cgit/cgit.cgi/poky/tree/meta-yocto/conf/local.conf.sample.extended'><filename>local.conf.sample.extended</filename></ulink>
+                    <ulink url='&YOCTO_GIT_URL;/cgit/cgit.cgi/poky/tree/meta-poky/conf/local.conf.sample.extended'><filename>local.conf.sample.extended</filename></ulink>
                     file for additional information.
                 </para>
             </glossdef>
@@ -6103,7 +6109,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                 <para>
                     The <filename>INITRD</filename> variable is an optional
                     variable used with the
-                    <link linkend='ref-classes-bootimg'><filename>bootimg</filename></link>
+                    <link linkend='ref-classes-image-live'><filename>image-live</filename></link>
                     class.
                 </para>
             </glossdef>
@@ -6231,6 +6237,22 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     See the "<link linkend='ref-classes-insane'><filename>insane.bbclass</filename></link>"
                     section for a list of the valid QA checks you can
                     specify using this variable.
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-INSTALL_TIMEZONE_FILE'><glossterm>INSTALL_TIMEZONE_FILE</glossterm>
+            <info>
+                INSTALL_TIMEZONE_FILE[doc] = "Enables installation of the /etc/timezone file."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    By default, the <filename>tzdata</filename> recipe packages
+                    an <filename>/etc/timezone</filename> file.
+                    Set the <filename>INSTALL_TIMEZONE_FILE</filename>
+                    variable to "0" at the configuration level to disable this
+                    behavior.
                 </para>
             </glossdef>
         </glossentry>
@@ -7775,7 +7797,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     is "poky", the default value for
                     <filename>MIRRORS</filename> is defined in the
                     <filename>conf/distro/poky.conf</filename> file in the
-                    <filename>meta-yocto</filename> Git repository.
+                    <filename>meta-poky</filename> Git repository.
                 </para>
             </glossdef>
         </glossentry>
@@ -8067,7 +8089,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     Causes the OpenEmbedded build system to skip building the
                     <filename>.hddimg</filename> image.
                     The <filename>NOHDD</filename> variable is used with the
-                    <link linkend='ref-classes-bootimg'><filename>bootimg</filename></link>
+                    <link linkend='ref-classes-image-live'><filename>image-live</filename></link>
                     class.
                     Set the variable to "1" to prevent the
                     <filename>.hddimg</filename> image from being built.
@@ -8085,7 +8107,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     Causes the OpenEmbedded build system to skip building the
                     ISO image.
                     The <filename>NOISO</filename> variable is used with the
-                    <link linkend='ref-classes-bootimg'><filename>bootimg</filename></link>
+                    <link linkend='ref-classes-image-live'><filename>image-live</filename></link>
                     class.
                     Set the variable to "1" to prevent the ISO image from
                     being built.
@@ -9562,6 +9584,17 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
      PREFERRED_PROVIDER_virtual/xserver = "xserver-xf86"
      PREFERRED_PROVIDER_virtual/libgl ?= "mesa"
                     </literallayout>
+                    <note>
+                        If you set <filename>PREFERRED_PROVIDER</filename>
+                        for a <filename>virtual/*</filename> item, then any
+                        recipe that
+                        <link linkend='var-PROVIDES'><filename>PROVIDES</filename></link>
+                        that item that is not selected by
+                        <filename>PREFERRED_PROVIDER</filename> is prevented
+                        from building, which is usually desirable since this
+                        mechanism is designed to select between mutually
+                        exclusive alternative providers.
+                    </note>
                 </para>
             </glossdef>
         </glossentry>
@@ -9588,6 +9621,23 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     <literallayout class='monospaced'>
      PREFERRED_VERSION_python = "2.7.3"
      PREFERRED_VERSION_linux-yocto = "3.19%"
+                    </literallayout>
+                    Sometimes the <filename>PREFERRED_VERSION</filename>
+                    variable can be set by configuration files in a way that
+                    is hard to change.
+                    You can use
+                    <link linkend='var-OVERRIDES'><filename>OVERRIDES</filename></link>
+                    to set a machine-specific override.
+                    Here is an example:
+                    <literallayout class='monospaced'>
+     PREFERRED_VERSION_linux-yocto_qemux86 = "3.4%"
+                    </literallayout>
+                    Although not recommended, worst case, you can also use the
+                    "forcevariable" override, which is the strongest override
+                    possible.
+                    Here is an example:
+                    <literallayout class='monospaced'>
+     PREFERRED_VERSION_linux-yocto_forcevariable = "3.4%"
                     </literallayout>
                 </para>
             </glossdef>
@@ -9617,7 +9667,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     is "poky", the default value for
                     <filename>PREMIRRORS</filename> is defined in the
                     <filename>conf/distro/poky.conf</filename> file in the
-                    <filename>meta-yocto</filename> Git repository.
+                    <filename>meta-poky</filename> Git repository.
                 </para>
 
                 <para>
@@ -10189,7 +10239,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                 <para>
                     The <filename>ROOTFS</filename> variable is an optional
                     variable used with the
-                    <link linkend='ref-classes-bootimg'><filename>bootimg</filename></link>
+                    <link linkend='ref-classes-image-live'><filename>image-live</filename></link>
                     class.
                 </para>
             </glossdef>
@@ -11103,7 +11153,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
                     Specifies the version of the SDK.
                     The distribution configuration file (e.g.
-                    <filename>/meta-yocto/conf/distro/poky.conf</filename>)
+                    <filename>/meta-poky/conf/distro/poky.conf</filename>)
                     defines the <filename>SDK_VERSION</filename> as follows:
                     <literallayout class='monospaced'>
      SDK_VERSION := "${@'${DISTRO_VERSION}'.replace('snapshot-${DATE}','snapshot')}"
@@ -14322,7 +14372,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
      USER_CLASSES ?= "buildstats image-mklibs image-prelink"
                     </literallayout>
                     For more information, see
-                    <filename>meta-yocto/conf/local.conf.sample</filename> in
+                    <filename>meta-poky/conf/local.conf.sample</filename> in
                     the
                     <ulink url='&YOCTO_DOCS_DEV_URL;#source-directory'>Source Directory</ulink>.
                 </para>

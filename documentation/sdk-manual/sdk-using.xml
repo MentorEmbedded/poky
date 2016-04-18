@@ -842,10 +842,10 @@
                                 <filename>luna/yocto-&DISTRO;</filename> tag, the
                                 <filename>master</filename> documentation
                                 branch, and
-                                <filename>&DISTRO_NAME;</filename> for the
+                                <filename>&DISTRO_NAME_NO_CAP;</filename> for the
                                 release name:
                                 <literallayout class='monospaced'>
-     $ ECLIPSE_HOME=/home/scottrif/eclipse-poky/scripts/eclipse ./build.sh luna/yocto-&DISTRO; master &DISTRO_NAME; 2>&amp;1 | tee -a build.log
+     $ ECLIPSE_HOME=/home/scottrif/eclipse-poky/scripts/eclipse ./build.sh luna/yocto-&DISTRO; master &DISTRO_NAME_NO_CAP; 2>&amp;1 | tee -a build.log
                                 </literallayout>
                                 After running the script, the file
                                 <filename>org.yocto.sdk-</filename><replaceable>release</replaceable><filename>-</filename><replaceable>date</replaceable><filename>-archive.zip</filename>
@@ -1341,32 +1341,6 @@
             <para>
                 Here are some specifics about the remote tools:
                 <itemizedlist>
-                    <listitem><para><emphasis><filename>OProfile</filename>:</emphasis>
-                        Selecting this tool causes the
-                        <filename>oprofile-server</filename> on the remote
-                        target to launch on the local host machine.
-                        The <filename>oprofile-viewer</filename> must be
-                        installed on the local host machine and the
-                        <filename>oprofile-server</filename> must be installed
-                        on the remote target, respectively, in order to use.
-                        You must compile and install the
-                        <filename>oprofile-viewer</filename> from the source
-                        code on your local host machine.
-                        Furthermore, in order to convert the target's sample
-                        format data into a form that the host can use, you must
-                        have OProfile version 0.9.4 or greater installed on the
-                        host.</para>
-                        <para>You can locate both the viewer and server from
-                        <ulink url='&YOCTO_GIT_URL;/cgit/cgit.cgi/oprofileui/'></ulink>.
-                        You can also find more information on setting up and
-                        using this tool in the
-                        "<ulink url='&YOCTO_DOCS_PROF_URL;#profile-manual-oprofile'>oprofile</ulink>"
-                        section of the Yocto Project Profiling and Tracing
-                        Manual.
-                        <note>The <filename>oprofile-server</filename> is
-                        installed by default on the
-                        <filename>core-image-sato-sdk</filename> image.</note>
-                        </para></listitem>
                     <listitem><para><emphasis><filename>Lttng2.0 trace import</filename>:</emphasis>
                         Selecting this tool transfers the remote target's
                         <filename>Lttng</filename> tracing data back to the
@@ -1484,39 +1458,6 @@
             </para>
         </section>
     </section>
-</section>
-
-<section id='sdk-using-the-sdk-to-task-2'>
-    <title>Using the SDK to <replaceable>item-2</replaceable></title>
-
-    <para role='writernotes'>
-        Describe the specific task you are going to accomplish with the SDK.
-        Provide a diagram showing the rough flow of the task.
-        Provide specific steps using a real example that works through the
-        task.
-    </para>
-</section>
-
-<section id='sdk-using-the-sdk-to-task-3'>
-    <title>Using the SDK to <replaceable>item-3</replaceable></title>
-
-    <para role='writernotes'>
-        Describe the specific task you are going to accomplish with the SDK.
-        Provide a diagram showing the rough flow of the task.
-        Provide specific steps using a real example that works through the
-        task.
-    </para>
-</section>
-
-<section id='sdk-using-the-sdk-to-task-x'>
-    <title>Using the SDK to <replaceable>item-x</replaceable></title>
-
-    <para role='writernotes'>
-        Describe the specific task you are going to accomplish with the SDK.
-        Provide a diagram showing the rough flow of the task.
-        Provide specific steps using a real example that works through the
-        task.
-    </para>
 </section>
 
 </chapter>

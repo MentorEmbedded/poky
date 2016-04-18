@@ -265,11 +265,18 @@ function customRecipePageInit(ctx) {
     });
   }
 
+  $("#no-results-show-all-packages").click(function(){
+    $(".no-results-search-input").val("");
+  });
+
+  $("#no-results-remove-search-btn").click(function(){
+      $(".no-results-search-input").val("");
+      $(this).hide();
+  });
+
   /* Trigger a build of your custom image */
   $(".build-custom-image").click(function(){
-    libtoaster.startABuild(libtoaster.ctx.projectBuildsUrl,
-      libtoaster.ctx.projectId,
-      ctx.recipe.name,
+    libtoaster.startABuild(null, ctx.recipe.name,
       function(){
         window.location.replace(libtoaster.ctx.projectBuildsUrl);
     });

@@ -53,6 +53,12 @@ do_deploy_all_archives[dirs] = "${WORKDIR}"
 
 python () {
     pn = d.getVar('PN', True)
+    assume_provided = (d.getVar("ASSUME_PROVIDED", True) or "").split()
+    if pn in assume_provided:
+        for p in d.getVar("PROVIDES", True).split():
+            if p != pn:
+                pn = p
+                break
 
     included, reason = copyleft_should_include(d)
     if not included:
@@ -357,11 +363,12 @@ python do_dumpdata () {
 
 SSTATETASKS += "do_deploy_archives"
 do_deploy_archives () {
-    echo "Deploying source archive files ..."
+    echo "Deploying source archive files from ${ARCHIVER_TOPDIR} to ${DEPLOY_DIR_SRC}."
 }
 python do_deploy_archives_setscene () {
     sstate_setscene(d)
 }
+do_deploy_archives[dirs] = "${ARCHIVER_TOPDIR}"
 do_deploy_archives[sstate-inputdirs] = "${ARCHIVER_TOPDIR}"
 do_deploy_archives[sstate-outputdirs] = "${DEPLOY_DIR_SRC}"
 addtask do_deploy_archives_setscene
