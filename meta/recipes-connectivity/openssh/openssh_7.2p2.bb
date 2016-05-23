@@ -1,8 +1,9 @@
-SUMMARY = "Secure rlogin/rsh/rcp/telnet replacement"
+SUMMARY = "A suite of security-related network utilities based on \
+the SSH protocol including the ssh client and sshd server"
 DESCRIPTION = "Secure rlogin/rsh/rcp/telnet replacement (OpenSSH) \
 Ssh (Secure Shell) is a program for logging into a remote machine \
 and for executing commands on a remote machine."
-HOMEPAGE = "http://openssh.org"
+HOMEPAGE = "http://www.openssh.com/"
 SECTION = "console/network"
 LICENSE = "BSD"
 LIC_FILES_CHKSUM = "file://LICENCE;md5=e326045657e842541d3f35aada442507"
@@ -21,16 +22,13 @@ SRC_URI = "http://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${PV}.tar
            file://volatiles.99_sshd \
            file://add-test-support-for-busybox.patch \
            file://run-ptest \
-           file://CVE-2016-1907_upstream_commit.patch \
-           file://CVE-2016-1907_2.patch \
-           file://CVE-2016-1907_3.patch \
-           file://CVE-2016-3115.patch \
+           file://CVE-2015-8325.patch \
            "
 
 PAM_SRC_URI = "file://sshd"
 
-SRC_URI[md5sum] = "4d8547670e2a220d5ef805ad9e47acf2"
-SRC_URI[sha256sum] = "dd75f024dcf21e06a0d6421d582690bf987a1f6323e32ad6619392f3bfde6bbd"
+SRC_URI[md5sum] = "13009a9156510d8f27e752659075cced"
+SRC_URI[sha256sum] = "a72781d1a043876a224ff1b0032daa4094d87565a68528759c1c2cab5482548c"
 
 inherit useradd update-rc.d update-alternatives systemd
 
