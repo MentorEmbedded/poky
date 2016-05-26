@@ -24,7 +24,6 @@
 # Tom Zanussi <tom.zanussi (at] linux.intel.com>
 #
 
-import glob
 import os
 import shutil
 
@@ -198,11 +197,10 @@ class BootimgEFIPlugin(SourcePlugin):
         except KeyError:
             msger.error("bootimg-efi requires a loader, none specified")
 
-        # Auto startup for /EFI/BOOT/boot*.efi
-        bootfiles = glob.glob('%s/EFI/BOOT/boot*.efi' % hdddir)
-        if bootfiles and len(bootfiles) == 1:
-            with open('%s/startup.nsh' % hdddir, 'w') as f:
-                f.write('fs0:\\EFI\\BOOT\\%s\n' % os.path.basename(bootfiles[0]))
+        startup = os.path.join(bootimg_dir, "startup.nsh")
+        if os.path.exists(startup):
+            cp_cmd = "cp %s %s/" % (startup, hdddir)
+            exec_cmd(cp_cmd, True)
 
         du_cmd = "du -bks %s" % hdddir
         out = exec_cmd(du_cmd)
