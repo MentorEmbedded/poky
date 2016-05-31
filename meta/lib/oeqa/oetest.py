@@ -12,6 +12,7 @@ import unittest
 import inspect
 import subprocess
 import signal
+import shutil
 try:
     import bb
 except ImportError:
@@ -264,6 +265,38 @@ class TestContext(object):
 
         return testslist
 
+    def getTestModules(self):
+        """
+        Returns all the test modules in the testlist.
+        """
+
+        import pkgutil
+
+        modules = []
+        for test in self.testslist:
+            if re.search("\w+\.\w+\.test_\S+", test):
+                test = '.'.join(t.split('.')[:3])
+            module = pkgutil.get_loader(test)
+            modules.append(module)
+
+        return modules
+
+    def getTests(self, test):
+        '''Return all individual tests executed when running the suite.'''
+        # Unfortunately unittest does not have an API for this, so we have
+        # to rely on implementation details. This only needs to work
+        # for TestSuite containing TestCase.
+        method = getattr(test, '_testMethodName', None)
+        if method:
+            # leaf case: a TestCase
+            yield test
+        else:
+            # Look into TestSuite.
+            tests = getattr(test, '_tests', [])
+            for t1 in tests:
+                for t2 in self.getTests(t1):
+                    yield t2
+
     def loadTests(self):
         setattr(oeTest, "tc", self)
 
@@ -272,36 +305,20 @@ class TestContext(object):
         suites = [testloader.loadTestsFromName(name) for name in self.testslist]
         suites = filterByTagExp(suites, getattr(self, "tagexp", None))
 
-        def getTests(test):
-            '''Return all individual tests executed when running the suite.'''
-            # Unfortunately unittest does not have an API for this, so we have
-            # to rely on implementation details. This only needs to work
-            # for TestSuite containing TestCase.
-            method = getattr(test, '_testMethodName', None)
-            if method:
-                # leaf case: a TestCase
-                yield test
-            else:
-                # Look into TestSuite.
-                tests = getattr(test, '_tests', [])
-                for t1 in tests:
-                    for t2 in getTests(t1):
-                        yield t2
-
         # Determine dependencies between suites by looking for @skipUnlessPassed
         # method annotations. Suite A depends on suite B if any method in A
         # depends on a method on B.
         for suite in suites:
             suite.dependencies = []
             suite.depth = 0
-            for test in getTests(suite):
+            for test in self.getTests(suite):
                 methodname = getattr(test, '_testMethodName', None)
                 if methodname:
                     method = getattr(test, methodname)
                     depends_on = getattr(method, '_depends_on', None)
                     if depends_on:
                         for dep_suite in suites:
-                            if depends_on in [getattr(t, '_testMethodName', None) for t in getTests(dep_suite)]:
+                            if depends_on in [getattr(t, '_testMethodName', None) for t in self.getTests(dep_suite)]:
                                 if dep_suite not in suite.dependencies and \
                                    dep_suite is not suite:
                                     suite.dependencies.append(dep_suite)
@@ -384,6 +401,118 @@ class RuntimeTestContext(TestContext):
         super(RuntimeTestContext, self).loadTests()
         if oeTest.hasPackage("procps"):
             oeRuntimeTest.pscmd = "ps -ef"
+
+    def extract_packages(self):
+        """
+        Find and extract packages that will be needed during runtime.
+        """
+
+        needed_packages = {}
+        extracted_path = self.d.getVar("TEST_EXTRACTED_DIR", True)
+        packaged_path = self.d.getVar("TEST_PACKAGED_DIR", True)
+        modules = self.getTestModules()
+        bbpaths = self.d.getVar("BBPATH", True).split(":")
+
+        for module in modules:
+            json_file = self._getJsonFile(module)
+            if json_file:
+                needed_packages = self._getNeededPackages(json_file)
+
+        for key,value in needed_packages.items():
+            packages = ()
+            if isinstance(value, dict):
+                packages = (value, )
+            elif isinstance(value, list):
+                packages = value
+            else:
+                bb.fatal("Failed to process needed packages for %s; "
+                         "Value must be a dict or list" % key)
+
+            for package in packages:
+                pkg = package["pkg"]
+                rm = package.get("rm", False)
+                extract = package.get("extract", True)
+                if extract:
+                    dst_dir = os.path.join(extracted_path, pkg)
+                else:
+                    dst_dir = os.path.join(packaged_path)
+
+                # Extract package and copy it to TEST_EXTRACTED_DIR
+                if extract and not os.path.exists(dst_dir):
+                    pkg_dir = self._extract_in_tmpdir(pkg)
+                    shutil.copytree(pkg_dir, dst_dir)
+                    shutil.rmtree(pkg_dir)
+
+                # Copy package to TEST_PACKAGED_DIR
+                elif not extract:
+                    self._copy_package(pkg)
+
+    def _getJsonFile(self, module):
+        """
+        Returns the path of the JSON file for a module, empty if doesn't exitst.
+        """
+
+        module_file = module.filename
+        json_file = "%s.json" % module_file.rsplit(".", 1)[0]
+        if os.path.isfile(module_file) and os.path.isfile(json_file):
+            return json_file
+        else:
+            return ""
+
+    def _getNeededPackages(self, json_file, test=None):
+        """
+        Returns a dict with needed packages based on a JSON file.
+
+
+        If a test is specified it will return the dict just for that test.
+        """
+
+        import json
+
+        needed_packages = {}
+
+        with open(json_file) as f:
+            test_packages = json.load(f)
+        for key,value in test_packages.items():
+            needed_packages[key] = value
+
+        if test:
+            if test in needed_packages:
+                needed_packages = needed_packages[test]
+            else:
+                needed_packages = {}
+
+        return needed_packages
+
+    def _extract_in_tmpdir(self, pkg):
+        """"
+        Returns path to a temp directory where the package was
+        extracted without dependencies.
+        """
+
+        from oeqa.utils.package_manager import get_package_manager
+
+        pkg_path = os.path.join(self.d.getVar("TEST_INSTALL_TMP_DIR", True), pkg)
+        pm = get_package_manager(self.d, pkg_path)
+        extract_dir = pm.extract(pkg)
+        shutil.rmtree(pkg_path)
+
+        return extract_dir
+
+    def _copy_package(self, pkg):
+        """
+        Copy the RPM, DEB or IPK package to dst_dir
+        """
+
+        from oeqa.utils.package_manager import get_package_manager
+
+        pkg_path = os.path.join(self.d.getVar("TEST_INSTALL_TMP_DIR", True), pkg)
+        dst_dir = self.d.getVar("TEST_PACKAGED_DIR", True)
+        pm = get_package_manager(self.d, pkg_path)
+        pkg_info = pm.package_info(pkg)
+        file_path = pkg_info[pkg]["filepath"]
+        shutil.copy2(file_path, dst_dir)
+        shutil.rmtree(pkg_path)
 
 class ImageTestContext(RuntimeTestContext):
     def __init__(self, d, target, host_dumper):
