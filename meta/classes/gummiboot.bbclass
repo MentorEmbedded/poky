@@ -35,7 +35,7 @@ efi_populate() {
         install -d ${DEST}/loader/entries
         install -m 0644 ${DEPLOY_DIR_IMAGE}/${EFI_IMAGE} ${DEST}${EFIDIR}/${DEST_EFI_IMAGE}
         EFIPATH=$(echo "${EFIDIR}" | sed 's/\//\\/g')
-	printf 'fs0:%s\%s\n' "$EFIPATH" "$DEST_EFI_IMAGE" >${DEST}/startup.nsh
+        printf 'fs0:%s\%s\n' "$EFIPATH" "$DEST_EFI_IMAGE" >${DEST}/startup.nsh
         install -m 0644 ${GUMMIBOOT_CFG} ${DEST}/loader/loader.conf
         for i in ${GUMMIBOOT_ENTRIES}; do
             install -m 0644 ${i} ${DEST}/loader/entries
