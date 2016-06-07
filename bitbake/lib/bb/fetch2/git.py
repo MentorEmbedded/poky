@@ -212,7 +212,7 @@ class Git(FetchMethod):
             if ud.shallow_revs:
                 tarballname = "%s_%s" % (tarballname, "_".join(sorted(ud.shallow_revs)))
 
-            for name, revision in sorted(ud.revisions.iteritems()):
+            for name, revision in sorted(ud.revisions.items()):
                 tarballname = "%s_%s" % (tarballname, ud.revisions[name][:7])
                 depth = ud.shallow_depths[name]
                 if depth:
@@ -220,7 +220,7 @@ class Git(FetchMethod):
 
             if ud.trim_refs:
                 if not ud.nobranch:
-                    shallow_refs = ud.branches.itervalues()
+                    shallow_refs = ud.branches.values()
                     shallow_refs = itertools.chain(shallow_refs, ud.shallow_extra_refs)
                     tarballname = "%s_%s" % (tarballname, "_".join(sorted(shallow_refs)).replace('/', '.'))
                 ud.shallowtarball = 'gitshallow_%s.tar.gz' % tarballname
@@ -343,7 +343,7 @@ class Git(FetchMethod):
 
         # Map depths to revisions
         to_parse = []
-        for depth, revision, branch in branchinfo.itervalues():
+        for depth, revision, branch in branchinfo.values():
             if not depth:
                 continue
 
@@ -361,7 +361,7 @@ class Git(FetchMethod):
 
         shallow_branches = []
         shallow_branches.extend(extra_refs)
-        for name, (depth, revision, branch) in branchinfo.iteritems():
+        for name, (depth, revision, branch) in branchinfo.items():
             if nobranch:
                 ref = "refs/shallow/%s" % name
             else:
