@@ -103,7 +103,7 @@ class GitURLValidator(validators.URLValidator):
 
 def GitURLField(**kwargs):
     r = models.URLField(**kwargs)
-    for i in xrange(len(r.validators)):
+    for i in range(len(r.validators)):
         if isinstance(r.validators[i], validators.URLValidator):
             r.validators[i] = GitURLValidator()
     return r
@@ -424,7 +424,7 @@ class Build(models.Model):
         tf = Task.objects.filter(build = self)
         tfc = tf.count()
         if tfc > 0:
-            completeper = tf.exclude(order__isnull=True).count()*100/tfc
+            completeper = tf.exclude(order__isnull=True).count()*100 // tfc
         else:
             completeper = 0
         return completeper
@@ -1147,21 +1147,29 @@ class LayerIndexLayerSource(LayerSource):
         assert self.apiurl is not None
         from django.db import transaction, connection
 
-        import urllib2, urlparse, json
+        import json
         import os
+
+        try:
+            from urllib.request import urlopen, URLError
+            from urllib.parse import urlparse
+        except ImportError:
+            from urllib2 import urlopen, URLError
+            from urlparse import urlparse
+
         proxy_settings = os.environ.get("http_proxy", None)
         oe_core_layer = 'openembedded-core'
 
         def _get_json_response(apiurl = self.apiurl):
-            _parsedurl = urlparse.urlparse(apiurl)
+            _parsedurl = urlparse(apiurl)
             path = _parsedurl.path
 
             try:
-                res = urllib2.urlopen(apiurl)
-            except urllib2.URLError as e:
+                res = urlopen(apiurl)
+            except URLError as e:
                 raise Exception("Failed to read %s: %s" % (path, e.reason))
 
-            return json.loads(res.read())
+            return json.loads(res.read().decode('utf-8'))
 
         # verify we can get the basic api
         try:
@@ -1175,7 +1183,7 @@ class LayerIndexLayerSource(LayerSource):
 
         # update branches; only those that we already have names listed in the
         # Releases table
-        whitelist_branch_names = map(lambda x: x.branch_name, Release.objects.all())
+        whitelist_branch_names = [rel.branch_name for rel in Release.objects.all()]
         if len(whitelist_branch_names) == 0:
             raise Exception("Failed to make list of branches to fetch")
 

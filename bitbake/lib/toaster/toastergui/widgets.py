@@ -38,7 +38,11 @@ import json
 import collections
 import operator
 import re
-import urllib
+
+try:
+    from urllib import unquote_plus
+except ImportError:
+    from urllib.parse import unquote_plus
 
 import logging
 logger = logging.getLogger("toaster")
@@ -239,14 +243,20 @@ class ToasterTable(TemplateView):
             raise Exception("Search fields aren't defined in the model %s"
                             % self.queryset.model)
 
-        search_queries = []
+        search_queries = None
         for st in search_term.split(" "):
-            q_map = [Q(**{field + '__icontains': st})
-                     for field in self.queryset.model.search_allowed_fields]
+            queries = None
+            for field in self.queryset.model.search_allowed_fields:
+                query = Q(**{field + '__icontains': st})
+                if queries:
+                    queries |= query
+                else:
+                    queries = query
 
-            search_queries.append(reduce(operator.or_, q_map))
-
-        search_queries = reduce(operator.and_, search_queries)
+            if search_queries:
+               search_queries &= queries
+            else:
+               search_queries = queries
 
         self.queryset = self.queryset.filter(search_queries)
 
@@ -272,12 +282,12 @@ class ToasterTable(TemplateView):
         # Make a unique cache name
         cache_name = self.__class__.__name__
 
-        for key, val in request.GET.iteritems():
+        for key, val in request.GET.items():
             if key == 'nocache':
                 continue
             cache_name = cache_name + str(key) + str(val)
 
-        for key, val in kwargs.iteritems():
+        for key, val in kwargs.items():
             cache_name = cache_name + str(key) + str(val)
 
         # No special chars allowed in the cache name apart from dash

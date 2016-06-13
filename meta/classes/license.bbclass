@@ -200,7 +200,7 @@ def get_deployed_dependencies(d):
     # it might contain the bootloader.
     taskdata = d.getVar("BB_TASKDEPDATA", False)
     depends = list(set([dep[0] for dep
-                    in taskdata.itervalues()
+                    in list(taskdata.values())
                     if not dep[0].endswith("-native")]))
     extra_depends = d.getVar("EXTRA_IMAGEDEPENDS", True)
     boot_depends = get_boot_dependencies(d)
@@ -261,7 +261,7 @@ def get_boot_dependencies(d):
             depends.append(dep)
         # We need to search for the provider of the dependency
         else:
-            for taskdep in taskdepdata.itervalues():
+            for taskdep in taskdepdata.values():
                 # The fifth field contains what the task provides
                 if dep in taskdep[4]:
                     info_file = os.path.join(
@@ -635,7 +635,7 @@ def check_license_format(d):
     licenses = d.getVar('LICENSE', True)
     from oe.license import license_operator, license_operator_chars, license_pattern
 
-    elements = filter(lambda x: x.strip(), license_operator.split(licenses))
+    elements = list(filter(lambda x: x.strip(), license_operator.split(licenses)))
     for pos, element in enumerate(elements):
         if license_pattern.match(element):
             if pos > 0 and license_pattern.match(elements[pos - 1]):

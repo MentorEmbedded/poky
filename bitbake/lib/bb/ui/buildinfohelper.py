@@ -500,7 +500,7 @@ class ORMWrapper(object):
             parent_obj = self._cached_get(Target_File, target = target_obj, path = parent_path, inodetype = Target_File.ITYPE_DIRECTORY)
             tf_obj = Target_File.objects.create(
                         target = target_obj,
-                        path = unicode(path, 'utf-8'),
+                        path = path,
                         size = size,
                         inodetype = Target_File.ITYPE_DIRECTORY,
                         permission = permission,
@@ -525,7 +525,7 @@ class ORMWrapper(object):
 
             tf_obj = Target_File.objects.create(
                         target = target_obj,
-                        path = unicode(path, 'utf-8'),
+                        path = path,
                         size = size,
                         inodetype = inodetype,
                         permission = permission,
@@ -556,9 +556,7 @@ class ORMWrapper(object):
                 filetarget_path = "/".join(fcpl)
 
             try:
-                filetarget_obj = Target_File.objects.get(
-                                     target = target_obj,
-                                     path = unicode(filetarget_path, 'utf-8'))
+                filetarget_obj = Target_File.objects.get(target = target_obj, path = filetarget_path)
             except Target_File.DoesNotExist:
                 # we might have an invalid link; no way to detect this. just set it to None
                 filetarget_obj = None
@@ -567,7 +565,7 @@ class ORMWrapper(object):
 
             tf_obj = Target_File.objects.create(
                         target = target_obj,
-                        path = unicode(path, 'utf-8'),
+                        path = path,
                         size = size,
                         inodetype = Target_File.ITYPE_SYMLINK,
                         permission = permission,
