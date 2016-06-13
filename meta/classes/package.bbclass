@@ -63,7 +63,7 @@ def legitimize_package_name(s):
     def fixutf(m):
         cp = m.group(1)
         if cp:
-            return ('\u%s' % cp).decode('unicode_escape').encode('utf-8')
+            return ('\\u%s' % cp).encode('latin-1').decode('unicode_escape')
 
     # Handle unicode codepoints encoded as <U0123>, as in glibc locale files.
     s = re.sub('<U([0-9A-Fa-f]{1,4})>', fixutf, s)
@@ -903,7 +903,8 @@ python split_and_strip_files () {
     inodes = {}
     libdir = os.path.abspath(dvar + os.sep + d.getVar("libdir", True))
     baselibdir = os.path.abspath(dvar + os.sep + d.getVar("base_libdir", True))
-    if (d.getVar('INHIBIT_PACKAGE_STRIP', True) != '1'):
+    if (d.getVar('INHIBIT_PACKAGE_STRIP', True) != '1' or \
+            d.getVar('INHIBIT_PACKAGE_DEBUG_SPLIT', True) != '1'):
         for root, dirs, files in cpath.walk(dvar):
             for f in files:
                 file = os.path.join(root, f)
@@ -1258,8 +1259,8 @@ python emit_pkgdata() {
     def write_if_exists(f, pkg, var):
         def encode(str):
             import codecs
-            c = codecs.getencoder("string_escape")
-            return c(str)[0]
+            c = codecs.getencoder("unicode_escape")
+            return c(str)[0].decode("latin1")
 
         val = d.getVar('%s_%s' % (var, pkg), True)
         if val:
@@ -1503,7 +1504,7 @@ python package_do_shlibs() {
             m = re.match("\s+RPATH\s+([^\s]*)", l)
             if m:
                 rpaths = m.group(1).replace("$ORIGIN", ldir).split(":")
-                rpath = map(os.path.normpath, rpaths)
+                rpath = list(map(os.path.normpath, rpaths))
         for l in lines:
             m = re.match("\s+NEEDED\s+([^\s]*)", l)
             if m:
@@ -1673,7 +1674,7 @@ python package_do_shlibs() {
                 bb.debug(2, '%s: Dependency %s covered by PRIVATE_LIBS' % (pkg, n[0]))
                 continue
             if n[0] in shlib_provider.keys():
-                shlib_provider_path = list()
+                shlib_provider_path = []
                 for k in shlib_provider[n[0]].keys():
                     shlib_provider_path.append(k)
                 match = None

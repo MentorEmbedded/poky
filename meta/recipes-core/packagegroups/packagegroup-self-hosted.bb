@@ -28,9 +28,6 @@ RDEPENDS_packagegroup-self-hosted = "\
     "
 
 RDEPENDS_packagegroup-self-hosted-host-tools = "\
-    connman \
-    connman-plugin-ethernet \
-    dhcp-client \
     e2fsprogs \
     e2fsprogs-e2fsck \
     e2fsprogs-mke2fs \
@@ -151,12 +148,9 @@ RDEPENDS_packagegroup-self-hosted-extended = "\
     perl-dev \
     perl-modules \
     perl-pod \
-    python \
-    python-compiler \
-    python-git \
-    python-misc \
-    python-modules \
-    python-rpm \
+    python3 \
+    python3-modules \
+    python3-git \
     quota \
     readline \
     rpm \

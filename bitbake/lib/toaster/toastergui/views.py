@@ -200,16 +200,19 @@ def _verify_parameters(g, mandatory_parameters):
     return None
 
 def _redirect_parameters(view, g, mandatory_parameters, *args, **kwargs):
-    import urllib
+    try:
+        from urllib import unquote, urlencode
+    except ImportError:
+        from urllib.parse import unquote, urlencode
     url = reverse(view, kwargs=kwargs)
     params = {}
     for i in g:
         params[i] = g[i]
     for i in mandatory_parameters:
         if not i in params:
-            params[i] = urllib.unquote(str(mandatory_parameters[i]))
+            params[i] = unquote(str(mandatory_parameters[i]))
 
-    return redirect(url + "?%s" % urllib.urlencode(params), permanent = False, **kwargs)
+    return redirect(url + "?%s" % urlencode(params), permanent = False, **kwargs)
 
 class RedirectException(Exception):
     def __init__(self, view, g, mandatory_parameters, *args, **kwargs):
@@ -229,10 +232,18 @@ OR_VALUE_SEPARATOR = "|"
 DESCENDING = "-"
 
 def __get_q_for_val(name, value):
-    if "OR" in value:
-        return reduce(operator.or_, map(lambda x: __get_q_for_val(name, x), [ x for x in value.split("OR") ]))
+    if "OR" in value or "AND" in value:
+        result = None
+        for x in value.split("OR"):
+             x = __get_q_for_val(name, x)
+             result = result | x if result else x
+        return result
     if "AND" in value:
-        return reduce(operator.and_, map(lambda x: __get_q_for_val(name, x), [ x for x in value.split("AND") ]))
+        result = None
+        for x in value.split("AND"):
+            x = __get_q_for_val(name, x)
+            result = result & x if result else x
+        return result
     if value.startswith("NOT"):
         value = value[3:]
         if value == 'None':
@@ -251,14 +262,18 @@ def _get_filtering_query(filter_string):
     and_keys = search_terms[0].split(AND_VALUE_SEPARATOR)
     and_values = search_terms[1].split(AND_VALUE_SEPARATOR)
 
-    and_query = []
+    and_query = None
     for kv in zip(and_keys, and_values):
         or_keys = kv[0].split(OR_VALUE_SEPARATOR)
         or_values = kv[1].split(OR_VALUE_SEPARATOR)
-        querydict = dict(zip(or_keys, or_values))
-        and_query.append(reduce(operator.or_, map(lambda x: __get_q_for_val(x, querydict[x]), [k for k in querydict])))
+        query = None
+        for key, val in zip(or_keys, or_values):
+            x = __get_q_for_val(k, val)
+            query = query | x if query else x
 
-    return reduce(operator.and_, [k for k in and_query])
+        and_query = and_query & query if and_query else query
+
+    return and_query
 
 def _get_toggle_order(request, orderkey, toggle_reverse = False):
     if toggle_reverse:
@@ -295,21 +310,24 @@ def _validate_input(field_input, model):
         # Check we are looking for a valid field
         valid_fields = model._meta.get_all_field_names()
         for field in field_input_list[0].split(AND_VALUE_SEPARATOR):
-            if not reduce(lambda x, y: x or y, [ field.startswith(x) for x in valid_fields ]):
-                return None, (field, [ x for x in valid_fields ])
+            if True in [field.startswith(x) for x in valid_fields]:
+                break
+        else:
+           return None, (field, valid_fields)
 
     return field_input, invalid
 
 # uses search_allowed_fields in orm/models.py to create a search query
 # for these fields with the supplied input text
 def _get_search_results(search_term, queryset, model):
-    search_objects = []
+    search_object = None
     for st in search_term.split(" "):
-        q_map = map(lambda x: Q(**{x+'__icontains': st}),
-                model.search_allowed_fields)
+        queries = None
+        for field in model.search_allowed_fields:
+            query =  Q(**{x+'__icontains': st})
+            queries = queries | query if queries else query
 
-        search_objects.append(reduce(operator.or_, q_map))
-    search_object = reduce(operator.and_, search_objects)
+        search_object = search_object & queries if search_object else queries
     queryset = queryset.filter(search_object)
 
     return queryset
@@ -952,18 +970,19 @@ def dirinfo(request, build_id, target_id, file_path=None):
     return render(request, template, context)
 
 def _find_task_dep(task_object):
-    return map(lambda x: x.depends_on, Task_Dependency.objects.filter(task=task_object).filter(depends_on__order__gt = 0).exclude(depends_on__outcome = Task.OUTCOME_NA).select_related("depends_on"))
-
+    tdeps = Task_Dependency.objects.filter(task=task_object).filter(depends_on__order__gt=0)
+    tdeps = tdeps.exclude(depends_on__outcome=Task.OUTCOME_NA).select_related("depends_on")
+    return [x.depends_on for x in tdeps]
 
 def _find_task_revdep(task_object):
-    tp = []
-    tp = map(lambda t: t.task, Task_Dependency.objects.filter(depends_on=task_object).filter(task__order__gt=0).exclude(task__outcome = Task.OUTCOME_NA).select_related("task", "task__recipe", "task__build"))
-    return tp
+    tdeps = Task_Dependency.objects.filter(depends_on=task_object).filter(task__order__gt=0)
+    tdeps = tdeps.exclude(task__outcome = Task.OUTCOME_NA).select_related("task", "task__recipe", "task__build")
+    return [tdep.task for tdep in tdeps]
 
 def _find_task_revdep_list(tasklist):
-    tp = []
-    tp = map(lambda t: t.task, Task_Dependency.objects.filter(depends_on__in=tasklist).filter(task__order__gt=0).exclude(task__outcome = Task.OUTCOME_NA).select_related("task", "task__recipe", "task__build"))
-    return tp
+    tdeps = Task_Dependency.objects.filter(depends_on__in=tasklist).filter(task__order__gt=0)
+    tdeps = tdeps.exclude(task__outcome=Task.OUTCOME_NA).select_related("task", "task__recipe", "task__build")
+    return [tdep.task for tdep in tdeps]
 
 def _find_task_provider(task_object):
     task_revdeps = _find_task_revdep(task_object)
@@ -1938,10 +1957,10 @@ if True:
                 if ptype == "build":
                     mandatory_fields.append('projectversion')
                 # make sure we have values for all mandatory_fields
-                if reduce( lambda x, y: x or y, map(lambda x: len(request.POST.get(x, '')) == 0, mandatory_fields)):
-                # set alert for missing fields
-                    raise BadParameterException("Fields missing: " +
-            ", ".join([x for x in mandatory_fields if len(request.POST.get(x, '')) == 0 ]))
+                missing = [field for field in mandatory_fields if len(request.POST.get(field, '')) == 0]
+                if missing:
+                    # set alert for missing fields
+                    raise BadParameterException("Fields missing: %s" % ", ".join(missing))
 
                 if not request.user.is_authenticated():
                     user = authenticate(username = request.POST.get('username', '_anonuser'), password = 'nopass')
@@ -1964,7 +1983,8 @@ if True:
 
             except (IntegrityError, BadParameterException) as e:
                 # fill in page with previously submitted values
-                map(lambda x: context.__setitem__(x, request.POST.get(x, "-- missing")), mandatory_fields)
+                for field in mandatory_fields:
+                    context.__setitem__(field, request.POST.get(field, "-- missing"))
                 if isinstance(e, IntegrityError) and "username" in str(e):
                     context['alert'] = "Your chosen username is already used"
                 else:
@@ -2035,12 +2055,21 @@ if True:
         from collections import Counter
         freqtargets = []
         try:
-            freqtargets += map(lambda x: x.target, reduce(lambda x, y: x + y,   map(lambda x: list(x.target_set.all()), Build.objects.filter(project = prj, outcome__lt = Build.IN_PROGRESS))))
-            freqtargets += map(lambda x: x.target, reduce(lambda x, y: x + y,   map(lambda x: list(x.brtarget_set.all()), BuildRequest.objects.filter(project = prj, state = BuildRequest.REQ_FAILED))))
+            btargets = sum(build.target_set.all() for build in Build.objects.filter(project=prj, outcome__lt=Build.IN_PROGRESS))
+            brtargets = sum(br.brtarget_set.all() for br in BuildRequest.objects.filter(project = prj, state = BuildRequest.REQ_FAILED))
+            freqtargets = [x.target for x in btargets] + [x.target for x in brtargets]
         except TypeError:
             pass
         freqtargets = Counter(freqtargets)
         freqtargets = sorted(freqtargets, key = lambda x: freqtargets[x], reverse=True)
+
+        layers = [{"id": x.layercommit.pk, "orderid": x.pk, "name" : x.layercommit.layer.name,
+                   "vcs_url": x.layercommit.layer.vcs_url, "vcs_reference" : x.layercommit.get_vcs_reference(),
+                   "url": x.layercommit.layer.layer_index_url, "layerdetailurl": x.layercommit.get_detailspage_url(prj.pk),
+                   # This branch name is actually the release
+                   "branch" : {"name" : x.layercommit.get_vcs_reference(),
+                               "layersource" : x.layercommit.up_branch.layer_source.name if x.layercommit.up_branch != None else None}
+                   } for x in prj.projectlayer_set.all().order_by("id")]
 
         context = {
             "project" : prj,
@@ -2049,21 +2078,11 @@ if True:
             "prj" : {"name": prj.name, },
             "buildrequests" : prj.build_set.filter(outcome=Build.IN_PROGRESS),
             "builds" : Build.get_recent(prj),
-            "layers" :  map(lambda x: {
-                        "id": x.layercommit.pk,
-                        "orderid": x.pk,
-                        "name" : x.layercommit.layer.name,
-                        "vcs_url": x.layercommit.layer.vcs_url,
-                        "vcs_reference" : x.layercommit.get_vcs_reference(),
-                        "url": x.layercommit.layer.layer_index_url,
-                        "layerdetailurl": x.layercommit.get_detailspage_url(prj.pk),
-                # This branch name is actually the release
-                        "branch" : { "name" : x.layercommit.get_vcs_reference(), "layersource" : x.layercommit.up_branch.layer_source.name if x.layercommit.up_branch != None else None}},
-                    prj.projectlayer_set.all().order_by("id")),
-            "targets" : map(lambda x: {"target" : x.target, "task" : x.task, "pk": x.pk}, prj.projecttarget_set.all()),
-            "variables": map(lambda x: (x.name, x.value), prj.projectvariable_set.all()),
+            "layers" : layers,
+            "targets" : [{"target" : x.target, "task" : x.task, "pk": x.pk} for x in prj.projecttarget_set.all()],
+            "variables": [(x.name, x.value) for x in prj.projectvariable_set.all()],
             "freqtargets": freqtargets[:5],
-            "releases": map(lambda x: {"id": x.pk, "name": x.name, "description":x.description}, Release.objects.all()),
+            "releases": [{"id": x.pk, "name": x.name, "description":x.description} for x in Release.objects.all()],
             "project_html": 1,
             "recipesTypeAheadUrl": reverse('xhr_recipestypeahead', args=(prj.pk,)),
             "projectBuildsUrl": reverse('projectbuilds', args=(prj.pk,)),
@@ -2154,8 +2173,7 @@ if True:
                     retval.append(project)
 
             return response({"error":"ok",
-                             "rows" : map( _lv_to_dict(prj),
-                                          map(lambda x: x.layercommit, retval ))
+                             "rows": [_lv_to_dict(prj) for y in [x.layercommit for x in retval]]
                             })
 
         except Exception as e:
@@ -2201,7 +2219,7 @@ if True:
 
             return_data = {
                 "error": "ok",
-                'configvars'   : map(lambda x: (x.name, x.value, x.pk), configvars_query),
+                'configvars': [(x.name, x.value, x.pk) for x in configvars_query]
                }
             try:
                 return_data['distro'] = ProjectVariable.objects.get(project = prj, name = "DISTRO").value,
@@ -2255,7 +2273,7 @@ if True:
         # Strip trailing/leading whitespace from all values
         # put into a new dict because POST one is immutable
         post_data = dict()
-        for key,val in request.POST.iteritems():
+        for key,val in request.POST.items():
           post_data[key] = val.strip()
 
 
@@ -2824,7 +2842,7 @@ if True:
                 "vcs_url": dep.layer.vcs_url,
                 "vcs_reference": dep.get_vcs_reference()} \
                 for dep in layer_version.get_alldeps(project.id)]},
-            'projectlayers': map(lambda prjlayer: prjlayer.layercommit.id, ProjectLayer.objects.filter(project=project))
+            'projectlayers': [player.layercommit.id for player in ProjectLayer.objects.filter(project=project)]
         }
 
         return context
