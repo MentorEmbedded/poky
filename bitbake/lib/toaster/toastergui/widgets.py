@@ -29,6 +29,8 @@ from django.core.paginator import Paginator, EmptyPage
 from django.db.models import Q
 from orm.models import Project, ProjectLayer, Layer_Version
 from django.template import Context, Template
+from django.template import VariableDoesNotExist
+from django.template import TemplateSyntaxError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.core.exceptions import FieldError
 from django.conf.urls import url, patterns
@@ -50,7 +52,7 @@ logger = logging.getLogger("toaster")
 from toastergui.tablefilter import TableFilterMap
 
 
-class NoFieldOrDataNme(Exception):
+class NoFieldOrDataName(Exception):
     pass
 
 class ToasterTable(TemplateView):
@@ -79,7 +81,8 @@ class ToasterTable(TemplateView):
     def get_context_data(self, **kwargs):
         context = super(ToasterTable, self).get_context_data(**kwargs)
         context['title'] = self.title
-        context['table_name'] = type(self).__name__.lower()
+        context['table_name'] =  type(self).__name__.lower()
+        context['empty_state'] = self.empty_state
 
         return context
 
@@ -216,7 +219,7 @@ class ToasterTable(TemplateView):
 
         try:
             filter_name, action_name = filters.split(':')
-            action_params = urllib.unquote_plus(filter_value)
+            action_params = unquote_plus(filter_value)
         except ValueError:
             return
 
@@ -336,10 +339,11 @@ class ToasterTable(TemplateView):
                     if not field:
                         field = col['static_data_name']
                     if not field:
-                        raise NoFieldOrDataNme("Must supply a field_name or"
-                                               "static_data_name for column"
-                                               "%s.%s" %
-                                               (self.__class__.__name__, col))
+                        raise NoFieldOrDataName("Must supply a field_name or"
+                                                "static_data_name for column"
+                                                "%s.%s" %
+                                                (self.__class__.__name__, col)
+                                                )
 
                     # Check if we need to process some static data
                     if "static_data_name" in col and col['static_data_name']:
@@ -347,10 +351,20 @@ class ToasterTable(TemplateView):
                         # so that this can be used as the html class name
                         col['field_name'] = col['static_data_name']
 
-                        # Render the template given
-                        required_data[col['static_data_name']] = \
-                            self.render_static_data(
-                                col['static_data_template'], model_obj)
+                        try:
+                            # Render the template given
+                            required_data[col['static_data_name']] = \
+                                    self.render_static_data(
+                                        col['static_data_template'], model_obj)
+                        except (TemplateSyntaxError,
+                                VariableDoesNotExist) as e:
+                            logger.error("could not render template code"
+                                         "%s %s %s",
+                                         col['static_data_template'],
+                                         e, self.__class__.__name__)
+                            required_data[col['static_data_name']] =\
+                                '<!--error-->'
+
                     else:
                         # Traverse to any foriegn key in the field
                         # e.g. recipe__layer_version__name
