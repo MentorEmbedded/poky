@@ -68,6 +68,9 @@ FILES_${PN}-utils = "${bindir}/*"
 
 ARM_INSTRUCTION_SET_armv4 = "arm"
 ARM_INSTRUCTION_SET_armv5 = "arm"
+# Valgrind runtime detection works using hand-written assembly, which
+# doesn't support mips16e
+CPPFLAGS_append_class-target_mips16e = " -DNVALGRIND=1"
 
 USE_NLS = "yes"
 
@@ -77,6 +80,7 @@ do_install_append () {
 	fi
 
 	# Remove some unpackaged files
+	rm -rf ${D}${datadir}/glib-2.0/codegen/__pycache__
 	rm -f ${D}${datadir}/glib-2.0/codegen/*.pyc
 	rm -f ${D}${datadir}/glib-2.0/codegen/*.pyo
 
