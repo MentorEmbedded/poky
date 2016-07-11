@@ -1547,11 +1547,13 @@ def yocto_common_create(machine, target, scripts_path, layer_output_dir, codedum
     if properties_file:
         try:
             infile = open(properties_file, "r")
+            properties = json.load(infile)
         except IOError:
             print("Couldn't open properties file %s for reading, exiting" % properties_file)
             sys.exit(1)
-
-        properties = json.load(infile)
+        except ValueError:
+            print("Wrong format on properties file %s, exiting" % properties_file)
+            sys.exit(1)
 
     if properties_str and not properties:
         properties = json.loads(properties_str)
@@ -1824,16 +1826,13 @@ def yocto_layer_list_property_values(arch, property, scripts_path, properties_fi
     print_values(type, values_list)
 
 
-def yocto_bsp_list(args, scripts_path, properties_file):
+def yocto_bsp_list(args, scripts_path):
     """
     Print available architectures, or the complete list of properties
     defined by the BSP, or the possible values for a particular BSP
     property.
     """
-    if len(args) < 1:
-        return False
-
-    if args[0] == "karch":
+    if args.karch == "karch":
         lib_path = scripts_path + '/lib'
         bsp_path = lib_path + '/bsp'
         arch_path = bsp_path + '/substrate/target/arch'
@@ -1842,26 +1841,13 @@ def yocto_bsp_list(args, scripts_path, properties_file):
             if arch == "common" or arch == "layer":
                 continue
             print("    %s" % arch)
-        return True
-    else:
-        arch = args[0]
+        return
 
-    if len(args) < 2 or len(args) > 3:
-        return False
+    if args.properties:
+        yocto_layer_list_properties(args.karch, scripts_path, args.properties_file)
+    elif args.property:
+        yocto_layer_list_property_values(args.karch, args.property, scripts_path, args.properties_file)
 
-    if len(args) == 2:
-        if args[1] == "properties":
-            yocto_layer_list_properties(arch, scripts_path, properties_file)
-        else:
-            return False
-
-    if len(args) == 3:
-        if args[1] == "property":
-            yocto_layer_list_property_values(arch, args[2], scripts_path, properties_file)
-        else:
-            return False
-
-    return True
 
 
 def yocto_layer_list(args, scripts_path, properties_file):
