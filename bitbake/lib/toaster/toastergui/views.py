@@ -1404,15 +1404,37 @@ if True:
         pid = prj.id
 
         from collections import Counter
-        freqtargets = []
-        try:
-            btargets = sum(build.target_set.all() for build in Build.objects.filter(project=prj, outcome__lt=Build.IN_PROGRESS))
-            brtargets = sum(br.brtarget_set.all() for br in BuildRequest.objects.filter(project = prj, state = BuildRequest.REQ_FAILED))
-            freqtargets = [x.target for x in btargets] + [x.target for x in brtargets]
-        except TypeError:
-            pass
-        freqtargets = Counter(freqtargets)
-        freqtargets = sorted(freqtargets, key = lambda x: freqtargets[x], reverse=True)
+
+        freqtargets = Counter(Target.objects.filter(
+            Q(build__project=prj),
+            ~Q(build__outcome=Build.IN_PROGRESS)
+        ).order_by("target").values_list("target", flat=True))
+
+        freqtargets = freqtargets.most_common(5)
+
+        # We now have the targets in order of frequency but if there are two
+        # with the same frequency then we need to make sure those are in
+        # alphabetical order without losing the frequency ordering
+
+        tmp = []
+        switch = None
+        for i, freqtartget in enumerate(freqtargets):
+            target, count = freqtartget
+            try:
+                target_next, count_next = freqtargets[i+1]
+                if count == count_next and target > target_next:
+                    switch = target
+                    continue
+            except IndexError:
+                pass
+
+            tmp.append(target)
+
+            if switch:
+                tmp.append(switch)
+                switch = None
+
+        freqtargets = tmp
 
         layers = [{"id": x.layercommit.pk, "orderid": x.pk, "name" : x.layercommit.layer.name,
                    "vcs_url": x.layercommit.layer.vcs_url, "vcs_reference" : x.layercommit.get_vcs_reference(),
@@ -1432,7 +1454,7 @@ if True:
             "layers" : layers,
             "targets" : [{"target" : x.target, "task" : x.task, "pk": x.pk} for x in prj.projecttarget_set.all()],
             "variables": [(x.name, x.value) for x in prj.projectvariable_set.all()],
-            "freqtargets": freqtargets[:5],
+            "freqtargets": freqtargets,
             "releases": [{"id": x.pk, "name": x.name, "description":x.description} for x in Release.objects.all()],
             "project_html": 1,
             "recipesTypeAheadUrl": reverse('xhr_recipestypeahead', args=(prj.pk,)),
@@ -1533,11 +1555,16 @@ if True:
     def xhr_configvaredit(request, pid):
         try:
             prj = Project.objects.get(id = pid)
+            # There are cases where user can add variables which hold values
+            # like http://, file:/// etc. In such case a simple split(":")
+            # would fail. One example is SSTATE_MIRRORS variable. So we use
+            # max_split var to handle them.
+            max_split = 1
             # add conf variables
             if 'configvarAdd' in request.POST:
                 t=request.POST['configvarAdd'].strip()
                 if ":" in t:
-                    variable, value = t.split(":")
+                    variable, value = t.split(":", max_split)
                 else:
                     variable = t
                     value = ""
@@ -1547,7 +1574,7 @@ if True:
             if 'configvarChange' in request.POST:
                 t=request.POST['configvarChange'].strip()
                 if ":" in t:
-                    variable, value = t.split(":")
+                    variable, value = t.split(":", max_split)
                 else:
                     variable = t
                     value = ""
@@ -1712,49 +1739,6 @@ if True:
 
         return HttpResponse(jsonfilter(json_response), content_type = "application/json")
 
-    def xhr_updatelayer(request):
-
-        def error_response(error):
-            return HttpResponse(jsonfilter({"error": error}), content_type = "application/json")
-
-        if "layer_version_id" not in request.POST:
-            return error_response("Please specify a layer version id")
-        try:
-            layer_version_id = request.POST["layer_version_id"]
-            layer_version = Layer_Version.objects.get(id=layer_version_id)
-        except Layer_Version.DoesNotExist:
-            return error_response("Cannot find layer to update")
-
-
-        if "vcs_url" in request.POST:
-            layer_version.layer.vcs_url = request.POST["vcs_url"]
-        if "dirpath" in request.POST:
-            layer_version.dirpath = request.POST["dirpath"]
-        if "commit" in request.POST:
-            layer_version.commit = request.POST["commit"]
-        if "up_branch" in request.POST:
-            layer_version.up_branch_id = int(request.POST["up_branch"])
-
-        if "add_dep" in request.POST:
-            lvd = LayerVersionDependency(layer_version=layer_version, depends_on_id=request.POST["add_dep"])
-            lvd.save()
-
-        if "rm_dep" in request.POST:
-            rm_dep = LayerVersionDependency.objects.get(layer_version=layer_version, depends_on_id=request.POST["rm_dep"])
-            rm_dep.delete()
-
-        if "summary" in request.POST:
-            layer_version.layer.summary = request.POST["summary"]
-        if "description" in request.POST:
-            layer_version.layer.description = request.POST["description"]
-
-        try:
-            layer_version.layer.save()
-            layer_version.save()
-        except Exception as e:
-            return error_response("Could not update layer version entry: %s" % e)
-
-        return HttpResponse(jsonfilter({"error": "ok",}), content_type = "application/json")
 
     @xhr_response
     def xhr_customrecipe(request):
@@ -2210,7 +2194,7 @@ if True:
         vars_blacklist  = {
             'PARALLEL_MAKE','BB_NUMBER_THREADS',
             'BB_DISKMON_DIRS','BB_NUMBER_THREADS','CVS_PROXY_HOST','CVS_PROXY_PORT',
-            'PARALLEL_MAKE','SSTATE_MIRRORS','TMPDIR',
+            'PARALLEL_MAKE','TMPDIR',
             'all_proxy','ftp_proxy','http_proxy ','https_proxy'
             }
 
