@@ -20,6 +20,8 @@ SDK_EXT_task-populate-sdk-ext = "-ext"
 
 # Options are full or minimal
 SDK_EXT_TYPE ?= "full"
+SDK_INCLUDE_PKGDATA ?= "0"
+SDK_INCLUDE_TOOLCHAIN ?= "${@'1' if d.getVar('SDK_EXT_TYPE', True) == 'full' else '0'}"
 
 SDK_RECRDEP_TASKS ?= ""
 
@@ -53,6 +55,8 @@ def get_sdk_install_targets(d, images_only=False):
     if not images_only:
         if d.getVar('SDK_INCLUDE_PKGDATA', True) == '1':
             sdk_install_targets += ' meta-world-pkgdata:do_allpackagedata'
+        if d.getVar('SDK_INCLUDE_TOOLCHAIN', True) == '1':
+            sdk_install_targets += ' meta-extsdk-toolchain:do_populate_sysroot'
 
     return sdk_install_targets
 
@@ -80,6 +84,60 @@ SDK_EXT_TARGET_MANIFEST = "${SDK_DEPLOY}/${TOOLCHAINEXT_OUTPUTNAME}.target.manif
 SDK_EXT_HOST_MANIFEST = "${SDK_DEPLOY}/${TOOLCHAINEXT_OUTPUTNAME}.host.manifest"
 
 SDK_TITLE_task-populate-sdk-ext = "${@d.getVar('DISTRO_NAME', True) or d.getVar('DISTRO', True)} Extensible SDK"
+
+def clean_esdk_builddir(sdkbasepath):
+    """Clean up traces of the fake build for create_filtered_tasklist()"""
+    import shutil
+    cleanpaths = 'tmp cache conf/sanity_info conf/templateconf.cfg downloads'.split()
+    for pth in cleanpaths:
+        fullpth = os.path.join(sdkbasepath, pth)
+        if os.path.isdir(fullpth):
+            shutil.rmtree(fullpth)
+        elif os.path.isfile(fullpth):
+            os.remove(fullpth)
+
+def create_filtered_tasklist(d, sdkbasepath, tasklistfile, conf_initpath):
+    """
+    Create a filtered list of tasks. Also double-checks that the build system
+    within the SDK basically works and required sstate artifacts are available.
+    """
+    import tempfile
+    import shutil
+    import oe.copy_buildsystem
+
+    # Create a temporary build directory that we can pass to the env setup script
+    shutil.copyfile(sdkbasepath + '/conf/local.conf', sdkbasepath + '/conf/local.conf.bak')
+    try:
+        with open(sdkbasepath + '/conf/local.conf', 'a') as f:
+            f.write('\nSSTATE_DIR_forcevariable = "%s"\n' % d.getVar('SSTATE_DIR', True))
+            f.write('SSTATE_MIRRORS_forcevariable = ""\n')
+
+        # Unfortunately the default SDKPATH (or even a custom value) may contain characters that bitbake
+        # will not allow in its COREBASE path, so we need to rename the directory temporarily
+        temp_sdkbasepath = d.getVar('SDK_OUTPUT', True) + '/tmp-renamed-sdk'
+        # Delete any existing temp dir
+        try:
+            shutil.rmtree(temp_sdkbasepath)
+        except FileNotFoundError:
+            pass
+        os.rename(sdkbasepath, temp_sdkbasepath)
+        try:
+            cmdprefix = '. %s .; ' % conf_initpath
+            logfile = d.getVar('WORKDIR', True) + '/tasklist_bb_log.txt'
+            try:
+                oe.copy_buildsystem.check_sstate_task_list(d, get_sdk_install_targets(d), tasklistfile, cmdprefix=cmdprefix, cwd=temp_sdkbasepath, logfile=logfile)
+            except bb.process.ExecutionError as e:
+                msg = 'Failed to generate filtered task list for extensible SDK:\n%s' %  e.stdout.rstrip()
+                if 'attempted to execute unexpectedly and should have been setscened' in e.stdout:
+                    msg += '\n----------\n\nNOTE: "attempted to execute unexpectedly and should have been setscened" errors indicate this may be caused by missing sstate artifacts that were likely produced in earlier builds, but have been subsequently deleted for some reason.\n'
+                bb.fatal(msg)
+        finally:
+            os.rename(temp_sdkbasepath, sdkbasepath)
+        # Clean out residue of running bitbake, which check_sstate_task_list()
+        # will effectively do
+        clean_esdk_builddir(sdkbasepath)
+    finally:
+        os.replace(sdkbasepath + '/conf/local.conf.bak', sdkbasepath + '/conf/local.conf')
 
 python copy_buildsystem () {
     import re
@@ -297,6 +355,15 @@ python copy_buildsystem () {
     # uninative.bbclass sets NATIVELSBSTRING to 'universal'
     fixedlsbstring = 'universal'
 
+    sdk_include_toolchain = (d.getVar('SDK_INCLUDE_TOOLCHAIN', True) == '1')
+    sdk_ext_type = d.getVar('SDK_EXT_TYPE', True)
+    if sdk_ext_type != 'minimal' or sdk_include_toolchain or derivative:
+        # Create the filtered task list used to generate the sstate cache shipped with the SDK
+        tasklistfn = d.getVar('WORKDIR', True) + '/tasklist.txt'
+        create_filtered_tasklist(d, baseoutpath, tasklistfn, conf_initpath)
+    else:
+        tasklistfn = None
+
     # Add packagedata if enabled
     if d.getVar('SDK_INCLUDE_PKGDATA', True) == '1':
         lockedsigs_base = d.getVar('WORKDIR', True) + '/locked-sigs-base.inc'
@@ -308,7 +375,21 @@ python copy_buildsystem () {
                                              lockedsigs_pruned,
                                              lockedsigs_copy)
 
-    if d.getVar('SDK_EXT_TYPE', True) == 'minimal':
+    if sdk_include_toolchain:
+        lockedsigs_base = d.getVar('WORKDIR', True) + '/locked-sigs-base2.inc'
+        lockedsigs_toolchain = d.getVar('STAGING_DIR_HOST', True) + '/locked-sigs/locked-sigs-extsdk-toolchain.inc'
+        shutil.move(lockedsigs_pruned, lockedsigs_base)
+        oe.copy_buildsystem.merge_lockedsigs([],
+                                             lockedsigs_base,
+                                             lockedsigs_toolchain,
+                                             lockedsigs_pruned)
+        oe.copy_buildsystem.create_locked_sstate_cache(lockedsigs_toolchain,
+                                                       d.getVar('SSTATE_DIR', True),
+                                                       sstate_out, d,
+                                                       fixedlsbstring,
+                                                       filterfile=tasklistfn)
+
+    if sdk_ext_type == 'minimal':
         if derivative:
             # Assume the user is not going to set up an additional sstate
             # mirror, thus we need to copy the additional artifacts (from
@@ -324,12 +405,14 @@ python copy_buildsystem () {
                 oe.copy_buildsystem.create_locked_sstate_cache(lockedsigs_extra,
                                                                d.getVar('SSTATE_DIR', True),
                                                                sstate_out, d,
-                                                               fixedlsbstring)
+                                                               fixedlsbstring,
+                                                               filterfile=tasklistfn)
     else:
         oe.copy_buildsystem.create_locked_sstate_cache(lockedsigs_pruned,
                                                        d.getVar('SSTATE_DIR', True),
                                                        sstate_out, d,
-                                                       fixedlsbstring)
+                                                       fixedlsbstring,
+                                                       filterfile=tasklistfn)
 
     # We don't need sstate do_package files
     for root, dirs, files in os.walk(sstate_out):
@@ -428,7 +511,7 @@ sdk_ext_postinst() {
 		# current working directory when first ran, nor will it set $1 when
 		# sourcing a script. That is why this has to look so ugly.
 		LOGFILE="$target_sdk_dir/preparing_build_system.log"
-		sh -c ". buildtools/environment-setup* > $LOGFILE && cd $target_sdk_dir/`dirname ${oe_init_build_env_path}` && set $target_sdk_dir && . $target_sdk_dir/${oe_init_build_env_path} $target_sdk_dir >> $LOGFILE && python $target_sdk_dir/ext-sdk-prepare.py '${SDK_INSTALL_TARGETS}' >> $LOGFILE 2>&1" || { echo "ERROR: SDK preparation failed: see $LOGFILE for a slightly more detailed log"; echo "printf 'ERROR: this SDK was not fully installed and needs reinstalling\n'" >> $env_setup_script ; exit 1 ; }
+		sh -c ". buildtools/environment-setup* > $LOGFILE && cd $target_sdk_dir/`dirname ${oe_init_build_env_path}` && set $target_sdk_dir && . $target_sdk_dir/${oe_init_build_env_path} $target_sdk_dir >> $LOGFILE && python $target_sdk_dir/ext-sdk-prepare.py $LOGFILE '${SDK_INSTALL_TARGETS}'" || { echo "ERROR: SDK preparation failed: see $LOGFILE for a slightly more detailed log"; echo "printf 'ERROR: this SDK was not fully installed and needs reinstalling\n'" >> $env_setup_script ; exit 1 ; }
 		rm $target_sdk_dir/ext-sdk-prepare.py
 	fi
 	echo done
@@ -485,7 +568,8 @@ do_populate_sdk_ext[dirs] = "${@d.getVarFlag('do_populate_sdk', 'dirs', False)}"
 
 do_populate_sdk_ext[depends] = "${@d.getVarFlag('do_populate_sdk', 'depends', False)} \
                                 buildtools-tarball:do_populate_sdk uninative-tarball:do_populate_sdk \
-                                ${@'meta-world-pkgdata:do_collect_packagedata' if d.getVar('SDK_INCLUDE_PKGDATA', True) == '1' else ''}"
+                                ${@'meta-world-pkgdata:do_collect_packagedata' if d.getVar('SDK_INCLUDE_PKGDATA', True) == '1' else ''} \
+                                ${@'meta-extsdk-toolchain:do_locked_sigs' if d.getVar('SDK_INCLUDE_TOOLCHAIN', True) == '1' else ''}"
 
 do_populate_sdk_ext[rdepends] += "${@' '.join([x + ':do_build' for x in d.getVar('SDK_TARGETS', True).split()])}"
 

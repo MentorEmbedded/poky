@@ -7,7 +7,7 @@ LIC_FILES_CHKSUM = "file://LICENSES;md5=e9a558e243b36d3209f380deb394b213 \
 
 DEPENDS += "gperf-native"
 
-SRCREV ?= "1ac3eaa6bcc473a56340c24511786ff48a91293e"
+SRCREV ?= "d957c4d3fa48d685ff2726c605c988127ef99395"
 
 #SRCBRANCH ?= "release/${PV}/master"
 SRCBRANCH ?= "master"
@@ -126,6 +126,12 @@ do_compile () {
 		fi
 	fi
 
+}
+
+# Use the host locale archive when built for nativesdk so that we don't need to
+# ship a complete (100MB) locale set.
+do_compile_prepend_class-nativesdk() {
+    echo "complocaledir=/usr/lib/locale" >> ${S}/configparms
 }
 
 require glibc-package.inc

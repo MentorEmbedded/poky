@@ -33,7 +33,7 @@
 
         $("#build-menu li a").each(function(){
           /* Set the page active state in the Build menu */
-          var currentUrl = window.location.href.split('?')[0]; 
+          var currentUrl = window.location.href.split('?')[0];
           if (currentUrl === $(this).prop("href")){
             $(this).parent().addClass("active");
           } else {
@@ -62,11 +62,13 @@
           {% endif %} >
           <a  href="{% url 'builddashboard' build.pk %}">Build summary</a>
         </li>
-        {% if build.target_set.all.0.is_image and build.outcome == 0 %}
-          <li class="nav-header">Images</li>
+        {% if build.has_images and build.outcome == build.SUCCEEDED %}
+          <li class="nav-header" data-menu-heading="images">Images</li>
           {% block nav-target %}
             {% for t in build.get_sorted_target_list %}
-            <li id="menu-{{t.target}}"><a href="{% url 'target' build.pk t.pk %}">{{t.target}}</a><li>
+              {% if t.has_images %}
+                <li id="menu-{{t.target}}"><a href="{% url 'target' build.pk t.pk %}">{{t.target}}</a><li>
+              {% endif %}
             {% endfor %}
           {% endblock %}
         {% endif %}
@@ -115,30 +117,32 @@
         {% endwith %}
 
           <!-- new custom image from image recipe in this build -->
-          <button class="btn btn-default btn-block navbar-btn" data-role="new-custom-image-trigger">New custom image</button>
-          {% include 'newcustomimage_modal.html' %}
-          <script>
-            // imageRecipes includes both custom image recipes and built-in
-            // image recipes, any of which can be used as the basis for a
-            // new custom image
-            var imageRecipes = {{ build.get_image_recipes | objects_to_dictionaries:"id,name" | json }};
+          {% if build.has_image_recipes %}
+            <button class="btn btn-default btn-block navbar-btn" data-role="new-custom-image-trigger">New custom image</button>
+            {% include 'newcustomimage_modal.html' %}
+            <script>
+              // imageRecipes includes both custom image recipes and built-in
+              // image recipes, any of which can be used as the basis for a
+              // new custom image
+              var imageRecipes = {{ build.get_image_recipes | objects_to_dictionaries:"id,name" | json }};
 
-            $(document).ready(function () {
-              var newCustomImageModal = $('#new-custom-image-modal');
-              var newCustomImageTrigger = $('[data-role="new-custom-image-trigger"]');
+              $(document).ready(function () {
+                var newCustomImageModal = $('#new-custom-image-modal');
+                var newCustomImageTrigger = $('[data-role="new-custom-image-trigger"]');
 
-              // show create new custom image modal to select an image built
-              // during this build as the basis for the custom recipe
-              newCustomImageTrigger.click(function () {
-                if (!imageRecipes.length) {
-                  return;
-                }
+                // show create new custom image modal to select an image built
+                // during this build as the basis for the custom recipe
+                newCustomImageTrigger.click(function () {
+                  if (!imageRecipes.length) {
+                    return;
+                  }
 
-                newCustomImageModalSetRecipes(imageRecipes);
-                newCustomImageModal.modal('show');
+                  newCustomImageModalSetRecipes(imageRecipes);
+                  newCustomImageModal.modal('show');
+                });
               });
-            });
-          </script>
+            </script>
+          {% endif %}
       </ul>
 
     </div>

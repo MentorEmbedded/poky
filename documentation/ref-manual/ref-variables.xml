@@ -536,7 +536,7 @@
                     By default, this directory is the same as the <link linkend='var-S'><filename>S</filename></link>
                     directory, which is defined as:
                     <literallayout class='monospaced'>
-     S = "${WORKDIR}/${BP}/"
+     S = "${WORKDIR}/${BP}"
                     </literallayout>
                 </para>
 
@@ -995,6 +995,29 @@
      BBCLASSEXTEND =+ "native nativesdk"
      BBCLASSEXTEND =+ "multilib:<replaceable>multilib_name</replaceable>"
                     </literallayout>
+                    <note>
+                        <para>
+                        Internally, the <filename>BBCLASSEXTEND</filename>
+                        mechanism generates recipe variants by rewriting
+                        variable values and applying overrides such as
+                        <filename>_class-native</filename>.
+                        For example, to generate a native version of a recipe,
+                        a
+                        <link linkend='var-DEPENDS'><filename>DEPENDS</filename></link>
+                        on "foo" is rewritten to a <filename>DEPENDS</filename>
+                        on "foo-native".
+                        </para>
+
+                        <para>
+                        Even when using <filename>BBCLASSEXTEND</filename>, the
+                        recipe is only parsed once.
+                        Parsing once adds some limitations.
+                        For example, it is not possible to
+                        include a different file depending on the variant,
+                        since <filename>include</filename> statements are
+                        processed when the recipe is parsed.
+                        </para>
+                    </note>
                 </para>
              </glossdef>
         </glossentry>
@@ -2574,7 +2597,7 @@
                     task.
                     This location defaults to:
                     <literallayout class='monospaced'>
-     ${WORKDIR}/image
+     ${<link linkend='var-WORKDIR'>WORKDIR</link>}/image
                     </literallayout>
                 </para>
             </glossdef>
@@ -2770,12 +2793,56 @@
                     task of recipe "b".
                     This means anything that recipe "b" puts into sysroot
                     is available when recipe "a" is configuring itself.
+                    <note>
+                        <title>Notes</title>
+                        <itemizedlist>
+                            <listitem><para>
+                                <filename>DEPENDS</filename> is a list of
+                                recipe names.
+                                Or, to be more precise, it is a list of
+                                <link linkend='var-PROVIDES'><filename>PROVIDES</filename></link>
+                                names, which usually match recipe names.
+                                Putting a package name such as "foo-dev" in
+                                <filename>DEPENDS</filename> does not make
+                                sense.
+                                Use "foo" instead, as this will put files
+                                from all the packages that make up
+                                <filename>foo</filename>, which includes
+                                those from <filename>foo-dev</filename>, into
+                                the sysroot.
+                                </para></listitem>
+                            <listitem><para>
+                                Counterintuitively,
+                                <filename>DEPENDS</filename> is often necessary
+                                even for recipes that install precompiled
+                                components.
+                                For example, if <filename>libfoo</filename>
+                                is a precompiled library that links against
+                                <filename>libbar</filename>, then
+                                linking against <filename>libfoo</filename>
+                                requires both <filename>libfoo</filename>
+                                and <filename>libbar</filename> to be available
+                                in the sysroot.
+                                Without a <filename>DEPENDS</filename> from the
+                                recipe that installs <filename>libfoo</filename>
+                                to the recipe that installs
+                                <filename>libbar</filename>, other recipes might
+                                fail to link against
+                                <filename>libfoo</filename>.
+                                </para></listitem>
+                        </itemizedlist>
+                    </note>
                 </para>
 
                 <para>
                     For information on runtime dependencies, see the
                     <link linkend='var-RDEPENDS'><filename>RDEPENDS</filename></link>
                     variable.
+                    You can also see the
+                    "<ulink url='&YOCTO_DOCS_BB_URL;#tasks'>Tasks</ulink>" and
+                    "<ulink url='&YOCTO_DOCS_BB_URL;#dependencies'>Dependencies</ulink>"
+                    sections in the BitBake User Manual for additional
+                    information on tasks and dependencies.
                 </para>
             </glossdef>
         </glossentry>
@@ -7968,6 +8035,31 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
             </glossdef>
         </glossentry>
 
+        <glossentry id='var-MULTIMACH_HOST_SYS'><glossterm>MULTIMACH_HOST_SYS</glossterm>
+            <info>
+                MULTIMACH_HOST_SYS[doc] = "Separates files for different machines such that you can build for multiple host machines using the same output directories."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Serves the same purpose as
+                    <link linkend='var-MULTIMACH_TARGET_SYS'><filename>MULTIMACH_TARGET_SYS</filename></link>,
+                    but for the "HOST" system, in situations that involve a
+                    "HOST" and a "TARGET" system.
+                    See the
+                    <link linkend='var-STAGING_DIR_TARGET'><filename>STAGING_DIR_TARGET</filename></link>
+                    variable for more information.
+                </para>
+
+                <para>
+                    The default value of this variable is:
+                    <literallayout class='monospaced'>
+     ${PACKAGE_ARCH}${HOST_VENDOR}-${HOST_OS}
+                    </literallayout>
+                </para>
+            </glossdef>
+        </glossentry>
+
         <glossentry id='var-MULTIMACH_TARGET_SYS'><glossterm>MULTIMACH_TARGET_SYS</glossterm>
             <info>
                 MULTIMACH_TARGET_SYS[doc] = "Separates files for different machines such that you can build for multiple target machines using the same output directories."
@@ -7975,10 +8067,33 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Separates files for different machines such that you can build
-                    for multiple target machines using the same output directories.
-                    See the <link linkend='var-STAMP'><filename>STAMP</filename></link> variable
-                    for an example.
+                    Uniquely identifies the type of the target system for
+                    which packages are being built.
+                    This variable allows output for different types of target
+                    systems to be put into different subdirectories of the same
+                    output directory.
+                </para>
+
+                <para>
+                    The default value of this variable is:
+                    <literallayout class='monospaced'>
+     ${PACKAGE_ARCH}${TARGET_VENDOR}-${TARGET_OS}
+                    </literallayout>
+                    Some classes (e.g.
+                    <link linkend='ref-classes-cross-canadian'><filename>cross-canadian</filename></link>)
+                    modify the <filename>MULTIMACH_TARGET_SYS</filename> value.
+                </para>
+
+                <para>
+                    See the
+                    <link linkend='var-STAMP'><filename>STAMP</filename></link>
+                    variable for an example.
+                    <link linkend='var-MULTIMACH_HOST_SYS'><filename>MULTIMACH_HOST_SYS</filename></link>
+                    is the corresponding variable for the host system in
+                    situations that involve a "HOST" and a "TARGET" system.
+                    See the
+                    <link linkend='var-STAGING_DIR_TARGET'><filename>STAGING_DIR_TARGET</filename></link>
+                    variable for more information.
                 </para>
             </glossdef>
         </glossentry>
@@ -9571,8 +9686,48 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    The revision of the recipe.
-                    The default value for this variable is "r0".
+                    The revision of the recipe. The default value for this
+                    variable is "r0".
+                    Subsequent revisions of the recipe conventionally have the
+                    values "r1", "r2", and so forth.
+                    When
+                    <link linkend='var-PV'><filename>PV</filename></link>
+                    increases, <filename>PR</filename> is conventionally reset
+                    to "r0".
+                    <note>
+                        The OpenEmbedded build system does not need the aid of
+                        <filename>PR</filename> to know when to rebuild a
+                        recipe.
+                        The build system uses
+                        <link linkend='var-STAMP'><filename>STAMP</filename></link>
+                        and the
+                        <link linkend='shared-state-cache'>shared state cache</link>
+                        mechanisms.
+                    </note>
+                    The <filename>PR</filename> variable primarily becomes
+                    significant when a package manager dynamically installs
+                    packages on an already built image.
+                    In this case, <filename>PR</filename>, which is the default
+                    value of
+                    <link linkend='var-PKGR'><filename>PKGR</filename></link>,
+                    helps the package manager distinguish which package is the
+                    most recent one in cases where many packages have the same
+                    <filename>PV</filename> (i.e. <filename>PKGV</filename>).
+                    A component having many packages with the same
+                    <filename>PV</filename> usually means that the packages all
+                    install the same upstream version, but with later
+                    (<filename>PR</filename>) version packages including
+                    packaging fixes.
+                    <note>
+                        <filename>PR</filename> does not need to be increased
+                        for changes that do not change the package contents or
+                        metadata.
+                    </note>
+                    Because manually managing <filename>PR</filename> can be
+                    cumbersome and error-prone, an automated solution exists.
+                    See the
+                    "<ulink url='&YOCTO_DOCS_DEV_URL;#working-with-a-pr-service'>Working With a PR Service</ulink>"
+                    section for more information.
                 </para>
             </glossdef>
         </glossentry>
@@ -10071,6 +10226,18 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     Thus, the <filename>RDEPENDS</filename> variable has the
                     <filename>${PN}-dev</filename> package name as part of the
                     variable.
+                    <note>
+                        <title>Caution</title>
+                        <filename>RDEPENDS_${PN}-dev</filename> includes
+                        <filename>${</filename><link linkend='var-PN'><filename>PN</filename></link><filename>}</filename>
+                        by default.
+                        This default is set in the BitBake configuration file
+                        (<filename>meta/conf/bitbake.conf</filename>).
+                        Be careful not to accidentally remove
+                        <filename>${PN}</filename> when modifying
+                        <filename>RDEPENDS_${PN}-dev</filename>.
+                        Use the "+=" operator rather than the "=" operator.
+                    </note>
                 </para>
 
                 <para>
@@ -10088,14 +10255,20 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     <filename>RDEPENDS</filename> since some automatic
                     handling occurs:
                     <itemizedlist>
-                        <listitem><para><emphasis><filename>shlibdeps</filename></emphasis>:  If
-                            a runtime package contains a shared library
-                            (<filename>.so</filename>), the build
-                            processes the library in order to determine other
-                            libraries to which it is dynamically linked.
-                            The build process adds these libraries to
-                            <filename>RDEPENDS</filename> when creating the runtime
-                            package.</para></listitem>
+                        <listitem><para><emphasis><filename>shlibdeps</filename></emphasis>:
+                            If a runtime package contains a compiled binary,
+                            the build processes the binary in order to
+                            determine any shared libraries
+                            (<filename>.so</filename> files) to which it is
+                            dynamically linked.
+                            The build process adds the packages containing
+                            these libraries to <filename>RDEPENDS</filename>
+                            when creating the runtime package.
+                            In addition, if the shared library is versioned,
+                            the dependency will have the version appended to it
+                            in order to force an upgrade to the appropriate
+                            version if needed.
+                            </para></listitem>
                         <listitem><para><emphasis><filename>pcdeps</filename></emphasis>:  If
                             the package ships a <filename>pkg-config</filename>
                             information file, the build process uses this file
@@ -10135,6 +10308,11 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     For information on build-time dependencies, see the
                     <link linkend='var-DEPENDS'><filename>DEPENDS</filename></link>
                     variable.
+                    You can also see the
+                    "<ulink url='&YOCTO_DOCS_BB_URL;#tasks'>Tasks</ulink>" and
+                    "<ulink url='&YOCTO_DOCS_BB_URL;#dependencies'>Dependencies</ulink>"
+                    sections in the BitBake User Manual for additional
+                    information on tasks and dependencies.
                 </para>
             </glossdef>
         </glossentry>
@@ -12141,18 +12319,24 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-STAGING_DIR_HOST'><glossterm>STAGING_DIR_HOST</glossterm>
             <info>
-                STAGING_DIR_HOST[doc] = "Specifies the path to the primary sysroot directory for which the target is being built."
+                STAGING_DIR_HOST[doc] = "Specifies the path to the sysroot directory for the system that the component is built to run on."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Specifies the path to the primary sysroot directory for
-                    which the target is being built.
-                    Depending on the type of recipe and the build target, the
-                    recipe's value is as follows:
+                    Specifies the path to the sysroot directory for the system
+                    that the component is built to run on (the system that hosts
+                    the component).
+                    This sysroot is the one that the recipe's
+                    <link linkend='ref-tasks-populate_sysroot'><filename>do_populate_sysroot</filename></link>
+                    task copies files into.
+                    Depending on the type of recipe and the build target,
+                    <filename>STAGING_DIR_HOST</filename> can have the
+                    following values:
                     <itemizedlist>
                         <listitem><para>For recipes building for the target
-                           machine, the value is "${STAGING_DIR}/${MACHINE}".
+                           machine, the value is
+                           "${<link linkend='var-STAGING_DIR'>STAGING_DIR</link>}/${<link linkend='var-MACHINE'>MACHINE</link>}".
                            </para></listitem>
                         <listitem><para>For native recipes building
                            for the build host, the value is empty given the
@@ -12162,7 +12346,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                         <listitem><para>For native SDK
                            recipes that build for the SDK
                            (<filename>nativesdk</filename>), the value is
-                           "${STAGING_DIR}/${MULTIMACH_HOST_SYS}".
+                           "${STAGING_DIR}/${<link linkend='var-MULTIMACH_HOST_SYS'>MULTIMACH_HOST_SYS</link>}".
                            </para></listitem>
                     </itemizedlist>
                 </para>
@@ -12171,27 +12355,29 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-STAGING_DIR_NATIVE'><glossterm>STAGING_DIR_NATIVE</glossterm>
             <info>
-                STAGING_DIR_NATIVE[doc] = "Specifies the path to the sysroot directory for the build host."
+                STAGING_DIR_NATIVE[doc] = "Specifies the path to the sysroot directory used when building components that run on the build host itself."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Specifies the path to the sysroot directory for the
-                    build host.
+                    Specifies the path to the sysroot directory used when
+                    building components that run on the build host itself.
                 </para>
             </glossdef>
         </glossentry>
 
         <glossentry id='var-STAGING_DIR_TARGET'><glossterm>STAGING_DIR_TARGET</glossterm>
             <info>
-                STAGING_DIR_TARGET[doc] = "Specifies the path to the sysroot directory for the target for which the current recipe is being built."
+                STAGING_DIR_TARGET[doc] = "Specifies the path to the sysroot used for the system for which the component generates code."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Specifies the path to the sysroot directory for the
-                    target for which the current recipe is being built.
-                    In most cases, this path is the
+                    Specifies the path to the sysroot used for the system for
+                    which the component generates code.
+                    For components that do not generate code, which is the
+                    majority, <filename>STAGING_DIR_TARGET</filename> is set
+                    to match
                     <link linkend='var-STAGING_DIR_HOST'><filename>STAGING_DIR_HOST</filename></link>.
                 </para>
 
@@ -12202,10 +12388,12 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     Using terminology from GNU, the primary system is referred
                     to as the "HOST" and the secondary, or different, system is
                     referred to as the "TARGET".
-                    Thus, the binaries run on the "HOST" system and
+                    Thus, the binaries run on the "HOST" system
                     and generate binaries for the "TARGET" system.
-                    <filename>STAGING_DIR_TARGET</filename> points to the
-                    sysroot used for the "TARGET" system.
+                    The <filename>STAGING_DIR_HOST</filename> variable points
+                    to the sysroot used for the "HOST" system, while
+                    <filename>STAGING_DIR_TARGET</filename>
+                    points to the sysroot used for the "TARGET" system.
                 </para>
             </glossdef>
         </glossentry>

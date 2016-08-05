@@ -295,13 +295,15 @@ class BuiltRecipesTable(BuildTablesMixin):
         {% endif %}{% endwith %}{% endwith %}
         '''
 
-        self.add_column(title="Name",
+        self.add_column(title="Recipe",
                         field_name="name",
                         static_data_name='name',
                         orderable=True,
+                        hideable=False,
                         static_data_template=recipe_name_tmpl)
 
         self.add_column(title="Version",
+                        hideable=False,
                         field_name="version")
 
         self.add_column(title="Dependencies",
@@ -431,17 +433,20 @@ class BuildTasksTable(BuildTablesMixin):
         self.add_column(title="Order",
                         static_data_name="order",
                         static_data_template='{{data.order}}',
+                        hideable=False,
                         orderable=True)
 
         self.add_column(title="Task",
                         static_data_name="task_name",
                         static_data_template=task_link_tmpl(
                             "{{data.task_name}}"),
+                        hideable=False,
                         orderable=True)
 
         self.add_column(title="Recipe",
                         static_data_name='recipe__name',
                         static_data_template=recipe_name_tmpl,
+                        hideable=False,
                         orderable=True)
 
         self.add_column(title="Recipe version",
