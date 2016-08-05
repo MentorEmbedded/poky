@@ -246,6 +246,80 @@
         </para>
     </section>
 
+    <section id='checking-for-missing-build-time-dependencies'>
+        <title>Checking for Missing Build-Time Dependencies</title>
+
+        <para>
+            A recipe might build successfully even though some of its
+            build-time dependencies are missing from
+            <link linkend='var-DEPENDS'><filename>DEPENDS</filename></link>.
+            Following are the two most common ways in which that can happen:
+            <itemizedlist>
+                <listitem><para>
+                    The build-time dependency just happens to already exist in
+                    the staging sysroot
+                    (<link linkend='var-STAGING_DIR_HOST'><filename>STAGING_DIR_HOST</filename></link>)
+                    by the time the recipe is built.
+                    This situation occurs when the build-time dependency is
+                    built earlier during recipe processing.
+                    </para></listitem>
+                <listitem><para>
+                    The component built by the recipe conditionally enables
+                    functionality depending on whether it can find the
+                    build-time dependency in the staging sysroot.
+                    If the build-time dependency is missing, the corresponding
+                    functionality is disabled.
+                    This condition is known as a "floating dependency".
+                    </para></listitem>
+            </itemizedlist>
+        </para>
+
+        <para>
+            Because dealing with the second case is more complex, focus will
+            be on the first case.
+            The
+            <link linkend='ref-classes-insane'><filename>build-deps</filename></link>
+            QA check checks that every library the component linked against is
+            declared as a build-time dependency.
+            If that is not the case, then the first situation described in the
+            previous list exists, and <filename>build-deps</filename> reports
+            a missing build-time dependency.
+        </para>
+
+        <para>
+            Another, more manual, way to check a recipe for missing build-time
+            dependencies of the first type is to build with an empty staging
+            sysroot.
+            This method can also find missing build-time dependencies
+            that are not in the form of libraries, which the
+            <filename>build-deps</filename> QA check is unable to find.
+        </para>
+
+        <para>
+            An easy way to empty the staging sysroots is to simply remove
+            <link linkend='var-TMPDIR'><filename>TMPDIR</filename></link>,
+            which is usually
+            <filename>${</filename><link linkend='var-BUILDDIR'><filename>BUILDDIR</filename></link><filename>}/tmp</filename>,
+            as it includes the staging sysroots.
+            Another, faster method to empty the staging sysroots is to use the
+            <filename>scripts/wipe-sysroot</filename> script,
+            which removes just the staging sysroots and keeps everything else
+            in <filename>TMPDIR</filename>.
+            <note>
+                The <filename>scripts/</filename> directory appears in
+                <filename>PATH</filename> after running the build environment
+                initialization script (i.e.
+                <link linkend='structure-core-script'><filename>oe-init-build-env</filename></link>
+                or
+                <link linkend='structure-memres-core-script'><filename>oe-init-build-env-memres</filename></link>),
+                which results in the ability to to run
+                <filename>wipe-sysroot</filename> immediately.
+            </note>
+        </para>
+
+    </section>
+
+
     <section id='usingpoky-debugging-dependencies'>
         <title>Dependency Graphs</title>
 
@@ -356,28 +430,68 @@
     <section id='recipe-logging-mechanisms'>
         <title>Recipe Logging Mechanisms</title>
         <para>
-            Best practices exist while writing recipes that both log build progress and
-            act on build conditions such as warnings and errors.
-            Both Python and Bash language bindings exist for the logging mechanism:
+            The Yocto Project provides several logging functions for producing
+            debugging output and reporting errors and warnings.
+            For Python functions, the following logging functions exist.
+            All of these functions log to
+            <filename>${T}/log.do_</filename><replaceable>task</replaceable>,
+            and can also log to standard output (stdout) with the right
+            settings:
             <itemizedlist>
-                <listitem><para><emphasis>Python:</emphasis> For Python functions, BitBake
-                    supports several loglevels: <filename>bb.fatal</filename>,
-                    <filename>bb.error</filename>, <filename>bb.warn</filename>,
-                    <filename>bb.note</filename>, <filename>bb.plain</filename>,
-                    and <filename>bb.debug</filename>.</para></listitem>
-                <listitem><para><emphasis>Bash:</emphasis> For Bash functions, the same set
-                    of loglevels exist and are accessed with a similar syntax:
-                    <filename>bbfatal</filename>, <filename>bberror</filename>,
-                    <filename>bbwarn</filename>, <filename>bbnote</filename>,
-                    <filename>bbplain</filename>, and <filename>bbdebug</filename>.</para></listitem>
+                <listitem><para>
+                    <filename>bb.plain(</filename><replaceable>msg</replaceable><filename>)</filename>:
+                    Writes <replaceable>msg</replaceable> as is to the log while
+                    also logging to stdout.
+                    </para></listitem>
+                <listitem><para>
+                    <filename>bb.note(</filename><replaceable>msg</replaceable><filename>)</filename>:
+                    Writes "NOTE: <replaceable>msg</replaceable>" to the log.
+                    Also logs to stdout if BitBake is called with "-v".
+                    </para></listitem>
+                <listitem><para>
+                    <filename>bb.debug(</filename><replaceable>level</replaceable><filename>,&nbsp;</filename><replaceable>msg</replaceable><filename>)</filename>:
+                    Writes "DEBUG: <replaceable>msg</replaceable>" to the log.
+                    Also logs to stdout if the log level is greater than or
+                    equal to <replaceable>level</replaceable>.
+                    See the
+                    "<ulink url='&YOCTO_DOCS_BB_URL;#usage-and-syntax'>-D</ulink>"
+                    option in the BitBake User Manual for more information.
+                    </para></listitem>
+                <listitem><para>
+                    <filename>bb.warn(</filename><replaceable>msg</replaceable><filename>)</filename>:
+                    Writes "WARNING: <replaceable>msg</replaceable>" to the log
+                    while also logging to stdout.
+                    </para></listitem>
+                <listitem><para>
+                    <filename>bb.error(</filename><replaceable>msg</replaceable><filename>)</filename>:
+                    Writes "ERROR: <replaceable>msg</replaceable>" to the log
+                    while also logging to stdout.
+                    <note>
+                        Calling this function does not cause the task to fail.
+                    </note>
+                    </para></listitem>
+                <listitem><para>
+                    <filename>bb.fatal(</filename><replaceable>msg</replaceable><filename>)</filename>:
+                    This logging function is similar to
+                    <filename>bb.error(</filename><replaceable>msg</replaceable><filename>)</filename>
+                    but also causes the calling task to fail.
+                    </para></listitem>
             </itemizedlist>
         </para>
 
         <para>
-            For guidance on how logging is handled in both Python and Bash recipes, see the
-            <filename>logging.bbclass</filename> file in the
+            The same logging functions are also available in shell functions,
+            under the names
+            <filename>bbplain</filename>, <filename>bbnote</filename>,
+            <filename>bbdebug</filename>, <filename>bbwarn</filename>,
+            <filename>bberror</filename>, and <filename>bbfatal</filename>.
+            The
+            <link linkend='ref-classes-logging'><filename>logging</filename></link>
+            class implements these functions.
+            See that class in the
             <filename>meta/classes</filename> folder of the
-            <ulink url='&YOCTO_DOCS_DEV_URL;#source-directory'>Source Directory</ulink>.
+            <ulink url='&YOCTO_DOCS_DEV_URL;#source-directory'>Source Directory</ulink>
+            for information.
         </para>
 
         <section id='logging-with-python'>

@@ -43,7 +43,7 @@ def update_useradd_static_config(d):
                         if fields[0] not in id_table:
                             id_table[fields[0]] = fields
                         else:
-                            id_table[fields[0]] = list(itertools.imap(lambda x, y: x or y, fields, id_table[fields[0]]))
+                            id_table[fields[0]] = list(map(lambda x, y: x or y, fields, id_table[fields[0]]))
             except IOError as e:
                 if e.errno == errno.ENOENT:
                     pass
@@ -284,6 +284,19 @@ def update_useradd_static_config(d):
             newparams.append(newparam)
 
         return ";".join(newparams).strip()
+
+    # The parsing of the current recipe depends on the content of
+    # the files listed in USERADD_UID/GID_TABLES. We need to tell bitbake
+    # about that explicitly to trigger re-parsing and thus re-execution of
+    # this code when the files change.
+    bbpath = d.getVar('BBPATH', True)
+    for varname, default in (('USERADD_UID_TABLES', 'files/passwd'),
+                             ('USERADD_GID_TABLES', 'files/group')):
+        tables = d.getVar(varname, True)
+        if not tables:
+            tables = default
+        for conf_file in tables.split():
+            bb.parse.mark_dependency(d, bb.utils.which(bbpath, conf_file))
 
     # Load and process the users and groups, rewriting the adduser/addgroup params
     useradd_packages = d.getVar('USERADD_PACKAGES', True)

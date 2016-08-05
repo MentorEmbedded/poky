@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
-from orm.models import LayerSource, ToasterSetting, Branch, Layer, Layer_Version
-from orm.models import BitbakeVersion, Release, ReleaseDefaultLayer, ReleaseLayerSourcePriority
+from orm.models import LayerSource, ToasterSetting, Layer, Layer_Version
+from orm.models import BitbakeVersion, Release, ReleaseDefaultLayer
 from django.db import IntegrityError
 import os
 
@@ -9,6 +9,7 @@ from .checksettings import DN
 import logging
 logger = logging.getLogger("toaster")
 
+# Temporary old code to support old toasterconf.json
 def _reduce_canon_path(path):
     components = []
     for c in path.split("/"):
@@ -21,12 +22,7 @@ def _reduce_canon_path(path):
     if len(components) < 2:
         components.append('')
     return "/".join(components)
-
-def _get_id_for_sourcetype(s):
-    for i in LayerSource.SOURCE_TYPE:
-        if s == i[1]:
-            return i[0]
-    raise Exception("Could not find definition for sourcetype '%s'. Valid source types are %s" % (str(s), ', '.join(map(lambda x: "'%s'" % x[1], LayerSource.SOURCE_TYPE ))))
+# End temp code
 
 class Command(BaseCommand):
     help = "Loads a toasterconf.json file in the database"
@@ -42,7 +38,7 @@ class Command(BaseCommand):
         data = json.loads(open(filepath, "r").read())
 
         # verify config file validity before updating settings
-        for i in ['bitbake', 'releases', 'defaultrelease', 'config', 'layersources']:
+        for i in ['bitbake', 'releases', 'defaultrelease', 'config']:
             assert i in data
 
         def _read_git_url_from_local_repository(address, path = None):
@@ -83,71 +79,6 @@ class Command(BaseCommand):
             bvo.dirpath = bvi['dirpath']
             bvo.save()
 
-        # set the layer sources
-        for lsi in data['layersources']:
-            assert 'sourcetype' in lsi
-            assert 'apiurl' in lsi
-            assert 'name' in lsi
-            assert 'branches' in lsi
-
-
-            if _get_id_for_sourcetype(lsi['sourcetype']) == LayerSource.TYPE_LAYERINDEX or lsi['apiurl'].startswith("/"):
-                apiurl = lsi['apiurl']
-            else:
-                apiurl = _reduce_canon_path(os.path.join(DN(os.path.abspath(filepath)), lsi['apiurl']))
-
-            assert ((_get_id_for_sourcetype(lsi['sourcetype']) == LayerSource.TYPE_LAYERINDEX) or apiurl.startswith("/")), (lsi['sourcetype'],apiurl)
-
-            try:
-                ls, created = LayerSource.objects.get_or_create(sourcetype = _get_id_for_sourcetype(lsi['sourcetype']), apiurl = apiurl)
-                ls.name = lsi['name']
-                ls.save()
-            except IntegrityError as e:
-                logger.warning("IntegrityError %s \nWhile setting name %s for layer source %s " % (e, lsi['name'], ls))
-
-
-            layerbranches = []
-            for branchname in lsi['branches']:
-                bo, created = Branch.objects.get_or_create(layer_source = ls, name = branchname)
-                layerbranches.append(bo)
-
-            if 'layers' in lsi:
-                for layerinfo in lsi['layers']:
-                    lo, created = Layer.objects.get_or_create(layer_source = ls, name = layerinfo['name'])
-                    if layerinfo['local_path'].startswith("/"):
-                        lo.local_path = layerinfo['local_path']
-                    else:
-                        lo.local_path = _reduce_canon_path(os.path.join(ls.apiurl, layerinfo['local_path']))
-
-                    if not os.path.exists(lo.local_path):
-                        logger.error("Local layer path %s must exists. Are you trying to import a layer that does not exist ? Check your local toasterconf.json" % lo.local_path)
-
-                    if layerinfo['vcs_url'].startswith("remote:"):
-                        if not layerinfo['local_path'].startswith("/"):
-                           path = None
-                        else:
-                           path = layerinfo['local_path']
-                        lo.vcs_url = _read_git_url_from_local_repository(layerinfo['vcs_url'], path)
-                        if lo.vcs_url is None:
-                            logger.error("The toaster config file references the local git repo, but Toaster cannot detect it.\nYour local configuration for layer %s is invalid. Make sure that the toasterconf.json file is correct." % layerinfo['name'])
-
-                    if lo.vcs_url is None:
-                        lo.vcs_url = layerinfo['vcs_url']
-
-                    if 'layer_index_url' in layerinfo:
-                        lo.layer_index_url = layerinfo['layer_index_url']
-                    lo.save()
-
-                    for branch in layerbranches:
-                        lvo, created = Layer_Version.objects.get_or_create(layer_source = ls,
-                                up_branch = branch,
-                                commit = branch.name,
-                                layer = lo)
-                        lvo.dirpath = layerinfo['dirpath']
-                        if len(layerinfo['local_path']) > 1 and layerinfo['local_path'].startswith("/") and branch.name == "HEAD":
-                            lvo.local_path = layerinfo['local_path']
-                        lvo.save()
-        # set releases
         for ri in data['releases']:
             bvo = BitbakeVersion.objects.get(name = ri['bitbake'])
             assert bvo is not None
@@ -157,15 +88,77 @@ class Command(BaseCommand):
             ro.helptext = ri['helptext']
             ro.save()
 
-            # save layer source priority for release
-            for ls_name in ri['layersourcepriority'].keys():
-                rlspo, created = ReleaseLayerSourcePriority.objects.get_or_create(release = ro, layer_source = LayerSource.objects.get(name=ls_name))
-                rlspo.priority = ri['layersourcepriority'][ls_name]
-                rlspo.save()
-
             for dli in ri['defaultlayers']:
                 # find layers with the same name
                 ReleaseDefaultLayer.objects.get_or_create( release = ro, layer_name = dli)
+
+        # NOTE Temporary old code to handle old toasterconf.json. All this to
+        # be removed after rewrite of config loading mechanism
+        for lsi in data['layersources']:
+            assert 'sourcetype' in lsi
+            assert 'apiurl' in lsi
+            assert 'name' in lsi
+            assert 'branches' in lsi
+
+            if "local" in lsi['sourcetype']:
+                ls = LayerSource.TYPE_LOCAL
+            else:
+                ls = LayerSource.TYPE_LAYERINDEX
+
+            layer_releases = []
+            for branchname in lsi['branches']:
+                try:
+                    release = Release.objects.get(branch_name=branchname)
+                    layer_releases.append(release)
+                except Release.DoesNotExist:
+                    logger.error("Layer set for %s but no release matches this"
+                                 "in the config" % branchname)
+
+            apiurl = _reduce_canon_path(
+                os.path.join(DN(os.path.abspath(filepath)), lsi['apiurl']))
+
+            if 'layers' in lsi:
+                for layerinfo in lsi['layers']:
+                    lo, created = Layer.objects.get_or_create(
+                        name=layerinfo['name'],
+                        vcs_url=layerinfo['vcs_url'],
+                    )
+                    if layerinfo['local_path'].startswith("/"):
+                        lo.local_path = layerinfo['local_path']
+                    else:
+                        lo.local_path = _reduce_canon_path(
+                            os.path.join(apiurl, layerinfo['local_path']))
+
+                    if layerinfo['vcs_url'].startswith("remote:"):
+                        lo.vcs_url = _read_git_url_from_local_repository(
+                            layerinfo['vcs_url'])
+                        if lo.vcs_url is None:
+                            logger.error("The toaster config file references"
+                                         " the local git repo, but Toaster "
+                                         "cannot detect it.\nYour local "
+                                         "configuration for layer %s is "
+                                         "invalid. Make sure that the "
+                                         "toasterconf.json file is correct."
+                                         % layerinfo['name'])
+
+                    if lo.vcs_url is None:
+                        lo.vcs_url = layerinfo['vcs_url']
+
+                    if 'layer_index_url' in layerinfo:
+                        lo.layer_index_url = layerinfo['layer_index_url']
+                    lo.save()
+
+                    for release in layer_releases:
+                        lvo, created = Layer_Version.objects.get_or_create(
+                            layer_source=ls,
+                            release=release,
+                            commit=release.branch_name,
+                            branch=release.branch_name,
+                            layer=lo)
+                        lvo.dirpath = layerinfo['dirpath']
+                        lvo.save()
+        # END temporary code
+
 
         # set default release
         if ToasterSetting.objects.filter(name = "DEFAULT_RELEASE").count() > 0:
@@ -186,6 +179,3 @@ class Command(BaseCommand):
             raise CommandError("Need a path to the toasterconf.json file")
         filepath = args[0]
         self._import_layer_config(filepath)
-
-
-

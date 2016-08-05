@@ -664,7 +664,7 @@ def verify_donestamp(ud, d, origud=None):
         # as an upgrade path from the previous done stamp file format.
         if checksums != precomputed_checksums:
             with open(ud.donestamp, "wb") as cachefile:
-                p = pickle.Pickler(cachefile, pickle.HIGHEST_PROTOCOL)
+                p = pickle.Pickler(cachefile, 2)
                 p.dump(checksums)
         return True
     except ChecksumError as e:
@@ -698,7 +698,7 @@ def update_stamp(ud, d):
             checksums = verify_checksum(ud, d)
             # Store the checksums for later re-verification against the recipe
             with open(ud.donestamp, "wb") as cachefile:
-                p = pickle.Pickler(cachefile, pickle.HIGHEST_PROTOCOL)
+                p = pickle.Pickler(cachefile, 2)
                 p.dump(checksums)
         except ChecksumError as e:
             # Checksums failed to verify, trigger re-download and remove the
@@ -779,7 +779,7 @@ def localpath(url, d):
     fetcher = bb.fetch2.Fetch([url], d)
     return fetcher.localpath(url)
 
-def runfetchcmd(cmd, d, quiet=False, cleanup=None):
+def runfetchcmd(cmd, d, quiet=False, cleanup=None, log=None):
     """
     Run cmd returning the command output
     Raise an error if interrupted or cmd fails
@@ -821,7 +821,7 @@ def runfetchcmd(cmd, d, quiet=False, cleanup=None):
     error_message = ""
 
     try:
-        (output, errors) = bb.process.run(cmd, shell=True, stderr=subprocess.PIPE)
+        (output, errors) = bb.process.run(cmd, log=log, shell=True, stderr=subprocess.PIPE)
         success = True
     except bb.process.NotFoundError as e:
         error_message = "Fetch command %s" % (e.command)
@@ -832,7 +832,7 @@ def runfetchcmd(cmd, d, quiet=False, cleanup=None):
             output = "output:\n%s" % e.stderr
         else:
             output = "no output"
-        error_message = "Fetch command failed with exit code %s, %s" % (e.exitcode, output)
+        error_message = "Fetch command %s failed with exit code %s, %s" % (e.command, e.exitcode, output)
     except bb.process.CmdError as e:
         error_message = "Fetch command %s could not be run:\n%s" % (e.command, e.msg)
     if not success:
@@ -1434,7 +1434,7 @@ class FetchMethod(object):
                     if urlpath.find("/") != -1:
                         destdir = urlpath.rsplit("/", 1)[0] + '/'
                         bb.utils.mkdirhier("%s/%s" % (unpackdir, destdir))
-                cmd = 'cp -fpPR %s %s' % (file, destdir)
+                cmd = 'cp -fpPRH %s %s' % (file, destdir)
 
         if not cmd:
             return

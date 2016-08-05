@@ -50,22 +50,52 @@
             <title>Variable Expansion</title>
 
             <para>
-                BitBake supports variables referencing one another's
-                contents using a syntax that is similar to shell scripting.
-                Following is an example that results in <filename>A</filename>
-                containing "aval" and <filename>B</filename> evaluating to
-                "preavalpost" based on that current value of
-                <filename>A</filename>.
+                Variables can reference the contents of other variables
+                using a syntax that is similar to variable expansion in
+                Bourne shells.
+                The following assignments
+                result in A containing "aval" and B evaluating to "preavalpost".
                 <literallayout class='monospaced'>
      A = "aval"
      B = "pre${A}post"
                 </literallayout>
-                You should realize that whenever <filename>B</filename> is
-                referenced, its evaluation will depend on the state of
-                <filename>A</filename> at that time.
-                Thus, later evaluations of <filename>B</filename> in the
-                previous example could result in different values
-                depending on the value of <filename>A</filename>.
+                <note>
+                    Unlike in Bourne shells, the curly braces are mandatory:
+                    Only <filename>${FOO}</filename> and not
+                    <filename>$FOO</filename> is recognized as an expansion of
+                    <filename>FOO</filename>.
+                </note>
+                The "=" operator does not immediately expand variable
+                references in the right-hand side.
+                Instead, expansion is deferred until the variable assigned to
+                is actually used.
+                The result depends on the current values of the referenced
+                variables.
+                The following example should clarify this behavior:
+                <literallayout class='monospaced'>
+     A = "${B} baz"
+     B = "${C} bar"
+     C = "foo"
+     *At this point, ${A} equals "foo bar baz"*
+     C = "qux"
+     *At this point, ${A} equals "qux bar baz"*
+     B = "norf"
+     *At this point, ${A} equals "norf baz"*
+                </literallayout>
+                Contrast this behavior with the
+                <link linkend='immediate-variable-expansion'>immediate variable expansion</link>
+                operator (i.e. ":=").
+            </para>
+
+            <para>
+                If the variable expansion syntax is used on a variable that
+                does not exist, the string is kept as is.
+                For example, given the following assignment,
+                <filename>BAR</filename> expands to the literal string
+                "${FOO}" as long as <filename>FOO</filename> does not exist.
+                <literallayout class='monospaced'>
+     BAR = "${FOO}"
+                </literallayout>
             </para>
         </section>
 
@@ -259,6 +289,60 @@
                 "789 123456" and <filename>FOO2</filename> becomes
                 "ghi abcdef".
             </para>
+
+            <para>
+                Like "_append" and "_prepend", "_remove"
+                is deferred until after parsing completes.
+            </para>
+        </section>
+
+        <section id='override-style-operation-advantages'>
+            <title>Override Style Operation Advantages</title>
+
+            <para>
+                An advantage of the override style operations
+                "_append", "_prepend", and "_remove" as compared to the
+                "+=" and "=+" operators is that the override style
+                operators provide guaranteed operations.
+                For example, consider a class <filename>foo.bbclass</filename>
+                that needs to add the value "val" to the variable
+                <filename>FOO</filename>, and a recipe that uses
+                <filename>foo.bbclass</filename> as follows:
+                <literallayout class='monospaced'>
+     inherit foo
+
+     FOO = "initial"
+                </literallayout>
+                If <filename>foo.bbclass</filename> uses the "+=" operator,
+                as follows, then the final value of <filename>FOO</filename>
+                will be "initial", which is not what is desired:
+                <literallayout class='monospaced'>
+     FOO += "val"
+                </literallayout>
+                If, on the other hand, <filename>foo.bbclass</filename>
+                uses the "_append" operator, then the final value of
+                <filename>FOO</filename> will be "initial val", as intended:
+                <literallayout class='monospaced'>
+     FOO_append = " val"
+                </literallayout>
+                <note>
+                    It is never necessary to use "+=" together with "_append".
+                    The following sequence of assignments appends "barbaz" to
+                    <filename>FOO</filename>:
+                    <literallayout class='monospaced'>
+     FOO_append = "bar"
+     FOO_append = "baz"
+                    </literallayout>
+                    The only effect of changing the second assignment in the
+                    previous example to use "+=" would be to add a space before
+                    "baz" in the appended value (due to how the "+=" operator
+                    works).
+                </note>
+                Another advantage of the override style operations is that
+                you can combine them with other overrides as described in the
+                "<link linkend='conditional-syntax-overrides'>Conditional Syntax (Overrides)</link>"
+                section.
+            </para>
         </section>
 
         <section id='variable-flag-syntax'>
@@ -277,8 +361,7 @@
                 You can define, append, and prepend values to variable flags.
                 All the standard syntax operations previously mentioned work
                 for variable flags except for override style syntax
-                (i.e. <filename>_prepend</filename>, <filename>_append</filename>,
-                and <filename>_remove</filename>).
+                (i.e. "_prepend", "_append", and "_remove").
             </para>
 
             <para>
@@ -330,6 +413,21 @@
      PN = "${@bb.parse.BBHandler.vars_from_file(d.getVar('FILE', False),d)[0] or 'defaultpkgname'}"
      PV = "${@bb.parse.BBHandler.vars_from_file(d.getVar('FILE', False),d)[1] or '1.0'}"
                 </literallayout>
+                <note>
+                    Inline Python expressions work just like variable expansions
+                    insofar as the "=" and ":=" operators are concerned.
+                    Given the following assignment, <filename>foo()</filename>
+                    is called each time <filename>FOO</filename> is expanded:
+                    <literallayout class='monospaced'>
+     FOO = "${@foo()}"
+                    </literallayout>
+                    Contrast this with the following immediate assignment, where
+                    <filename>foo()</filename> is only called once, while the
+                    assignment is parsed:
+                    <literallayout class='monospaced'>
+     FOO := "${@foo()}"
+                    </literallayout>
+                </note>
             </para>
         </section>
 
@@ -545,15 +643,15 @@
      OVERRIDES = "foo"
      A = "Y"
      A_foo_append = "Z"
-     A_foo_append += "X"
+     A_foo_append = "X"
                 </literallayout>
                 For this case, before any overrides are resolved,
                 <filename>A</filename> is set to "Y" using an immediate assignment.
                 After this immediate assignment, <filename>A_foo</filename> is set
                 to "Z", and then further appended with
-                "X" leaving the variable set to "Z X".
+                "X" leaving the variable set to "ZX".
                 Finally, applying the override for "foo" results in the conditional
-                variable <filename>A</filename> becoming "Z X" (i.e.
+                variable <filename>A</filename> becoming "ZX" (i.e.
                 <filename>A</filename> is replaced with <filename>A_foo</filename>).
             </para>
 
@@ -572,7 +670,7 @@
                 Initially, <filename>A</filename> is set to "1 45" because
                 of the three statements that use immediate operators.
                 After these assignments are made, BitBake applies the
-                <filename>_append</filename> operations.
+                "_append" operations.
                 Those operations result in <filename>A</filename> becoming "1 4523".
             </para>
         </section>
@@ -1624,15 +1722,32 @@
         <title>Dependencies</title>
 
         <para>
-            To allow for efficient operation given multiple processes
-            executing in parallel, BitBake handles dependencies at
-            the task level.
-            BitBake supports a robust method to handle these dependencies.
-        </para>
+            To allow for efficient parallel processing, BitBake handles
+            dependencies at the task level.
+            Dependencies can exist both between tasks within a single recipe
+            and between tasks in different recipes.
+            Following are examples of each:
+            <itemizedlist>
+                <listitem><para>For tasks within a single recipe, a
+                    recipe's <filename>do_configure</filename>
+                    task might need to complete before its
+                    <filename>do_compile</filename> task can run.
+                    </para></listitem>
+                <listitem><para>For tasks in different recipes, one
+                    recipe's <filename>do_configure</filename>
+                    task might require another recipe's
+                    <filename>do_populate_sysroot</filename>
+                    task to finish first such that the libraries and headers
+                    provided by the other recipe are available.
+                    </para></listitem>
+             </itemizedlist>
+         </para>
 
-        <para>
-            This section describes several types of dependency mechanisms.
-        </para>
+         <para>
+             This section describes several ways to declare dependencies.
+             Remember, even though dependencies are declared in different ways, they
+             are all simply dependencies between tasks.
+         </para>
 
         <section id='dependencies-internal-to-the-bb-file'>
             <title>Dependencies Internal to the <filename>.bb</filename> File</title>
@@ -1653,6 +1768,40 @@
                 task.
                 And, the <filename>do_build</filename> depends on the completion
                 of the <filename>printdate</filename> task.
+                <note>
+                    Recipes are built by having their
+                    <filename>do_build</filename> (not to be confused with
+                    <filename>do_compile</filename>) tasks executed.
+                    For a task to run when a recipe is built, the task must
+                    therefore be a direct or indirect dependency of
+                    <filename>do_build</filename>.
+                    For illustration, here are some examples:
+                    <itemizedlist>
+                        <listitem><para>
+                            The directive
+                            <filename>addtask mytask before do_build</filename>
+                            causes <filename>mytask</filename> to run when the
+                            recipe is built.
+                            In this example, <filename>mytask</filename> is run
+                            at an unspecified time relative to other tasks within
+                            the recipe, since <filename>after</filename> is not used.
+                            </para></listitem>
+                        <listitem><para>
+                            The directive
+                            <filename>addtask mytask after do_configure</filename>
+                            by itself does not cause <filename>mytask</filename>
+                            to run when the recipe is built.
+                            The task can still be run manually using the following:
+                            <literallayout class='monospaced'>
+     $ bitbake <replaceable>recipe</replaceable> -c mytask
+                            </literallayout>
+                            <filename>mytask</filename> could also be declared as
+                            a dependency of some other task.
+                            Regardless, the task is run after
+                            <filename>do_configure</filename>.
+                            </para></listitem>
+                    </itemizedlist>
+                </note>
             </para>
         </section>
 
@@ -1722,6 +1871,20 @@
             </para>
 
             <para>
+                The "recrdeptask" flag is most commonly used in high-level
+                recipes that need to wait for some task to finish "globally".
+                For example, <filename>image.bbclass</filename> has the following:
+                <literallayout class='monospaced'>
+     do_rootfs[recrdeptask] += "do_packagedata"
+                </literallayout>
+                This statement says that the <filename>do_packagedata</filename>
+                task of the current recipe and all recipes reachable
+                (by way of dependencies) from the
+                image recipe must run before the <filename>do_rootfs</filename>
+                task can run.
+            </para>
+
+            <para>
                 You might want to not only have BitBake look for
                 dependencies of those tasks, but also have BitBake look
                 for build-time and runtime dependencies of the dependent
@@ -1785,9 +1948,9 @@
                     </thead>
                     <tbody>
                         <row>
-                            <entry align="left"><filename>d.getVar("X", expand=False)</filename></entry>
+                            <entry align="left"><filename>d.getVar("X", expand)</filename></entry>
                             <entry align="left">Returns the value of variable "X".
-                                Using "expand=True" expands the value.</entry>
+                            Using "expand=True" expands the value.</entry>
                         </row>
                         <row>
                             <entry align="left"><filename>d.setVar("X", "value")</filename></entry>
@@ -1810,9 +1973,9 @@
                             <entry align="left">Renames the variable "X" to "Y".</entry>
                         </row>
                         <row>
-                            <entry align="left"><filename>d.getVarFlag("X", flag, expand=False)</filename></entry>
-                            <entry align="left">Gets then named flag from the variable "X".
-                                Using "expand=True" expands the named flag.</entry>
+                            <entry align="left"><filename>d.getVarFlag("X", flag, expand)</filename></entry>
+                            <entry align="left">Returns the value of variable "X".
+                                Using "expand=True" expands the value.</entry>
                         </row>
                         <row>
                             <entry align="left"><filename>d.setVarFlag("X", flag, "value")</filename></entry>
