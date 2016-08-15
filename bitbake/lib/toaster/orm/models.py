@@ -21,7 +21,7 @@
 
 from __future__ import unicode_literals
 
-from django.db import models, IntegrityError
+from django.db import models, IntegrityError, DataError
 from django.db.models import F, Q, Sum, Count
 from django.utils import timezone
 from django.utils.encoding import force_bytes
@@ -78,7 +78,7 @@ if 'sqlite' in settings.DATABASES['default']['ENGINE']:
         try:
             obj = self.create(**params)
             return obj, True
-        except IntegrityError:
+        except (IntegrityError, DataError):
             exc_info = sys.exc_info()
             try:
                 return self.get(**lookup), False
@@ -346,7 +346,15 @@ class Project(models.Model):
             for l in self.projectlayer_set.all().order_by("pk"):
                 commit = l.layercommit.get_vcs_reference()
                 print("ii Building layer ", l.layercommit.layer.name, " at vcs point ", commit)
-                BRLayer.objects.create(req = br, name = l.layercommit.layer.name, giturl = l.layercommit.layer.vcs_url, commit = commit, dirpath = l.layercommit.dirpath, layer_version=l.layercommit)
+                BRLayer.objects.create(
+                    req=br,
+                    name=l.layercommit.layer.name,
+                    giturl=l.layercommit.layer.vcs_url,
+                    commit=commit,
+                    dirpath=l.layercommit.dirpath,
+                    layer_version=l.layercommit,
+                    local_source_dir=l.layercommit.layer.local_source_dir
+                )
 
             br.state = BuildRequest.REQ_QUEUED
             now = timezone.now()
@@ -397,8 +405,14 @@ class Build(models.Model):
     completed_on = models.DateTimeField()
     outcome = models.IntegerField(choices=BUILD_OUTCOME, default=IN_PROGRESS)
     cooker_log_path = models.CharField(max_length=500)
-    build_name = models.CharField(max_length=100)
+    build_name = models.CharField(max_length=100, default='')
     bitbake_version = models.CharField(max_length=50)
+
+    # number of recipes to parse for this build
+    recipes_to_parse = models.IntegerField(default=1)
+
+    # number of recipes parsed so far for this build
+    recipes_parsed = models.IntegerField(default=0)
 
     @staticmethod
     def get_recent(project=None):
@@ -429,6 +443,21 @@ class Build(models.Model):
             build.outcomeText = build.get_outcome_text()
 
         return recent_builds
+
+    def started(self):
+        """
+        As build variables are only added for a build when its BuildStarted event
+        is received, a build with no build variables is counted as
+        "in preparation" and not properly started yet. This method
+        will return False if a build has no build variables (it never properly
+        started), or True otherwise.
+
+        Note that this is a temporary workaround for the fact that we don't
+        have a fine-grained state variable on a build which would allow us
+        to record "in progress" (BuildStarted received) vs. "in preparation".
+        """
+        variables = Variable.objects.filter(build=self)
+        return len(variables) > 0
 
     def completeper(self):
         tf = Task.objects.filter(build = self)
@@ -592,22 +621,64 @@ class Build(models.Model):
 
         return target_labels
 
-    def get_current_status(self):
-        """
-        get the status string from the build request if the build
-        has one, or the text for the build outcome if it doesn't
-        """
-
-        from bldcontrol.models import BuildRequest
-
-        build_request = None
+    def get_buildrequest(self):
+        buildrequest = None
         if hasattr(self, 'buildrequest'):
-            build_request = self.buildrequest
+            buildrequest = self.buildrequest
+        return buildrequest
 
-        if (build_request
-                and build_request.state != BuildRequest.REQ_INPROGRESS
-                and self.outcome == Build.IN_PROGRESS):
-            return self.buildrequest.get_state_display()
+    def is_queued(self):
+        from bldcontrol.models import BuildRequest
+        buildrequest = self.get_buildrequest()
+        if buildrequest:
+            return buildrequest.state == BuildRequest.REQ_QUEUED
+        else:
+            return False
+
+    def is_cancelling(self):
+        from bldcontrol.models import BuildRequest
+        buildrequest = self.get_buildrequest()
+        if buildrequest:
+            return self.outcome == Build.IN_PROGRESS and \
+                buildrequest.state == BuildRequest.REQ_CANCELLING
+        else:
+            return False
+
+    def is_parsing(self):
+        """
+        True if the build is still parsing recipes
+        """
+        return self.outcome == Build.IN_PROGRESS and \
+            self.recipes_parsed < self.recipes_to_parse
+
+    def is_starting(self):
+        """
+        True if the build has no completed tasks yet and is still just starting
+        tasks.
+
+        Note that the mechanism for testing whether a Task is "done" is whether
+        its order field is set, as per the completeper() method.
+        """
+        return self.outcome == Build.IN_PROGRESS and \
+            self.task_build.filter(order__isnull=False).count() == 0
+
+    def get_state(self):
+        """
+        Get the state of the build; one of 'Succeeded', 'Failed', 'In Progress',
+        'Cancelled' (Build outcomes); or 'Queued', 'Cancelling' (states
+        dependent on the BuildRequest state).
+
+        This works around the fact that we have BuildRequest states as well
+        as Build states, but really we just want to know the state of the build.
+        """
+        if self.is_cancelling():
+            return 'Cancelling';
+        elif self.is_queued():
+            return 'Queued'
+        elif self.is_parsing():
+            return 'Parsing'
+        elif self.is_starting():
+            return 'Starting'
         else:
             return self.get_outcome_text()
 
@@ -1290,6 +1361,7 @@ class Layer(models.Model):
     name = models.CharField(max_length=100)
     layer_index_url = models.URLField()
     vcs_url = GitURLField(default=None, null=True)
+    local_source_dir = models.TextField(null = True, default = None)
     vcs_web_url = models.URLField(null=True, default=None)
     vcs_web_tree_base_url = models.URLField(null=True, default=None)
     vcs_web_file_base_url = models.URLField(null=True, default=None)
