@@ -822,11 +822,21 @@ def _find_task_dep(task_object):
 def _find_task_revdep(task_object):
     tdeps = Task_Dependency.objects.filter(depends_on=task_object).filter(task__order__gt=0)
     tdeps = tdeps.exclude(task__outcome = Task.OUTCOME_NA).select_related("task", "task__recipe", "task__build")
+
+    # exclude self-dependencies to prevent infinite dependency loop
+    # in generateCoveredList2()
+    tdeps = tdeps.exclude(task=task_object)
+
     return [tdep.task for tdep in tdeps]
 
 def _find_task_revdep_list(tasklist):
     tdeps = Task_Dependency.objects.filter(depends_on__in=tasklist).filter(task__order__gt=0)
     tdeps = tdeps.exclude(task__outcome=Task.OUTCOME_NA).select_related("task", "task__recipe", "task__build")
+
+    # exclude self-dependencies to prevent infinite dependency loop
+    # in generateCoveredList2()
+    tdeps = tdeps.exclude(task=F('depends_on'))
+
     return [tdep.task for tdep in tdeps]
 
 def _find_task_provider(task_object):
@@ -1450,7 +1460,7 @@ if True:
         freqtargets = tmp
 
         layers = [{"id": x.layercommit.pk, "orderid": x.pk, "name" : x.layercommit.layer.name,
-                   "vcs_url": x.layercommit.layer.vcs_url, "vcs_reference" : x.layercommit.get_vcs_reference(),
+                   "vcs_url": x.layercommit.layer.vcs_url, "local_source_dir": x.layercommit.layer.local_source_dir, "vcs_reference" : x.layercommit.get_vcs_reference(),
                    "url": x.layercommit.layer.layer_index_url, "layerdetailurl": x.layercommit.get_detailspage_url(prj.pk),
                    "branch" : {"name" : x.layercommit.get_vcs_reference(),
                                "layersource" : x.layercommit.layer_source }
@@ -1661,7 +1671,7 @@ if True:
         prj = Project.objects.get(pk=request.POST['project_id'])
 
         # Strip trailing/leading whitespace from all values
-        # put into a new dict because POST one is immutable
+        # put into a new dict because POST one is immutable.
         post_data = dict()
         for key,val in request.POST.items():
           post_data[key] = val.strip()
@@ -1674,7 +1684,8 @@ if True:
 
         if layer:
             if layer_created:
-                layer.vcs_url = post_data['vcs_url']
+                layer.vcs_url = post_data.get('vcs_url')
+                layer.local_source_dir = post_data.get('local_source_dir')
                 layer.up_date = timezone.now()
                 layer.save()
             else:
