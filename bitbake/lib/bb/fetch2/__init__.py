@@ -779,7 +779,7 @@ def localpath(url, d):
     fetcher = bb.fetch2.Fetch([url], d)
     return fetcher.localpath(url)
 
-def runfetchcmd(cmd, d, quiet=False, cleanup=None, log=None):
+def runfetchcmd(cmd, d, quiet=False, cleanup=None, log=None, workdir=None):
     """
     Run cmd returning the command output
     Raise an error if interrupted or cmd fails
@@ -821,7 +821,7 @@ def runfetchcmd(cmd, d, quiet=False, cleanup=None, log=None):
     error_message = ""
 
     try:
-        (output, errors) = bb.process.run(cmd, log=log, shell=True, stderr=subprocess.PIPE)
+        (output, errors) = bb.process.run(cmd, log=log, shell=True, stderr=subprocess.PIPE, cwd=workdir)
         success = True
     except bb.process.NotFoundError as e:
         error_message = "Fetch command %s" % (e.command)
@@ -938,8 +938,6 @@ def try_mirror_url(fetch, origud, ud, ld, check = False):
             if found:
                 return found
             return False
-
-        os.chdir(ld.getVar("DL_DIR", True))
 
         if not verify_donestamp(ud, ld, origud) or ud.method.need_update(ud, ld):
             ud.method.download(ud, ld)
@@ -1439,17 +1437,11 @@ class FetchMethod(object):
         if not cmd:
             return
 
-        # Change to unpackdir before executing command
-        save_cwd = os.getcwd();
-        os.chdir(unpackdir)
-
         path = data.getVar('PATH', True)
         if path:
             cmd = "PATH=\"%s\" %s" % (path, cmd)
-        bb.note("Unpacking %s to %s/" % (file, os.getcwd()))
-        ret = subprocess.call(cmd, preexec_fn=subprocess_setup, shell=True)
-
-        os.chdir(save_cwd)
+        bb.note("Unpacking %s to %s/" % (file, unpackdir))
+        ret = subprocess.call(cmd, preexec_fn=subprocess_setup, shell=True, cwd=unpackdir)
 
         if ret != 0:
             raise UnpackError("Unpack command %s failed with return value %s" % (cmd, ret), urldata.url)
@@ -1583,8 +1575,6 @@ class Fetch(object):
 
                 if premirroronly:
                     self.d.setVar("BB_NO_NETWORK", "1")
-
-                os.chdir(self.d.getVar("DL_DIR", True))
 
                 firsterr = None
                 verified_stamp = verify_donestamp(ud, self.d)

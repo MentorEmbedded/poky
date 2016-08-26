@@ -20,7 +20,7 @@
     <para>
         You can find SDK installers here:
         <itemizedlist>
-            <listitem><para><emphasis>Standard SDK Installers</emphasis>
+            <listitem><para><emphasis>Standard SDK Installers:</emphasis>
                 Go to <ulink url='&YOCTO_TOOLCHAIN_DL_URL;'></ulink>
                 and find the folder that matches your host development system
                 (i.e. <filename>i686</filename> for 32-bit machines or
@@ -39,9 +39,14 @@
      poky-glibc-x86_64-core-image-sato-i586-toolchain-&DISTRO;.sh
                 </literallayout>
                 </para></listitem>
-            <listitem><para><emphasis>Extensible SDK Installers</emphasis>
-                Installers for the extensible SDK are in
+            <listitem><para><emphasis>Extensible SDK Installers:</emphasis>
+                Installers for the extensible SDK are also located in
                 <ulink url='&YOCTO_TOOLCHAIN_DL_URL;'></ulink>.
+                These installers have the string
+                <filename>ext</filename> as part of their names:
+                <literallayout class='monospaced'>
+     poky-glibc-x86_64-core-image-sato-core2-64-toolchain-ext-&DISTRO;.sh
+                </literallayout>
                 </para></listitem>
         </itemizedlist>
     </para>
@@ -86,20 +91,30 @@
         When the <filename>bitbake</filename> command completes, the toolchain
         installer will be in
         <filename>tmp/deploy/sdk</filename> in the Build Directory.
-        <note>
-            By default, this toolchain does not build static binaries.
-            If you want to use the toolchain to build these types of libraries,
-            you need to be sure your image has the appropriate static
-            development libraries.
-            Use the
-            <ulink url='&YOCTO_DOCS_REF_URL;#var-IMAGE_INSTALL'><filename>IMAGE_INSTALL</filename></ulink>
-            variable inside your <filename>local.conf</filename> file to
-            install the appropriate library packages.
-            Following is an example using <filename>glibc</filename> static
-            development libraries:
-            <literallayout class='monospaced'>
+        <note><title>Notes</title>
+            <itemizedlist>
+                <listitem><para>
+                    By default, this toolchain does not build static binaries.
+                    If you want to use the toolchain to build these types of
+                    libraries, you need to be sure your image has the
+                    appropriate static development libraries.
+                    Use the
+                    <ulink url='&YOCTO_DOCS_REF_URL;#var-IMAGE_INSTALL'><filename>IMAGE_INSTALL</filename></ulink>
+                    variable inside your <filename>local.conf</filename> file
+                    to install the appropriate library packages.
+                    Following is an example using <filename>glibc</filename>
+                    static development libraries:
+                    <literallayout class='monospaced'>
      IMAGE_INSTALL_append = " glibc-staticdev"
-            </literallayout>
+                    </literallayout>
+                    </para></listitem>
+                <listitem><para>
+                    For additional information on building the installer,
+                    see the
+                    <ulink url='https://wiki.yoctoproject.org/wiki/TipsAndTricks/RunningEclipseAgainstBuiltImage'>Cookbook guide to Making an Eclipse Debug Capable Image</ulink>
+                    wiki page.
+                    </para></listitem>
+            </itemizedlist>
         </note>
     </para>
 </section>
@@ -191,7 +206,7 @@
         is the directory where the SDK is installed.
         By default, this directory is <filename>/opt/poky/</filename>.
         And, <replaceable>version</replaceable> represents the specific
-        snapshot of the SDK (e.g. <filename>&DISTRO;+snapshot</filename>).
+        snapshot of the SDK (e.g. <filename>&DISTRO;</filename>).
         Furthermore, <replaceable>target</replaceable> represents the target
         architecture (e.g. <filename>i586</filename>) and
         <replaceable>host</replaceable> represents the development system's

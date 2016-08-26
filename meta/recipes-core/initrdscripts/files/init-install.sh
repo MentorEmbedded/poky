@@ -28,7 +28,13 @@ esac
 
 echo "Searching for hard drives ..."
 
-for device in `ls /sys/block/`; do
+# Some eMMC devices have special sub devices such as mmcblk0boot0 etc
+# we're currently only interested in the root device so pick them wisely
+devices=`ls /sys/block/ | grep -v mmcblk`
+mmc_devices=`ls /sys/block/ | grep "mmcblk[0-9]\{1,\}$"`
+devices="$devices $mmc_devices"
+
+for device in $devices; do
     case $device in
         loop*)
             # skip loop device
@@ -118,8 +124,8 @@ if [ ! -b /dev/loop0 ] ; then
 fi
 
 mkdir -p /tmp
-if [ ! -L /etc/mtab ]; then
-    cat /proc/mounts > /etc/mtab
+if [ ! -L /etc/mtab ] && [ -e /proc/mounts ]; then
+    ln -sf /proc/mounts /etc/mtab
 fi
 
 disk_size=$(parted ${device} unit mb print | grep '^Disk .*: .*MB' | cut -d" " -f 3 | sed -e "s/MB//")
@@ -149,6 +155,11 @@ rootwait=""
 part_prefix=""
 if [ ! "${device#/dev/mmcblk}" = "${device}" ]; then
     part_prefix="p"
+    rootwait="rootwait"
+fi
+
+# USB devices also require rootwait
+if [ -n `readlink /dev/disk/by-id/usb* | grep $TARGET_DEVICE_NAME` ]; then
     rootwait="rootwait"
 fi
 

@@ -256,17 +256,22 @@ class TerminalFilter(object):
             content = "Waiting for %s running tasks to finish:" % len(activetasks)
             print(content)
         else:
-            if not len(activetasks):
+            if self.quiet:
+                content = "Running tasks (%s of %s)" % (self.helper.tasknumber_current, self.helper.tasknumber_total)
+            elif not len(activetasks):
                 content = "No currently running tasks (%s of %s)" % (self.helper.tasknumber_current, self.helper.tasknumber_total)
             else:
                 content = "Currently %2s running tasks (%s of %s)" % (len(activetasks), self.helper.tasknumber_current, self.helper.tasknumber_total)
-            maxtask = self.helper.tasknumber_total + 1
+            maxtask = self.helper.tasknumber_total
             if not self.main_progress or self.main_progress.maxval != maxtask:
                 widgets = [' ', progressbar.Percentage(), ' ', progressbar.Bar()]
                 self.main_progress = BBProgress("Running tasks", maxtask, widgets=widgets)
                 self.main_progress.start(False)
             self.main_progress.setmessage(content)
-            self.main_progress.update(self.helper.tasknumber_current)
+            progress = self.helper.tasknumber_current - 1
+            if progress < 0:
+                progress = 0
+            self.main_progress.update(progress)
             print('')
         lines = 1 + int(len(content) / (self.columns + 1))
         if not self.quiet:
@@ -583,23 +588,23 @@ def main(server, eventHandler, params, tf = TerminalFilter):
                     tasktype = 'noexec task'
                 else:
                     tasktype = 'task'
-                logger.info("Running %s %s of %s (ID: %s, %s)",
+                logger.info("Running %s %d of %d (%s)",
                             tasktype,
                             event.stats.completed + event.stats.active +
                                 event.stats.failed + 1,
-                            event.stats.total, event.taskid, event.taskstring)
+                            event.stats.total, event.taskstring)
                 continue
 
             if isinstance(event, bb.runqueue.runQueueTaskFailed):
                 return_value = 1
                 taskfailures.append(event.taskstring)
-                logger.error("Task %s (%s) failed with exit code '%s'",
-                             event.taskid, event.taskstring, event.exitcode)
+                logger.error("Task (%s) failed with exit code '%s'",
+                             event.taskstring, event.exitcode)
                 continue
 
             if isinstance(event, bb.runqueue.sceneQueueTaskFailed):
-                logger.warning("Setscene task %s (%s) failed with exit code '%s' - real task will be run instead",
-                               event.taskid, event.taskstring, event.exitcode)
+                logger.warning("Setscene task (%s) failed with exit code '%s' - real task will be run instead",
+                               event.taskstring, event.exitcode)
                 continue
 
             if isinstance(event, bb.event.DepTreeGenerated):
