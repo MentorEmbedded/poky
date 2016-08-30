@@ -47,7 +47,7 @@
 
         <para>
             The default behavior of this task is to run the
-            <filename>oe_runmake</filename> task if a makefile
+            <filename>oe_runmake</filename> function if a makefile
             (<filename>Makefile</filename>, <filename>makefile</filename>,
             or <filename>GNUmakefile</filename>) is found.
             If no such file is found, the <filename>do_compile</filename>
@@ -260,6 +260,15 @@
             This task runs with the current working directory set to
             <filename>${</filename><link linkend='var-B'><filename>B</filename></link><filename>}</filename>,
             which is the compilation directory.
+            The <filename>do_install</filename> task, as well as other tasks
+            that either directly or indirectly depend on the installed files
+            (e.g.
+            <link linkend='ref-tasks-package'><filename>do_package</filename></link>,
+            <link linkend='ref-tasks-package_write_deb'><filename>do_package_write_*</filename></link>,
+            and
+            <link linkend='ref-tasks-rootfs'><filename>do_rootfs</filename></link>),
+            run under
+            <link linkend='fakeroot-and-pseudo'>fakeroot</link>.
             <note>
                 <title>Caution</title>
 

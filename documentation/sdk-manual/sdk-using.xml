@@ -96,6 +96,17 @@
         <literallayout class='monospaced'>
      poky-glibc-x86_64-core-image-sato-i586-toolchain-&DISTRO;.sh
         </literallayout>
+        <note>
+            As an alternative to downloading an SDK, you can build the toolchain
+            installer.
+            For information on building the installer, see the
+            "<link linkend='sdk-building-an-sdk-installer'>Building an SDK Installer</link>"
+            section.
+            Another helpful resource for building an installer is the
+            <ulink url='https://wiki.yoctoproject.org/wiki/TipsAndTricks/RunningEclipseAgainstBuiltImage'>Cookbook guide to Making an Eclipse Debug Capable Image</ulink>
+            wiki page.
+            This wiki page focuses on development when using the Eclipse IDE.
+        </note>
     </para>
 
     <para>
@@ -107,7 +118,7 @@
             You must change the permissions on the toolchain
             installer script so that it is executable:
             <literallayout class='monospaced'>
-     $ chmod +x poky-glibc-x86_64-core-image-sato-i586-toolchain-2.1.sh
+     $ chmod +x poky-glibc-x86_64-core-image-sato-i586-toolchain-&DISTRO;.sh
             </literallayout>
         </note>
     </para>
@@ -126,16 +137,16 @@
             run the installer again.
         </note>
         <literallayout class='monospaced'>
-     $ ./poky-glibc-x86_64-core-image-sato-i586-toolchain-2.1.sh
+     $ ./poky-glibc-x86_64-core-image-sato-i586-toolchain-&DISTRO;.sh
      Poky (Yocto Project Reference Distro) SDK installer version 2.0
      ===============================================================
-     Enter target directory for SDK (default: /opt/poky/2.1):
-     You are about to install the SDK to "/opt/poky/2.1". Proceed[Y/n]? Y
+     Enter target directory for SDK (default: /opt/poky/&DISTRO;):
+     You are about to install the SDK to "/opt/poky/&DISTRO;". Proceed[Y/n]? Y
      Extracting SDK.......................................................................done
      Setting it up...done
      SDK has been successfully set up and is ready to be used.
      Each time you wish to use the SDK in a new shell session, you need to source the environment setup script e.g.
-      $ . /opt/poky/2.1/environment-setup-i586-poky-linux
+      $ . /opt/poky/&DISTRO;/environment-setup-i586-poky-linux
         </literallayout>
     </para>
 
@@ -256,14 +267,15 @@
                     </itemizedlist></para></listitem>
                 <listitem><para><emphasis>Source the cross-toolchain
                     environment setup file:</emphasis>
-                    Installation of the cross-toolchain creates a cross-toolchain
+                    As described earlier in the manual, installing the
+                    cross-toolchain creates a cross-toolchain
                     environment setup script in the directory that the SDK
                     was installed.
-                    Before you can use the tools to develop your project, you must
-                    source this setup script.
-                    The script begins with the string "environment-setup" and contains
-                    the machine architecture, which is followed by the string
-                    "poky-linux".
+                    Before you can use the tools to develop your project,
+                    you must source this setup script.
+                    The script begins with the string "environment-setup" and
+                    contains the machine architecture, which is followed by the
+                    string "poky-linux".
                     Here is an example that sources a script from the
                     default SDK installation directory that uses the
                     32-bit Intel x86 Architecture and the
@@ -482,11 +494,9 @@
                                 See the
                                 "<ulink url='&YOCTO_DOCS_DEV_URL;#patching-the-kernel'>Patching the Kernel</ulink>"
                                 section in the Yocto Project Development
-                                manual for an example.</para></listitem>
-                        </itemizedlist></para>
-                    <para>For information on pre-built kernel image naming schemes for images
-                    that can run on the QEMU emulator, see the
-                    <ulink url='&YOCTO_DOCS_SDK_URL;#sdk-manual'>Yocto Project Software Development Kit (SDK) Developer's Guide</ulink>.
+                                manual for an example.
+                                </para></listitem>
+                        </itemizedlist>
                     </para></listitem>
                 <listitem><para><emphasis>Install the SDK</emphasis>:
                     The SDK provides a target-specific cross-development toolchain, the root filesystem,
@@ -495,15 +505,18 @@
                     "<link linkend='sdk-installing-the-sdk'>Installing the SDK</link>"
                     section.
                     </para></listitem>
-                <listitem><para><emphasis>Secure the target root filesystem
+                <listitem><para><emphasis>
+                    Secure the target root filesystem
                     and the Cross-development toolchain</emphasis>:
-                    You need to find and download the appropriate root filesystem and
-                    the cross-development toolchain.</para>
-                    <para>You can find the tarballs for the root filesystem in the same area used
-                    for the kernel image.
-                    Depending on the type of image you are running, the root filesystem you need differs.
-                    For example, if you are developing an application that runs on an image that
-                    supports Sato, you need to get a root filesystem that supports Sato.</para>
+                    You need to find and download the appropriate root
+                    filesystem and the cross-development toolchain.</para>
+                    <para>You can find the tarballs for the root filesystem in
+                    the same area used for the kernel image.
+                    Depending on the type of image you are running, the root
+                    filesystem you need differs.
+                    For example, if you are developing an application that
+                    runs on an image that supports Sato, you need to get a
+                    root filesystem that supports Sato.</para>
                     <para>You can find the cross-development toolchains at
                     <ulink url='&YOCTO_TOOLCHAIN_DL_URL;'><filename>toolchains</filename></ulink>.
                     Be sure to get the correct toolchain for your development host and your
@@ -512,6 +525,17 @@
                     section for information and the
                     "<link linkend='sdk-installing-the-sdk'>Installing the SDK</link>"
                     section for installation information.
+                    <note>
+                        As an alternative to downloading an SDK, you can build
+                        the toolchain installer.
+                        For information on building the installer, see the
+                        "<link linkend='sdk-building-an-sdk-installer'>Building an SDK Installer</link>"
+                        section.
+                        Another helpful resource for building an installer is
+                        the
+                        <ulink url='https://wiki.yoctoproject.org/wiki/TipsAndTricks/RunningEclipseAgainstBuiltImage'>Cookbook guide to Making an Eclipse Debug Capable Image</ulink>
+                        wiki page.
+                    </note>
                     </para></listitem>
                 <listitem><para><emphasis>Create and build your application</emphasis>:
                     At this point, you need to have source files for your application.
@@ -519,13 +543,12 @@
                     project.
                     If you are not using Eclipse, you need to use the cross-development tools you have
                     installed to create the image.</para></listitem>
-                <listitem><para><emphasis>Deploy the image with the application</emphasis>:
-                    If you are using the Eclipse IDE, you can deploy your image to the hardware or to
-                    QEMU through the project's preferences.
-                    If you are not using the Eclipse IDE, then you need to deploy the application
-                    to the hardware using other methods.
-                    Or, if you are using QEMU, you need to use that tool and
-                    load your image in for testing.
+                <listitem><para>
+                    <emphasis>Deploy the image with the application</emphasis>:
+                    Using the Eclipse IDE, you can deploy your image to the
+                    hardware or to QEMU through the project's preferences.
+                    You can also use Eclipse to load and test your image under
+                    QEMU.
                     See the
                     "<ulink url='&YOCTO_DOCS_DEV_URL;#dev-manual-qemu'>Using the Quick EMUlator (QEMU)</ulink>"
                     chapter in the Yocto Project Development Manual
@@ -533,16 +556,21 @@
                     </para></listitem>
                 <listitem><para><emphasis>Test and debug the application</emphasis>:
                     Once your application is deployed, you need to test it.
-                    Within the Eclipse IDE, you can use the debugging environment along with the
-                    set of installed user-space tools to debug your application.
-                    Of course, the same user-space tools are available separately if you choose
-                    not to use the Eclipse IDE.</para></listitem>
+                    Within the Eclipse IDE, you can use the debugging
+                    environment along with supported performance enhancing
+                    <ulink url='http://www.eclipse.org/linuxtools/'>tools</ulink>.
+                    </para></listitem>
            </orderedlist>
         </para>
     </section>
 
     <section id='adt-eclipse'>
         <title>Working Within Eclipse</title>
+
+        <para role="writernotes">
+            This section needs to be updated to use Eclipse Neon throughout.
+            It is out of date at the moment.
+        </para>
 
         <para>
             The Eclipse IDE is a popular development environment and it fully
@@ -565,9 +593,11 @@
             execution of your output into a QEMU emulation session as well as
             actual target hardware.
             You can also perform cross-debugging and profiling.
-            The environment also supports a suite of tools that allows you
-            to perform remote profiling, tracing, collection of power data,
-            collection of latency data, and collection of performance data.
+            The environment also supports performance enhancing
+            <ulink url='http://www.eclipse.org/linuxtools/'>tools</ulink> that
+            allow you to perform remote profiling, tracing, collection of
+            power data, collection of latency data, and collection of
+            performance data.
         </para>
 
         <para>
@@ -1317,144 +1347,18 @@
             </para>
         </section>
 
-        <section id='running-user-space-tools'>
-            <title>Running User-Space Tools</title>
+        <section id='running-performance-tools'>
+            <title>Running Performance Tools</title>
 
             <para>
                 As mentioned earlier in the manual, several tools exist that
                 enhance your development experience.
                 These tools are aids in developing and debugging applications
                 and images.
-                You can run these user-space tools from within the Eclipse
+                You can run these tools from within the Eclipse
                 IDE through the "YoctoProjectTools" menu.
-            </para>
-
-            <para>
-                Once you pick a tool, you need to configure it for the remote
-                target.
-                Every tool needs to have the connection configured.
-                You must select an existing TCF-based RSE connection to the
-                remote target.
-                If one does not exist, click "New" to create one.
-            </para>
-
-            <para>
-                Here are some specifics about the remote tools:
-                <itemizedlist>
-                    <listitem><para><emphasis><filename>Lttng2.0 trace import</filename>:</emphasis>
-                        Selecting this tool transfers the remote target's
-                        <filename>Lttng</filename> tracing data back to the
-                        local host machine and uses the Lttng Eclipse plug-in
-                        to graphically display the output.
-                        For information on how to use Lttng to trace an
-                        application,
-                        see <ulink url='http://lttng.org/documentation'></ulink>
-                        and the
-                        "<ulink url='&YOCTO_DOCS_PROF_URL;#lttng-linux-trace-toolkit-next-generation'>LTTng (Linux Trace Toolkit, next generation)</ulink>"
-                        section, which is in the Yocto Project Profiling and
-                        Tracing Manual.
-                        <note>Do not use
-                            <filename>Lttng-user space (legacy)</filename> tool.
-                            This tool no longer has any upstream support.</note>
-                        </para>
-                        <para>Before you use the
-                        <filename>Lttng2.0 trace import</filename> tool,
-                        you need to setup the Lttng Eclipse plug-in and create a
-                        Tracing project.
-                        Do the following:
-                        <orderedlist>
-                            <listitem><para>Select "Open Perspective" from the
-                                "Window" menu and then select "Other..." to
-                                bring up a menu of other perspectives.
-                                Choose "Tracing".
-                                </para></listitem>
-                            <listitem><para>Click "OK" to change the Eclipse
-                                perspective into the Tracing perspective.
-                                </para></listitem>
-                            <listitem><para>Create a new Tracing project by
-                                selecting "Project" from the "File -> New" menu.
-                                </para></listitem>
-                            <listitem><para>Choose "Tracing Project" from the
-                                "Tracing" menu and click "Next".
-                                </para></listitem>
-                            <listitem><para>Provide a name for your tracing
-                                project and click "Finish".
-                                </para></listitem>
-                            <listitem><para>Generate your tracing data on the
-                                remote target.</para></listitem>
-                            <listitem><para>Select "Lttng2.0 trace import"
-                                from the "Yocto Project Tools" menu to
-                                start the data import process.</para></listitem>
-                            <listitem><para>Specify your remote connection name.
-                                </para></listitem>
-                            <listitem><para>For the Ust directory path, specify
-                                the location of your remote tracing data.
-                                Make sure the location ends with
-                                <filename>ust</filename> (e.g.
-                                <filename>/usr/mysession/ust</filename>).
-                                </para></listitem>
-                            <listitem><para>Click "OK" to complete the import
-                                process.
-                                The data is now in the local tracing project
-                                you created.</para></listitem>
-                            <listitem><para>Right click on the data and then use
-                                the menu to Select "Generic CTF Trace" from the
-                                "Trace Type... -> Common Trace Format" menu to
-                                map the tracing type.</para></listitem>
-                            <listitem><para>Right click the mouse and select
-                                "Open" to bring up the Eclipse Lttng Trace
-                                Viewer so you view the tracing data.
-                                </para></listitem>
-                        </orderedlist></para></listitem>
-                    <listitem><para><emphasis><filename>PowerTOP</filename>:</emphasis>
-                        Selecting this tool runs PowerTOP on the remote target
-                        machine and displays the results in a new view called
-                        PowerTOP.</para>
-                        <para>The "Time to gather data(sec):" field is the time
-                        passed in seconds before data is gathered from the
-                        remote target for analysis.</para>
-                        <para>The "show pids in wakeups list:" field corresponds
-                        to the <filename>-p</filename> argument passed to
-                        <filename>PowerTOP</filename>.</para></listitem>
-                    <listitem><para><emphasis><filename>LatencyTOP and Perf</filename>:</emphasis>
-                        LatencyTOP identifies system latency, while
-                        Perf monitors the system's performance counter
-                        registers.
-                        Selecting either of these tools causes an RSE terminal
-                        view to appear from which you can run the tools.
-                        Both tools refresh the entire screen to display results
-                        while they run.
-                        For more information on setting up and using
-                        <filename>perf</filename>, see the
-                        "<ulink url='&YOCTO_DOCS_PROF_URL;#profile-manual-perf'>perf</ulink>"
-                        section in the Yocto Project Profiling and Tracing
-                        Manual.
-                        </para></listitem>
-                    <listitem><para><emphasis><filename>SystemTap</filename>:</emphasis>
-                        Systemtap is a tool that lets you create and reuse
-                        scripts to examine the activities of a live Linux
-                        system.
-                        You can easily extract, filter, and summarize data
-                        that helps you diagnose complex performance or
-                        functional problems.
-                        For more information on setting up and using
-                        <filename>SystemTap</filename>, see the
-                        <ulink url='https://sourceware.org/systemtap/documentation.html'>SystemTap Documentation</ulink>.
-                        </para></listitem>
-                    <listitem><para><emphasis><filename>yocto-bsp</filename>:</emphasis>
-                        The <filename>yocto-bsp</filename> tool lets you
-                        quickly set up a Board Support Package (BSP) layer.
-                        The tool requires a Metadata location, build location,
-                        BSP name, BSP output location, and a kernel
-                        architecture.
-                        For more information on the
-                        <filename>yocto-bsp</filename> tool outside of Eclipse,
-                        see the
-                        "<ulink url='&YOCTO_DOCS_BSP_URL;#creating-a-new-bsp-layer-using-the-yocto-bsp-script'>Creating a new BSP Layer Using the yocto-bsp Script</ulink>"
-                        section in the Yocto Project Board Support Package
-                        (BSP) Developer's Guide.
-                        </para></listitem>
-                </itemizedlist>
+                For more information on these tools, see
+                <ulink url='http://www.eclipse.org/linuxtools/'>http://www.eclipse.org/linuxtools/</ulink>.
             </para>
         </section>
     </section>

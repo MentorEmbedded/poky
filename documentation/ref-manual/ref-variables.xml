@@ -1359,28 +1359,25 @@
 
         <glossentry id='var-BPN'><glossterm>BPN</glossterm>
             <info>
-                BPN[doc] = "The bare name of the recipe. This variable is a version of the PN variable but removes common suffixes and prefixes."
+                BPN[doc] = "This variable is a version of the PN variable but removes common suffixes and prefixes."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    The bare name of the recipe.
                     This variable is a version of the
                     <link linkend='var-PN'><filename>PN</filename></link>
-                    variable but removes common suffixes such as
-                    <filename>-native</filename> and
-                    <filename>-cross</filename> as well
-                    as removes common prefixes such as multilib's
+                    variable with common prefixes and suffixes
+                    removed, such as <filename>nativesdk-</filename>,
+                    <filename>-cross</filename>,
+                    <filename>-native</filename>, and multilib's
                     <filename>lib64-</filename> and
                     <filename>lib32-</filename>.
-                    The exact list of suffixes removed is specified by the
-                    <link linkend='var-SPECIAL_PKGSUFFIX'><filename>SPECIAL_PKGSUFFIX</filename></link>
-                    variable.
-                    The exact list of prefixes removed is specified by the
+                    The exact lists of prefixes and suffixes removed are
+                    specified by the
                     <link linkend='var-MLPREFIX'><filename>MLPREFIX</filename></link>
-                    variable.
-                    Prefixes are removed for <filename>multilib</filename>
-                    and <filename>nativesdk-</filename> cases.
+                    and
+                    <link linkend='var-SPECIAL_PKGSUFFIX'><filename>SPECIAL_PKGSUFFIX</filename></link>
+                    variables, respectively.
                 </para>
             </glossdef>
         </glossentry>
@@ -2599,6 +2596,11 @@
                     <literallayout class='monospaced'>
      ${<link linkend='var-WORKDIR'>WORKDIR</link>}/image
                     </literallayout>
+                    <note><title>Caution</title>
+                        Tasks that read from or write to this directory should
+                        run under
+                        <link linkend='fakeroot-and-pseudo'>fakeroot</link>.
+                    </note>
                 </para>
             </glossdef>
         </glossentry>
@@ -3139,15 +3141,15 @@
                     by UUID to allow the kernel to locate the root device
                     even if the device name changes due to differences in
                     hardware configuration.
-                    By default, <filename>SYSLINUX_ROOT</filename> is set
+                    By default, <filename>ROOT_VM</filename> is set
                     as follows:
                     <literallayout class='monospaced'>
-     SYSLINUX_ROOT = "root=/dev/sda2"
+     ROOT_VM ?= "root=/dev/sda2"
                     </literallayout>
                     However, you can change this to locate the root device
                     using the disk signature instead:
                     <literallayout class='monospaced'>
-     SYSLINUX_ROOT = "root=PARTUUID=${DISK_SIGNATURE}-02"
+     ROOT_VM = "root=PARTUUID=${DISK_SIGNATURE}-02"
                     </literallayout>
                 </para>
 
@@ -3530,13 +3532,13 @@
                     <link linkend='var-IMAGE_FSTYPES'><filename>IMAGE_FSTYPES</filename></link>),
                     the <filename>EFI_PROVIDER</filename> variable specifies
                     the EFI bootloader to use.
-                    The default is "grub-efi", but "gummiboot" can be used
+                    The default is "grub-efi", but "systemd-boot" can be used
                     instead.
                 </para>
 
                 <para>
                     See the
-                    <link linkend='ref-classes-gummiboot'><filename>gummiboot</filename></link>
+                    <link linkend='ref-classes-systemd-boot'><filename>systemd-boot</filename></link>
                     class for more information.
                 </para>
             </glossdef>
@@ -3960,6 +3962,27 @@
             </glossdef>
         </glossentry>
 
+        <glossentry id='var-EXTRANATIVEPATH'><glossterm>EXTRANATIVEPATH</glossterm>
+            <info>
+                EXTRANATIVEPATH[doc] = "A list of subdirectories of ${STAGING_BINDIR_NATIVE} added to the beginning of the environment variable PATH."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    A list of subdirectories of
+                    <filename>${</filename><link linkend='var-STAGING_BINDIR_NATIVE'><filename>STAGING_BINDIR_NATIVE</filename></link><filename>}</filename>
+                    added to the beginning of the environment variable
+                    <filename>PATH</filename>.
+                    As an example, the following prepends
+                    "${STAGING_BINDIR_NATIVE}/foo:${STAGING_BINDIR_NATIVE}/bar:"
+                    to <filename>PATH</filename>:
+                    <literallayout class='monospaced'>
+     EXTRANATIVEPATH = "foo bar"
+                    </literallayout>
+                </para>
+            </glossdef>
+        </glossentry>
+
         <glossentry id='var-EXTRA_OECMAKE'><glossterm>EXTRA_OECMAKE</glossterm>
             <info>
                 EXTRA_OECMAKE[doc] = "Additional cmake options."
@@ -3998,6 +4021,15 @@
                     Because the <filename>EXTRA_OEMAKE</filename> defaults to
                     "", you need to set the variable to specify any required
                     GNU options.
+                </para>
+
+                <para>
+                    <link linkend='var-PARALLEL_MAKE'><filename>PARALLEL_MAKE</filename></link>
+                    and
+                    <link linkend='var-PARALLEL_MAKEINST'><filename>PARALLEL_MAKEINST</filename></link>
+                    also make use of
+                    <filename>EXTRA_OEMAKE</filename> to pass the required
+                    flags.
                 </para>
             </glossdef>
         </glossentry>
@@ -4128,12 +4160,16 @@
 
         <glossentry id='var-FILES'><glossterm>FILES</glossterm>
             <info>
-                FILES[doc] = "The list of directories or files that are placed in packages."
+                FILES[doc] = "The list of directories or files that are placed in a package."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    The list of directories or files that are placed in packages.
+                    The list of files and directories that are placed in a
+                    package.
+                    The
+                    <link linkend='var-PACKAGES'><filename>PACKAGES</filename></link>
+                    variable lists the packages generated by a recipe.
                 </para>
 
                 <para>
@@ -4144,7 +4180,7 @@
                     resulting package.
                     Here is an example:
                     <literallayout class='monospaced'>
-     FILES_${PN} += "${bindir}/mydir1/ ${bindir}/mydir2/myfile"
+     FILES_${PN} += "${bindir}/mydir1 ${bindir}/mydir2/myfile"
                     </literallayout>
                 </para>
 
@@ -4159,6 +4195,8 @@
                     You can find a list of these variables at the top of the
                     <filename>meta/conf/bitbake.conf</filename> file in the
                     <ulink url='&YOCTO_DOCS_DEV_URL;#source-directory'>Source Directory</ulink>.
+                    You will also find the default values of the various
+                    <filename>FILES_*</filename> variables in this file.
                 </note>
 
                 <para>
@@ -4173,7 +4211,6 @@
                     variable for information on how to identify these files to
                     the PMS.
                 </para>
-
             </glossdef>
         </glossentry>
 
@@ -4633,92 +4670,6 @@
                     class, this variable specifies the packages that contain the
                     GTK+ input method modules being installed when the modules
                     are in packages other than the main package.
-                </para>
-            </glossdef>
-        </glossentry>
-
-        <glossentry id='var-GUMMIBOOT_CFG'><glossterm>GUMMIBOOT_CFG</glossterm>
-            <info>
-                GUMMIBOOT_CFG[doc] = "When EFI_PROVIDER is set to "gummiboot", the GUMMIBOOT_CFG variable specifies the configuration file that should be used."
-            </info>
-            <glossdef>
-                <para role="glossdeffirst">
-<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    When
-                    <link linkend='var-EFI_PROVIDER'><filename>EFI_PROVIDER</filename></link>
-                    is set to "gummiboot", the
-                    <filename>GUMMIBOOT_CFG</filename> variable specifies the
-                    configuration file that should be used.
-                    By default, the
-                    <link linkend='ref-classes-gummiboot'><filename>gummiboot</filename></link>
-                    class sets the <filename>GUMMIBOOT_CFG</filename> as
-                    follows:
-                    <literallayout class='monospaced'>
-     GUMMIBOOT_CFG ?= "${<link linkend='var-S'>S</link>}/loader.conf"
-                    </literallayout>
-                </para>
-
-                <para>
-                    For information on Gummiboot, see the
-                    <ulink url='http://freedesktop.org/wiki/Software/gummiboot/'>Gummiboot documentation</ulink>.
-                </para>
-            </glossdef>
-        </glossentry>
-
-        <glossentry id='var-GUMMIBOOT_ENTRIES'><glossterm>GUMMIBOOT_ENTRIES</glossterm>
-            <info>
-                GUMMIBOOT_ENTRIES[doc] = "When EFI_PROVIDER is set to "gummiboot", the GUMMIBOOT_ENTRIES variable specifies a list of entry files (*.conf) to be installed containing one boot entry per file."
-            </info>
-            <glossdef>
-                <para role="glossdeffirst">
-<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    When
-                    <link linkend='var-EFI_PROVIDER'><filename>EFI_PROVIDER</filename></link>
-                    is set to "gummiboot", the
-                    <filename>GUMMIBOOT_ENTRIES</filename> variable specifies
-                    a list of entry files
-                    (<filename>*.conf</filename>) to be installed
-                    containing one boot entry per file.
-                    By default, the
-                    <link linkend='ref-classes-gummiboot'><filename>gummiboot</filename></link>
-                    class sets the <filename>GUMMIBOOT_ENTRIES</filename> as
-                    follows:
-                    <literallayout class='monospaced'>
-     GUMMIBOOT_ENTRIES ?= ""
-                    </literallayout>
-                </para>
-
-                <para>
-                    For information on Gummiboot, see the
-                    <ulink url='http://freedesktop.org/wiki/Software/gummiboot/'>Gummiboot documentation</ulink>.
-                </para>
-            </glossdef>
-        </glossentry>
-
-        <glossentry id='var-GUMMIBOOT_TIMEOUT'><glossterm>GUMMIBOOT_TIMEOUT</glossterm>
-            <info>
-                GUMMIBOOT_TIMEOUT[doc] = "When EFI_PROVIDER is set to "gummiboot", the GUMMIBOOT_TIMEOUT variable specifies the boot menu timeout in seconds."
-            </info>
-            <glossdef>
-                <para role="glossdeffirst">
-<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    When
-                    <link linkend='var-EFI_PROVIDER'><filename>EFI_PROVIDER</filename></link>
-                    is set to "gummiboot", the
-                    <filename>GUMMIBOOT_TIMEOUT</filename> variable specifies
-                    the boot menu timeout in seconds.
-                    By default, the
-                    <link linkend='ref-classes-gummiboot'><filename>gummiboot</filename></link>
-                    class sets the <filename>GUMMIBOOT_TIMEOUT</filename> as
-                    follows:
-                    <literallayout class='monospaced'>
-     GUMMIBOOT_TIMEOUT ?= "10"
-                    </literallayout>
-                </para>
-
-                <para>
-                    For information on Gummiboot, see the
-                    <ulink url='http://freedesktop.org/wiki/Software/gummiboot/'>Gummiboot documentation</ulink>.
                 </para>
             </glossdef>
         </glossentry>
@@ -6073,72 +6024,108 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     <link linkend='var-IMAGE_FSTYPES'><filename>IMAGE_FSTYPES</filename></link>
                     variable.
                 </para>
+
+                <para>
+                    The default value of this variable, which is set in the
+                    <filename>meta/conf/bitbake.conf</filename> configuration
+                    file in the
+                    <ulink url='&YOCTO_DOCS_DEV_URL;#source-directory'>Source Directory</ulink>,
+                    is "cpio.gz".
+                    The Linux kernel's initramfs mechanism, as opposed to the
+                    initial RAM disk
+                    <ulink url='https://en.wikipedia.org/wiki/Initrd'>initrd</ulink>
+                    mechanism, expects an optionally compressed cpio
+                    archive.
+                </para>
             </glossdef>
         </glossentry>
 
         <glossentry id='var-INITRAMFS_IMAGE'><glossterm>INITRAMFS_IMAGE</glossterm>
             <info>
-                INITRAMFS_IMAGE[doc] = "Causes the OpenEmbedded build system to build an additional recipe as a dependency to your root filesystem recipe (e.g. core-image-sato)."
+                INITRAMFS_IMAGE[doc] = "Specifies the PROVIDES name of an image recipe that is used to build an initial RAM disk (initramfs) image."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Causes the OpenEmbedded build system to build an additional
-                    recipe as a dependency to your root filesystem recipe
-                    (e.g. <filename>core-image-sato</filename>).
-                    The additional recipe is used to create an initial RAM disk
-                    (initramfs) that might be needed during the initial boot of
-                    the target system to accomplish such things as loading
-                    kernel modules prior to mounting the root file system.
+                    Specifies the
+                    <link linkend='var-PROVIDES'><filename>PROVIDES</filename></link>
+                    name of an image recipe that is used to build an initial
+                    RAM disk (initramfs) image.
+                    An initramfs provides a temporary root filesystem used for
+                    early system initialization (e.g. loading of modules
+                    needed to locate and mount the "real" root filesystem).
+                    The specified recipe is added as a dependency of the root
+                    filesystem recipe (e.g.
+                    <filename>core-image-sato</filename>).
+                    See the <filename>meta/recipes-core/images/core-image-minimal-initramfs.bb</filename>
+                    recipe in the
+                    <ulink url='&YOCTO_DOCS_DEV_URL;#source-directory'>Source Directory</ulink>
+                    for an example initramfs recipe.
+                    To select this recipe to provide the initramfs,
+                    set <filename>INITRAMFS_IMAGE</filename> to
+                    "core-image-minimal-initramfs".
+                    <note>
+                        The initramfs image recipe should set
+                        <link linkend='var-IMAGE_FSTYPES'><filename>IMAGE_FSTYPES</filename></link>
+                        to
+                        <link linkend='var-INITRAMFS_FSTYPES'><filename>INITRAMFS_FSTYPES</filename></link>.
+                    </note>
                 </para>
 
                 <para>
-                    When you set the variable, specify the name of the
-                    initramfs you want created.
-                    The following example, which is set in the
-                    <filename>local.conf</filename> configuration file, causes
-                    a separate recipe to be created that results in an
-                    initramfs image named
-                    <filename>core-image-sato-initramfs.bb</filename> to be
-                    created:
-                    <literallayout class='monospaced'>
-     INITRAMFS_IMAGE = "core-image-minimal-initramfs"
-                    </literallayout>
-                    By default, the
+                    You can also find more information by referencing the
+                    <filename>meta/poky/conf/local.conf.sample.extended</filename>
+                    configuration file in the
+                    <ulink url='&YOCTO_DOCS_DEV_URL;#source-directory'>Source Directory</ulink>,
+                    the
+                    <link linkend='ref-classes-image'><filename>image</filename></link>
+                    class, and the
                     <link linkend='ref-classes-kernel'><filename>kernel</filename></link>
-                    class sets this variable to a null string as follows:
-                    <literallayout class='monospaced'>
-     INITRAMFS_IMAGE = ""
-                    </literallayout>
+                    class to see how to use the
+                    <filename>INITRAMFS_IMAGE</filename> variable.
                 </para>
 
                 <para>
-                    See the
-                    <ulink url='&YOCTO_GIT_URL;/cgit/cgit.cgi/poky/tree/meta-poky/conf/local.conf.sample.extended'><filename>local.conf.sample.extended</filename></ulink>
-                    file for additional information.
-                    You can also reference the
-                    <ulink url='&YOCTO_GIT_URL;/cgit/cgit.cgi/poky/tree/meta/classes/kernel.bbclass'><filename>kernel.bbclass</filename></ulink>
-                    file to see how the variable is used.
+                    If <filename>INITRAMFS_IMAGE</filename> is empty, which is
+                    the default, then no initramfs is built.
+                </para>
+
+                <para>
+                    Finally, for more information you can also see the
+                    <link linkend='var-INITRAMFS_IMAGE_BUNDLE'><filename>INITRAMFS_IMAGE_BUNDLE</filename></link>
+                    variable, which allows the generated image to be bundled
+                    inside the kernel image.
                 </para>
             </glossdef>
         </glossentry>
 
         <glossentry id='var-INITRAMFS_IMAGE_BUNDLE'><glossterm>INITRAMFS_IMAGE_BUNDLE</glossterm>
             <info>
-                INITRAMFS_IMAGE_BUNDLE[doc] = "Controls whether or not the image recipe specified by INITRAMFS_IMAGE is run through an extra pass during kernel compilation in order to build a single binary that contains both the kernel image and the initial RAM disk (initramfs)."
+                INITRAMFS_IMAGE_BUNDLE[doc] = "Controls whether or not the image recipe specified by INITRAMFS_IMAGE is run through an extra pass (do_bundle_initramfs) during kernel compilation in order to build a single binary that contains both the kernel image and the initial RAM disk (initramfs)."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
                     Controls whether or not the image recipe specified by
                     <link linkend='var-INITRAMFS_IMAGE'><filename>INITRAMFS_IMAGE</filename></link>
-                    is run through an extra pass during kernel compilation
-                    in order to build a single binary that contains both the
-                    kernel image and the initial RAM disk (initramfs).
-                    Using an extra compilation pass ensures that when a kernel
-                    attempts to use an initramfs, it does not encounter
-                    circular dependencies should the initramfs include kernel
-                    modules.
+                    is run through an extra pass
+                    (<link linkend='ref-tasks-bundle_initramfs'><filename>do_bundle_initramfs</filename></link>)
+                    during kernel compilation in order to build a single binary
+                    that contains both the kernel image and the initial RAM disk
+                    (initramfs).
+                    This makes use of the
+                    <link linkend='var-CONFIG_INITRAMFS_SOURCE'><filename>CONFIG_INITRAMFS_SOURCE</filename></link>
+                    kernel feature.
+                    <note>
+                        Using an extra compilation pass to bundle the initramfs
+                        avoids a circular dependency between the kernel recipe and
+                        the initramfs recipe should the initramfs include kernel
+                        modules.
+                        Should that be the case, the initramfs recipe depends on
+                        the kernel for the kernel modules, and the kernel depends
+                        on the initramfs recipe since the initramfs is bundled
+                        inside the kernel image.
+                    </note>
                 </para>
 
                 <para>
@@ -6149,9 +6136,11 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                 </para>
 
                 <para>
-                    Setting the variable to "1" in a configuration file causes
-                    the OpenEmbedded build system to make the extra pass during
-                    kernel compilation:
+                    Setting the variable to "1" in a configuration file causes the
+                    OpenEmbedded build system to generate a kernel image with the
+                    initramfs specified in
+                    <link linkend='var-INITRAMFS_IMAGE'><filename>INITRAMFS_IMAGE</filename></link>
+                    bundled within:
                     <literallayout class='monospaced'>
      INITRAMFS_IMAGE_BUNDLE = "1"
                     </literallayout>
@@ -6159,7 +6148,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     <link linkend='ref-classes-kernel'><filename>kernel</filename></link>
                     class sets this variable to a null string as follows:
                     <literallayout class='monospaced'>
-     INITRAMFS_IMAGE_BUNDLE = ""
+     INITRAMFS_IMAGE_BUNDLE ?= ""
                     </literallayout>
                     <note>
                         You must set the
@@ -9111,6 +9100,19 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
      ${PN}-dbg ${PN}-staticdev ${PN}-dev ${PN}-doc ${PN}-locale ${PACKAGE_BEFORE_PN} ${PN}
                     </literallayout>
                 </para>
+
+                <para>
+                    During packaging, the
+                    <link linkend='ref-tasks-package'><filename>do_package</filename></link>
+                    task goes through <filename>PACKAGES</filename> and uses
+                    the
+                    <link linkend='var-FILES'><filename>FILES</filename></link>
+                    variable corresponding to each package to assign files to
+                    the package.
+                    If a file matches the <filename>FILES</filename> variable
+                    for more than one package in <filename>PACKAGES</filename>,
+                    it will be assigned to the earliest (leftmost) package.
+                </para>
             </glossdef>
         </glossentry>
 
@@ -9195,6 +9197,14 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     where <replaceable>x</replaceable> represents the maximum
                     number of parallel threads <filename>make</filename> can
                     run.
+                    <note><title>Caution</title>
+                        In order for <filename>PARALLEL_MAKE</filename> to be
+                        effective, <filename>make</filename> must be called
+                        with
+                        <filename>${</filename><link linkend='var-EXTRA_OEMAKE'><filename>EXTRA_OEMAKE</filename></link><filename>}</filename>.
+                        An easy way to ensure this is to use the
+                        <filename>oe_runmake</filename> function.
+                    </note>
                 </para>
 
                 <para>
@@ -9241,16 +9251,24 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     task in order to specify parallel installation.
                     This variable defaults to the value of
                     <link linkend='var-PARALLEL_MAKE'><filename>PARALLEL_MAKE</filename></link>.
-                    <note>
-                        If the software being built experiences dependency
-                        issues during the
+                    <note><title>Notes and Cautions</title>
+                        <para>In order for <filename>PARALLEL_MAKEINST</filename>
+                        to be
+                        effective, <filename>make</filename> must be called
+                        with
+                        <filename>${</filename><link linkend='var-EXTRA_OEMAKE'><filename>EXTRA_OEMAKE</filename></link><filename>}</filename>.
+                        An easy way to ensure this is to use the
+                        <filename>oe_runmake</filename> function.</para>
+
+                        <para>If the software being built experiences
+                        dependency issues during the
                         <filename>do_install</filename> task that result in
                         race conditions, you can clear the
                         <filename>PARALLEL_MAKEINST</filename> variable within
                         the recipe as a workaround.
                         For information on addressing race conditions, see the
                         "<ulink url='&YOCTO_DOCS_DEV_URL;#debugging-parallel-make-races'>Debugging Parallel Make Races</ulink>"
-                        section in the Yocto Project Development Manual.
+                        section in the Yocto Project Development Manual.</para>
                     </note>
                 </para>
             </glossdef>
@@ -9327,6 +9345,12 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     The variable is used to make upgrades possible when the
                     versioning scheme changes in some backwards incompatible
                     way.
+                </para>
+
+                <para>
+                    <filename>PE</filename> is the default value of the
+                    <link linkend='var-PKGE'><filename>PKGE</filename></link>
+                    variable.
                 </para>
             </glossdef>
         </glossentry>
@@ -9513,13 +9537,12 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-PKGE'><glossterm>PKGE</glossterm>
             <info>
-                PKGE[doc] = "The epoch of the output package built by the OpenEmbedded build system."
+                PKGE[doc] = "The epoch of the package(s) built by the recipe."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    The epoch of the output package built by the
-                    OpenEmbedded build system.
+                    The epoch of the package(s) built by the recipe.
                     By default, <filename>PKGE</filename> is set to
                     <link linkend='var-PE'><filename>PE</filename></link>.
                 </para>
@@ -9528,13 +9551,12 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-PKGR'><glossterm>PKGR</glossterm>
             <info>
-                PKGR[doc] = "The revision of the output package built by the OpenEmbedded build system."
+                PKGR[doc] = "The revision of the package(s) built by the recipe."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    The revision of the output package built by the
-                    OpenEmbedded build system.
+                    The revision of the package(s) built by the recipe.
                     By default, <filename>PKGR</filename> is set to
                     <link linkend='var-PR'><filename>PR</filename></link>.
                 </para>
@@ -9543,13 +9565,13 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-PKGV'><glossterm>PKGV</glossterm>
             <info>
-                PKGV[doc] = "The version of the output package built by the OpenEmbedded build system."
+                PKGV[doc] = "The version of the package(s) built by the recipe."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    The version of the output package built by the
-                    OpenEmbedded build system.
+                    The version of the package(s) built by the
+                    recipe.
                     By default, <filename>PKGV</filename> is set to
                     <link linkend='var-PV'><filename>PV</filename></link>.
                  </para>
@@ -9698,9 +9720,11 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                         The OpenEmbedded build system does not need the aid of
                         <filename>PR</filename> to know when to rebuild a
                         recipe.
-                        The build system uses
-                        <link linkend='var-STAMP'><filename>STAMP</filename></link>
-                        and the
+                        The build system uses the task
+                        <ulink url='&YOCTO_DOCS_BB_URL;#checksums'>input checksums</ulink>
+                        along with the
+                        <link linkend='structure-build-tmp-stamps'>stamp</link>
+                        and
                         <link linkend='shared-state-cache'>shared state cache</link>
                         mechanisms.
                     </note>
@@ -9951,6 +9975,51 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     The <filename>PROVIDES</filename> statement results in
                     the "libav" recipe also being known as "libpostproc".
                 </para>
+
+                <para>
+                    In addition to providing recipes under alternate names,
+                    the <filename>PROVIDES</filename> mechanism is also used
+                    to implement virtual targets.
+                    A virtual target is a name that corresponds to some
+                    particular functionality (e.g. a Linux kernel).
+                    Recipes that provide the functionality in question list the
+                    virtual target in <filename>PROVIDES</filename>.
+                    Recipes that depend on the functionality in question can
+                    include the virtual target in
+                    <link linkend='var-DEPENDS'><filename>DEPENDS</filename></link>
+                    to leave the choice of provider open.
+                </para>
+
+                <para>
+                    Conventionally, virtual targets have names on the form
+                    "virtual/function" (e.g. "virtual/kernel").
+                    The slash is simply part of the name and has no
+                    syntactical significance.
+                </para>
+
+                <para>
+                    The
+                    <link linkend='var-PREFERRED_PROVIDER'><filename>PREFERRED_PROVIDER</filename></link>
+                    variable is used to select which particular recipe
+                    provides a virtual target.
+                    <note>
+                        <para>A corresponding mechanism for virtual runtime
+                        dependencies (packages) exists.
+                        However, the mechanism does not depend on any special
+                        functionality beyond ordinary variable assignments.
+                        For example,
+                        <filename>VIRTUAL-RUNTIME_dev_manager</filename>
+                        refers to the package of the component that manages
+                        the <filename>/dev</filename> directory.</para>
+
+                        <para>Setting the "preferred provider" for runtime
+                        dependencies is as simple as using the following
+                        assignment in a configuration file:</para>
+                        <literallayout class='monospaced'>
+     VIRTUAL-RUNTIME_dev_manager = "udev"
+                        </literallayout>
+                    </note>
+                </para>
             </glossdef>
         </glossentry>
 
@@ -10013,11 +10082,18 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     The version of the recipe.
                     The version is normally extracted from the recipe filename.
                     For example, if the recipe is named
-                    <filename>expat_2.0.1.bb</filename>, then the default value of <filename>PV</filename>
-                    will be "2.0.1".
+                    <filename>expat_2.0.1.bb</filename>, then the default value
+                    of <filename>PV</filename> will be "2.0.1".
                     <filename>PV</filename> is generally not overridden within
-                    a recipe unless it is building an unstable (i.e. development) version from a source code repository
+                    a recipe unless it is building an unstable (i.e.
+                    development) version from a source code repository
                     (e.g. Git or Subversion).
+                 </para>
+
+                 <para>
+                     <filename>PV</filename> is the default value of the
+                     <link linkend='var-PKGV'><filename>PKGV</filename></link>
+                     variable.
                  </para>
             </glossdef>
         </glossentry>
@@ -11526,15 +11602,24 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-SERIAL_CONSOLES_CHECK'><glossterm>SERIAL_CONSOLES_CHECK</glossterm>
             <info>
-                SERIAL_CONSOLES_CHECK[doc] = "Similar to SERIAL_CONSOLES except the device is checked for existence before attempting to enable it. Supported only by SysVinit."
+                SERIAL_CONSOLES_CHECK[doc] = "Selected SERIAL_CONSOLES to check against /proc/console before enabling using getty. Supported only by SysVinit."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Similar to
-                    <link linkend='var-SERIAL_CONSOLES'><filename>SERIAL_CONSOLES</filename></link>
-                    except the device is checked for existence before attempting
-                    to enable it.
+                    Specifies serial consoles, which must be listed in
+                    <link linkend='var-SERIAL_CONSOLES'><filename>SERIAL_CONSOLES</filename></link>,
+                    to check against <filename>/proc/console</filename>
+                    before enabling them using getty.
+                    This variable allows aliasing in the format:
+                    &lt;device&gt;:&lt;alias&gt;.
+                    If a device was listed as "sclp_line0"
+                    in <filename>/dev/</filename> and "ttyS0" was listed
+                    in <filename>/proc/console</filename>, you would do the
+                    following:
+                    <literallayout class='monospaced'>
+     SERIAL_CONSOLES_CHECK = "slcp_line0:ttyS0"
+                    </literallayout>
                     This variable is currently only supported with SysVinit
                     (i.e. not with systemd).
                 </para>
@@ -12761,6 +12846,92 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                 <para>
                     You can disable the service by setting the variable to
                     "disable".
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-SYSTEMD_BOOT_CFG'><glossterm>SYSTEMD_BOOT_CFG</glossterm>
+            <info>
+                SYSTEMD_BOOT_CFG[doc] = "When EFI_PROVIDER is set to "systemd-boot", the SYSTEMD_BOOT_CFG variable specifies the configuration file that should be used."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    When
+                    <link linkend='var-EFI_PROVIDER'><filename>EFI_PROVIDER</filename></link>
+                    is set to "systemd-boot", the
+                    <filename>SYSTEMD_BOOT_CFG</filename> variable specifies the
+                    configuration file that should be used.
+                    By default, the
+                    <link linkend='ref-classes-systemd-boot'><filename>systemd-boot</filename></link>
+                    class sets the <filename>SYSTEMD_BOOT_CFG</filename> as
+                    follows:
+                    <literallayout class='monospaced'>
+     SYSTEMD_BOOT_CFG ?= "${<link linkend='var-S'>S</link>}/loader.conf"
+                    </literallayout>
+                </para>
+
+                <para>
+                    For information on Systemd-boot, see the
+                    <ulink url='http://freedesktop.org/wiki/Software/systemd-boot/'>Systemd-boot documentation</ulink>.
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-SYSTEMD_BOOT_ENTRIES'><glossterm>SYSTEMD_BOOT_ENTRIES</glossterm>
+            <info>
+                SYSTEMD_BOOT_ENTRIES[doc] = "When EFI_PROVIDER is set to "systemd-boot", the SYSTEMD_BOOT_ENTRIES variable specifies a list of entry files (*.conf) to be installed containing one boot entry per file."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    When
+                    <link linkend='var-EFI_PROVIDER'><filename>EFI_PROVIDER</filename></link>
+                    is set to "systemd-boot", the
+                    <filename>SYSTEMD_BOOT_ENTRIES</filename> variable specifies
+                    a list of entry files
+                    (<filename>*.conf</filename>) to be installed
+                    containing one boot entry per file.
+                    By default, the
+                    <link linkend='ref-classes-systemd-boot'><filename>systemd-boot</filename></link>
+                    class sets the <filename>SYSTEMD_BOOT_ENTRIES</filename> as
+                    follows:
+                    <literallayout class='monospaced'>
+     SYSTEMD_BOOT_ENTRIES ?= ""
+                    </literallayout>
+                </para>
+
+                <para>
+                    For information on Systemd-boot, see the
+                    <ulink url='http://freedesktop.org/wiki/Software/systemd-boot/'>Systemd-boot documentation</ulink>.
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-SYSTEMD_BOOT_TIMEOUT'><glossterm>SYSTEMD_BOOT_TIMEOUT</glossterm>
+            <info>
+                SYSTEMD_BOOT_TIMEOUT[doc] = "When EFI_PROVIDER is set to "systemd-boot", the SYSTEMD_BOOT_TIMEOUT variable specifies the boot menu timeout in seconds."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    When
+                    <link linkend='var-EFI_PROVIDER'><filename>EFI_PROVIDER</filename></link>
+                    is set to "systemd-boot", the
+                    <filename>SYSTEMD_BOOT_TIMEOUT</filename> variable specifies
+                    the boot menu timeout in seconds.
+                    By default, the
+                    <link linkend='ref-classes-systemd-boot'><filename>systemd-boot</filename></link>
+                    class sets the <filename>SYSTEMD_BOOT_TIMEOUT</filename> as
+                    follows:
+                    <literallayout class='monospaced'>
+     SYSTEMD_BOOT_TIMEOUT ?= "10"
+                    </literallayout>
+                </para>
+
+                <para>
+                    For information on Systemd-boot, see the
+                    <ulink url='http://freedesktop.org/wiki/Software/systemd-boot/'>Systemd-boot documentation</ulink>.
                 </para>
             </glossdef>
         </glossentry>
