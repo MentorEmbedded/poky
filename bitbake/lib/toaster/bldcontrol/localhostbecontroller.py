@@ -113,8 +113,12 @@ class LocalhostBEController(BuildEnvironmentController):
         # 1. get a list of repos with branches, and map dirpaths for each layer
         gitrepos = {}
 
-        gitrepos[(bitbake.giturl, bitbake.commit)] = []
-        gitrepos[(bitbake.giturl, bitbake.commit)].append( ("bitbake", bitbake.dirpath) )
+        # if we're using a remotely fetched version of bitbake add its git
+        # details to the list of repos to clone
+        if bitbake.giturl and bitbake.commit:
+            gitrepos[(bitbake.giturl, bitbake.commit)] = []
+            gitrepos[(bitbake.giturl, bitbake.commit)].append(
+                ("bitbake", bitbake.dirpath))
 
         for layer in layers:
             # We don't need to git clone the layer for the CustomImageRecipe
@@ -157,10 +161,7 @@ class LocalhostBEController(BuildEnvironmentController):
 
         logger.info("Using pre-checked out source for layer %s", cached_layers)
 
-
-
         # Verify HEAD layers
-
         layerlist = self.getHeadLayers(gitrepos,layers)
 
         # If the layerlist doesn't have already cloned layers then checkout repositories
@@ -173,9 +174,15 @@ class LocalhostBEController(BuildEnvironmentController):
 
                 # make sure our directory is a git repository
                 if os.path.exists(localdirname):
-                    localremotes = self._shellcmd("git remote -v", localdirname)
-                    if not giturl in localremotes:
-                        raise BuildSetupException("Existing git repository at %s, but with different remotes ('%s', expected '%s'). Toaster will not continue out of fear of damaging something." % (localdirname, ", ".join(localremotes.split("\n")), giturl))
+                    try:
+                        localremotes = self._shellcmd("git remote -v",
+                                                      localdirname)
+                        if not giturl in localremotes:
+                            raise BuildSetupException("Existing git repository at %s, but with different remotes ('%s', expected '%s'). Toaster will not continue out of fear of damaging something." % (localdirname, ", ".join(localremotes.split("\n")), giturl))
+                    except ShellCmdException:
+                        # our localdirname might not be a git repository
+                        #- that's fine
+                        pass
                 else:
                     if giturl in cached_layers:
                         logger.debug("localhostbecontroller git-copying %s to %s" % (cached_layers[giturl], localdirname))

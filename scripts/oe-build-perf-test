@@ -131,6 +131,9 @@ def parse_args(argv):
     parser.add_argument('-o', '--out-dir', default='results-{date}',
                         type=os.path.abspath,
                         help="Output directory for test results")
+    parser.add_argument('--log-file',
+                        default='{out_dir}/oe-build-perf-test.log',
+                        help="Log file of this script")
     parser.add_argument('--run-tests', nargs='+', metavar='TEST',
                         help="List of tests to run")
     parser.add_argument('--commit-results', metavar='GIT_DIR',
@@ -152,7 +155,7 @@ def main(argv=None):
 
     # Set-up log file
     out_dir = args.out_dir.format(date=datetime.now().strftime('%Y%m%d%H%M%S'))
-    setup_file_logging(os.path.join(out_dir, 'output.log'))
+    setup_file_logging(args.log_file.format(out_dir=out_dir))
 
     if args.debug:
         log.setLevel(logging.DEBUG)
@@ -191,13 +194,13 @@ def main(argv=None):
     # Restore logger output to stderr
     log.handlers[0].setLevel(log.level)
 
+    if args.globalres_file:
+        result.update_globalres_file(args.globalres_file)
+    if args.commit_results:
+        result.git_commit_results(args.commit_results,
+                                  args.commit_results_branch,
+                                  args.commit_results_tag)
     if result.wasSuccessful():
-        if args.globalres_file:
-            result.update_globalres_file(args.globalres_file)
-        if args.commit_results:
-            result.git_commit_results(args.commit_results,
-                                      args.commit_results_branch,
-                                      args.commit_results_tag)
         return 0
 
     return 1
