@@ -74,6 +74,7 @@ ignore_errors = {
     'default' : common_errors,
     'qemux86' : [
         'Failed to access perfctr msr (MSR',
+        'pci 0000:00:00.0: [Firmware Bug]: reg 0x..: invalid BAR (can\'t size)',
         ] + qemux86_common,
     'qemux86-64' : qemux86_common,
     'qemumips' : [
@@ -88,6 +89,8 @@ ignore_errors = {
         'host side 80-wire cable detection failed, limiting max speed',
         'mode "640x480" test failed',
         'Failed to load module "glx"',
+        'can\'t handle BAR above 4GB',
+        'Cannot reserve Legacy IO',
         ] + common_errors,
     'qemuarm' : [
         'mmci-pl18x: probe of fpga:05 failed with error -22',
