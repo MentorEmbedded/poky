@@ -1992,22 +1992,36 @@
                     An internal variable specifying the special class override
                     that should currently apply (e.g. "class-target",
                     "class-native", and so forth).
-                    The classes that use this variable set it to
-                    appropriate values.
+                    The classes that use this variable (e.g.
+                    <link linkend='ref-classes-native'><filename>native</filename></link>,
+                    <link linkend='ref-classes-nativesdk'><filename>nativesdk</filename></link>,
+                    and so forth) set the variable to appropriate values.
+                    <note>
+                        <filename>CLASSOVERRIDE</filename> gets its default
+                        "class-target" value from the
+                        <filename>bitbake.conf</filename> file.
+                    </note>
                 </para>
 
                 <para>
-                    You do not normally directly interact with this variable.
-                    The value for the <filename>CLASSOVERRIDE</filename>
-                    variable goes into
-                    <link linkend='var-OVERRIDES'><filename>OVERRIDES</filename></link>
-                    and then can be used as an override.
-                    Here is an example where "python-native" is added to
-                    <link linkend='var-DEPENDS'><filename>DEPENDS</filename></link>
-                    only when building for the <filename>-native</filename> case:
+                    As an example, the following override allows you to install
+                    extra files, but only when building for the target:
                     <literallayout class='monospaced'>
-     DEPENDS_append_class-native = " python-native"
+     do_install_append_class-target() {
+         install my-extra-file ${D}${sysconfdir}
+     }
                     </literallayout>
+                    Here is an example where <filename>FOO</filename>
+                    is set to "native" when building for the build host, and
+                    to "other" when not building for the build host:
+                    <literallayout class='monospaced'>
+     FOO_class-native = "native"
+     FOO = "other"
+                    </literallayout>
+                    The underlying mechanism behind
+                    <filename>CLASSOVERRIDE</filename> is simply that it is
+                    included in the default value of
+                    <link linkend='var-OVERRIDES'><filename>OVERRIDES</filename></link>.
                 </para>
             </glossdef>
         </glossentry>
@@ -2814,6 +2828,18 @@
                                 the sysroot.
                                 </para></listitem>
                             <listitem><para>
+                                One recipe having another recipe in
+                                <filename>DEPENDS</filename> does not by itself
+                                add any runtime dependencies between the
+                                packages produced by the two recipes.
+                                However, as explained in the
+                                "<link linkend='automatically-added-runtime-dependencies'>Automatically Added Runtime Dependencies</link>"
+                                section, runtime dependencies will often be
+                                added automatically, meaning
+                                <filename>DEPENDS</filename> alone is
+                                sufficient for most recipes.
+                                </para></listitem>
+                            <listitem><para>
                                 Counterintuitively,
                                 <filename>DEPENDS</filename> is often necessary
                                 even for recipes that install precompiled
@@ -3410,20 +3436,28 @@
 
         <glossentry id='var-DISTROOVERRIDES'><glossterm>DISTROOVERRIDES</glossterm>
             <info>
-                DISTROOVERRIDES[doc] = "Lists overrides specific to the current distribution. By default, the variable list includes the value of the DISTRO variable."
+                DISTROOVERRIDES[doc] = "A colon-separated list of overrides specific to the current distribution."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    This variable lists overrides specific to the current
-                    distribution.
-                    By default, the variable list includes the value of the
-                    <filename><link linkend='var-DISTRO'>DISTRO</link></filename>
-                    variable.
-                    You can extend the variable to apply any variable overrides
-                    you want as part of the distribution and are not
-                    already in <filename>OVERRIDES</filename> through
-                    some other means.
+                    A colon-separated list of overrides specific to the
+                    current distribution.
+                    By default, this list includes the value of
+                    <link linkend='var-DISTRO'><filename>DISTRO</filename></link>.
+                </para>
+
+                <para>
+                    You can extend <filename>DISTROOVERRIDES</filename>
+                    to add extra overrides that should apply to
+                    the distribution.
+                </para>
+
+                <para>
+                    The underlying mechanism behind
+                    <filename>DISTROOVERRIDES</filename> is simply that it
+                    is included in the default value of
+                    <link linkend='var-OVERRIDES'><filename>OVERRIDES</filename></link>.
                 </para>
             </glossdef>
         </glossentry>
@@ -4003,6 +4037,10 @@
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
                     Additional <filename>configure</filename> script options.
+                    See
+                    <link linkend='var-PACKAGECONFIG_CONFARGS'><filename>PACKAGECONFIG_CONFARGS</filename></link>
+                    for additional information on passing configure script
+                    options.
                 </para>
             </glossdef>
         </glossentry>
@@ -4461,6 +4499,25 @@
                     (i.e. <filename>${</filename><link linkend='var-PN'><filename>PN</filename></link><filename>}</filename>).
                     Use this variable if fonts you need are in a package
                     other than that main package.
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-FORCE_RO_REMOVE'><glossterm>FORCE_RO_REMOVE</glossterm>
+            <info>
+                FORCE_RO_REMOVE[doc] = "Forces the removal of the packages listed in ROOTFS_RO_UNNEEDED during the generation of the root filesystem."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Forces the removal of the packages listed in
+                    <filename>ROOTFS_RO_UNNEEDED</filename> during the
+                    generation of the root filesystem.
+                </para>
+
+                <para>
+                    Set the variable to "1" to force the removal of these
+                    packages.
                 </para>
             </glossdef>
         </glossentry>
@@ -7795,36 +7852,41 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-MACHINEOVERRIDES'><glossterm>MACHINEOVERRIDES</glossterm>
             <info>
-                MACHINEOVERRIDES[doc] = "Lists overrides specific to the current machine. By default, this list includes the value of MACHINE."
+                MACHINEOVERRIDES[doc] = "A colon-separated list of overrides that apply to the current machine."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Lists overrides specific to the current machine.
-                    By default, this list includes the value
-                    of <filename><link linkend='var-MACHINE'>MACHINE</link></filename>.
-                    You can extend the list to apply variable overrides for
-                    classes of machines.
-                    For example, all QEMU emulated machines (e.g. qemuarm,
-                    qemux86, and so forth) include a common file named
-                    <filename>meta/conf/machine/include/qemu.inc</filename>
-                    that prepends <filename>MACHINEOVERRIDES</filename> with
-                    the following variable override:
-                    <literallayout class='monospaced'>
-    MACHINEOVERRIDES =. "qemuall:"
-                    </literallayout>
+                    A colon-separated list of overrides that apply to the
+                    current machine.
+                    By default, this list includes the value of
+                    <link linkend='var-MACHINE'><filename>MACHINE</filename></link>.
                 </para>
 
                 <para>
-                    Applying an override like <filename>qemuall</filename>
-                    affects all QEMU emulated machines elsewhere.
-                    Here is an example from the
-                    <filename>connman-conf</filename> recipe:
+                    You can extend <filename>MACHINEOVERRIDES</filename>
+                    to add extra overrides that should apply to a machine.
+                    For example, all machines emulated in QEMU (e.g.
+                    <filename>qemuarm</filename>, <filename>qemux86</filename>,
+                    and so forth) include a file named
+                    <filename>meta/conf/machine/include/qemu.inc</filename>
+                    that prepends the following override to
+                    <filename>MACHINEOVERRIDES</filename>:
                     <literallayout class='monospaced'>
-    SRC_URI_append_qemuall = "file://wired.config \
-                              file://wired-setup \
-                             "
+     MACHINEOVERRIDES =. "qemuall:"
                     </literallayout>
+                    This override allows variables to be overriden for all
+                    machines emulated in QEMU, like in the following example
+                    from the <filename>connman-conf</filename> recipe:
+                    <literallayout class='monospaced'>
+     SRC_URI_append_qemuall = "file://wired.config \
+                               file://wired-setup \
+                              "
+                    </literallayout>
+                    The underlying mechanism behind
+                    <filename>MACHINEOVERRIDES</filename> is simply that it is
+                    included in the default value of
+                    <link linkend='var-OVERRIDES'><filename>OVERRIDES</filename></link>.
                 </para>
             </glossdef>
         </glossentry>
@@ -7885,6 +7947,39 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     <link linkend='var-BPN'><filename>BPN</filename></link> variable).
                     <filename>MLPREFIX</filename> gets set when a prefix has been
                     added to <filename>PN</filename>.
+                    <note>
+                        The "ML" in <filename>MLPREFIX</filename> stands for
+                        "MultiLib".
+                        This representation is historical and comes from
+                        a time when <filename>nativesdk</filename> was a suffix
+                        rather than a prefix on the recipe name.
+                        When <filename>nativesdk</filename> was turned into a
+                        prefix, it made sense to set
+                        <filename>MLPREFIX</filename> for it as well.
+                    </note>
+                </para>
+
+                <para>
+                    To help understand when <filename>MLPREFIX</filename>
+                    might be needed, consider when
+                    <link linkend='var-BBCLASSEXTEND'><filename>BBCLASSEXTEND</filename></link>
+                    is used to provide a <filename>nativesdk</filename> version
+                    of a recipe in addition to the target version.
+                    If that recipe declares build-time dependencies on tasks in
+                    other recipes by using
+                    <link linkend='var-DEPENDS'><filename>DEPENDS</filename></link>,
+                    then a dependency on "foo" will automatically get rewritten
+                    to a dependency on "nativesdk-foo".
+                    However, dependencies like the following will not get
+                    rewritten automatically:
+                    <literallayout class='monospaced'>
+     do_foo[depends] += "<replaceable>recipe</replaceable>:do_foo"
+                    </literallayout>
+                    If you want such a dependency to also get transformed,
+                    you can do the following:
+                    <literallayout class='monospaced'>
+     do_foo[depends] += "${MLPREFIX}<replaceable>recipe</replaceable>:do_foo"
+                    </literallayout>
                 </para>
             </glossdef>
         </glossentry>
@@ -8420,18 +8515,60 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-OVERRIDES'><glossterm>OVERRIDES</glossterm>
             <info>
-                OVERRIDES[doc] = "BitBake uses OVERRIDES to control what variables are overridden after BitBake parses recipes and configuration files."
+                OVERRIDES[doc] = "A colon-separated list of overrides that currently apply."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    BitBake uses <filename>OVERRIDES</filename> to control
-                    what variables are overridden after BitBake parses
-                    recipes and configuration files.
-                    You can find more information on how overrides are handled
-                    in the
+                    A colon-separated list of overrides that currently apply.
+                    Overrides are a BitBake mechanism that allows variables to
+                    be selectively overridden at the end of parsing.
+                    The set of overrides in <filename>OVERRIDES</filename>
+                    represents the "state" during building, which includes
+                    the current recipe being built, the machine for which
+                    it is being built, and so forth.
+                </para>
+
+                <para>
+                    As an example, if the string "an-override" appears as an
+                    element in the colon-separated list in
+                    <filename>OVERRIDES</filename>, then the following
+                    assignment will override <filename>FOO</filename> with the
+                    value "overridden" at the end of parsing:
+                    <literallayout class='monospaced'>
+     FOO_an-override = "overridden"
+                    </literallayout>
+                    See the
                     "<ulink url='&YOCTO_DOCS_BB_URL;#conditional-syntax-overrides'>Conditional Syntax (Overrides)</ulink>"
-                    section of the BitBake User Manual.
+                    section in the BitBake User Manual for more information on
+                    the overrides mechanism.
+                </para>
+
+                <para>
+                    The default value of <filename>OVERRIDES</filename>
+                    includes the values of the
+                    <link linkend='var-CLASSOVERRIDE'><filename>CLASSOVERRIDE</filename></link>,
+                    <link linkend='var-MACHINEOVERRIDES'><filename>MACHINEOVERRIDES</filename></link>,
+                    and
+                    <link linkend='var-DISTROOVERRIDES'><filename>DISTROOVERRIDES</filename></link>
+                    variables.
+                    Another important override included by default is
+                    <filename>pn-${PN}</filename>.
+                    This override allows variables to be set for a single
+                    recipe within configuration (<filename>.conf</filename>)
+                    files.
+                    Here is an example:
+                    <literallayout class='monospaced'>
+     FOO_pn-myrecipe = "myrecipe-specific value"
+                    </literallayout>
+                    <note><title>Tip</title>
+                        An easy way to see what overrides apply is to search for
+                        <filename>OVERRIDES</filename> in the output of the
+                        <filename>bitbake -e</filename> command.
+                        See the
+                        "<link linkend='usingpoky-debugging-viewing-variable-values'>Viewing Variable Values</link>"
+                        section for more information.
+                    </note>
                 </para>
             </glossdef>
         </glossentry>
@@ -8979,10 +9116,13 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                         <listitem><para>Extra arguments
                             that should be added to the configure script
                             argument list
-                            (<link linkend='var-EXTRA_OECONF'><filename>EXTRA_OECONF</filename></link>)
+                            (<link linkend='var-EXTRA_OECONF'><filename>EXTRA_OECONF</filename></link>
+                            or
+                            <link linkend='var-PACKAGECONFIG_CONFARGS'><filename>PACKAGECONFIG_CONFARGS</filename></link>)
                             if the feature is enabled.</para></listitem>
                         <listitem><para>Extra arguments
                             that should be added to <filename>EXTRA_OECONF</filename>
+                            or <filename>PACKAGECONFIG_CONFARGS</filename>
                             if the feature is disabled.
                             </para></listitem>
                         <listitem><para>Additional build dependencies
@@ -9062,6 +9202,50 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
      PACKAGECONFIG_append_pn-<replaceable>recipename</replaceable> = " f4"
                             </literallayout></para></listitem>
                     </itemizedlist>
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-PACKAGECONFIG_CONFARGS'><glossterm>PACKAGECONFIG_CONFARGS</glossterm>
+            <info>
+                PACKAGECONFIG_CONFARGS[doc] = "A space-separated list of configuration options generated from PACKAGECONFIG."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    A space-separated list of configuration options generated
+                    from the
+                    <link linkend='var-PACKAGECONFIG'><filename>PACKAGECONFIG</filename></link>
+                    setting.
+                    This list of options helps other classes and
+                    recipes take advantage of the
+                    <filename>PACKAGECONFIG</filename> mechanism without
+                    having to include options from
+                    <link linkend='var-EXTRA_OECONF'><filename>EXTRA_OECONF</filename></link>.
+                </para>
+
+                <para>
+                    To illustrate how to use
+                    <filename>PACKAGECONFIG_CONFARGS</filename>, consider the
+                    following example:
+                    <literallayout class='monospaced'>
+     PACKAGECONFIG_CONFARGS = " \
+          -prefix ${prefix} \
+          -sysroot ${STAGING_DIR_NATIVE} \
+          -no-gcc-sysroot
+          "
+                    </literallayout>
+                    In the previous example,
+                    <filename>PACKAGECONFIG_CONFARGS</filename> is set with
+                    three configuration options that can be passed using the
+                    <filename>PACKAGECONFIG</filename> mechanism, thus
+                    avoiding having to use <filename>EXTRA_OECONF</filename>.
+                </para>
+
+                <para>
+                    For additional information, see the
+                    <link linkend='var-PACKAGECONFIG'><filename>PACKAGECONFIG</filename></link>
+                    variable.
                 </para>
             </glossdef>
         </glossentry>
@@ -9467,14 +9651,16 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     <link linkend='ref-tasks-packagedata'><filename>do_packagedata</filename></link>
                     task packages data for each recipe and installs it into
                     this temporary, shared area.
-                    This directory defaults to the following:
+                    This directory defaults to the following, which you should
+                    not change:
                     <literallayout class='monospaced'>
      ${STAGING_DIR_HOST}/pkgdata
                     </literallayout>
-                </para>
-
-                <para>
-                    Do not change this default.
+                    For examples of how this data is used, see the
+                    "<link linkend='automatically-added-runtime-dependencies'>Automatically Added Runtime Dependencies</link>"
+                    section and the
+                    "<link linkend='viewing-package-information-with-oe-pkgdata-util'>Viewing Package Information with <filename>oe-pkgdata-util</filename></link>"
+                    section.
                 </para>
             </glossdef>
         </glossentry>
@@ -9505,32 +9691,29 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-PKGDESTWORK'><glossterm>PKGDESTWORK</glossterm>
             <info>
-                PKGDESTWORK[doc] = "Points to a temporary work area used by the do_package task to write output from the do_packagedata task."
+                PKGDESTWORK[doc] = "Points to a temporary work area where the do_package task saves package metadata."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Points to a temporary work area used by the
+                    Points to a temporary work area where the
                     <link linkend='ref-tasks-package'><filename>do_package</filename></link>
-                    task to write output from the
-                    <link linkend='ref-tasks-packagedata'><filename>do_packagedata</filename></link>
-                    task.
+                    task saves package metadata.
                     The <filename>PKGDESTWORK</filename> location defaults to
                     the following:
                     <literallayout class='monospaced'>
      ${WORKDIR}/pkgdata
                     </literallayout>
-                </para>
-
-                <para>
-                    The <filename>do_packagedata</filename> task then packages
-                    the data in the temporary work area and installs it into a
-                    shared directory pointed to by
-                    <link linkend='var-PKGDATA_DIR'><filename>PKGDATA_DIR</filename></link>.
-                </para>
-
-                <para>
                     Do not change this default.
+                </para>
+
+                <para>
+                    The
+                    <link linkend='ref-tasks-packagedata'><filename>do_packagedata</filename></link>
+                    task copies the package metadata from
+                    <filename>PKGDESTWORK</filename> to
+                    <link linkend='var-PKGDATA_DIR'><filename>PKGDATA_DIR</filename></link>
+                    to make it available globally.
                 </para>
             </glossdef>
         </glossentry>
@@ -9810,9 +9993,34 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     numbers that could potentially change.
                     Here are two examples:
                     <literallayout class='monospaced'>
-     PREFERRED_VERSION_python = "2.7.3"
+     PREFERRED_VERSION_python = "3.4.0"
      PREFERRED_VERSION_linux-yocto = "3.19%"
                     </literallayout>
+                    <note>
+                        The specified version is matched against
+                        <link linkend='var-PV'><filename>PV</filename></link>,
+                        which does not necessarily match the version part of
+                        the recipe's filename.
+                        For example, consider two recipes
+                        <filename>foo_1.2.bb</filename> and
+                        <filename>foo_git.bb</filename> where
+                        <filename>foo_git.bb</filename> contains the following
+                        assignment:
+                        <literallayout class='monospaced'>
+     PV = "1.1+git${SRCPV}"
+                        </literallayout>
+                        In this case, the correct way to select
+                        <filename>foo_git.bb</filename> is by using an
+                        assignment such as the following:
+                        <literallayout class='monospaced'>
+     PREFERRED_VERSION_foo = "1.1+git%"
+                        </literallayout>
+                        Compare that previous example against the following
+                        incorrect example, which does not work:
+                        <literallayout class='monospaced'>
+     PREFERRED_VERSION_foo = "git"
+                        </literallayout>
+                    </note>
                     Sometimes the <filename>PREFERRED_VERSION</filename>
                     variable can be set by configuration files in a way that
                     is hard to change.
@@ -9830,6 +10038,13 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     <literallayout class='monospaced'>
      PREFERRED_VERSION_linux-yocto_forcevariable = "3.4%"
                     </literallayout>
+                    <note>
+                        The <filename>_forcevariable</filename> override is
+                        not handled specially.
+                        This override only works because the default value of
+                        <link linkend='var-OVERRIDES'><filename>OVERRIDES</filename></link>
+                        includes "forcevariable".
+                    </note>
                 </para>
             </glossdef>
         </glossentry>
@@ -9941,6 +10156,12 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                      libplc4.so \
                      libplds4.so"
                     </literallayout>
+                </para>
+
+                <para>
+                    For more information, see the
+                    "<link linkend='automatically-added-runtime-dependencies'>Automatically Added Runtime Dependencies</link>"
+                    section.
                 </para>
             </glossdef>
         </glossentry>
@@ -10236,40 +10457,59 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-RDEPENDS'><glossterm>RDEPENDS</glossterm>
             <info>
-                RDEPENDS[doc] = "Lists a package's runtime dependencies (i.e. other packages) that must be installed for the package to be built. They must be the names of other packages as listed in the PACKAGES variable, not recipe names (PN)."
+                RDEPENDS[doc] = "Lists runtime dependencies of a package."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Lists a package's runtime dependencies (i.e. other packages)
-                    that must be installed in order for the built package to run
-                    correctly.
-                    If a package in this list cannot be found during the build,
-                    you will get a build error.
+                    Lists runtime dependencies of a package.
+                    These dependencies are other packages that must be
+                    installed in order for the package to function correctly.
+                    As an example, the following assignment declares that the
+                    package <filename>foo</filename> needs the packages
+                    <filename>bar</filename> and <filename>baz</filename> to
+                    be installed:
+                    <literallayout class='monospaced'>
+     RDEPENDS_foo = "bar baz"
+                    </literallayout>
+                    The most common types of package runtime dependencies are
+                    automatically detected and added.
+                    Therefore, most recipes do not need to set
+                    <filename>RDEPENDS</filename>.
+                    For more information, see the
+                    "<link linkend='automatically-added-runtime-dependencies'>Automatically Added Runtime Dependencies</link>"
+                    section.
                 </para>
 
                 <para>
-                    When you use the <filename>RDEPENDS</filename> variable
-                    in a recipe, you are essentially stating that the recipe's
+                    The practical effect of the above
+                    <filename>RDEPENDS</filename> assignment is that
+                    <filename>bar</filename> and <filename>baz</filename>
+                    will be declared as dependencies inside the package
+                    <filename>foo</filename> when it is written out by one of
+                    the
+                    <link linkend='ref-tasks-package_write_deb'><filename>do_package_write_*</filename></link>
+                    tasks.
+                    Exactly how this is done depends on which package format
+                    is used, which is determined by
+                    <link linkend='var-PACKAGE_CLASSES'><filename>PACKAGE_CLASSES</filename></link>.
+                    When the corresponding package manager installs the
+                    package, it will know to also install the packages on
+                    which it depends.
+                </para>
+
+                <para>
+                    To ensure that the packages <filename>bar</filename> and
+                    <filename>baz</filename> get built, the previous
+                    <filename>RDEPENDS</filename> assignment also causes a task
+                    dependency to be added.
+                    This dependency is from the recipe's
                     <link linkend='ref-tasks-build'><filename>do_build</filename></link>
-                    task depends on the existence of a specific package.
-                    Consider this simple example for two recipes named "a" and
-                    "b" that produce similarly named IPK packages.
-                    In this example, the <filename>RDEPENDS</filename>
-                    statement appears in the "a" recipe:
-                    <literallayout class='monospaced'>
-     RDEPENDS_${PN} = "b"
-                    </literallayout>
-                    Here, the dependency is such that the
-                    <filename>do_build</filename> task for recipe "a" depends
-                    on the
-                    <link linkend='ref-tasks-package_write_ipk'><filename>do_package_write_ipk</filename></link>
-                    task of recipe "b".
-                    This means the package file for "b" must be available when
-                    the output for recipe "a" has been completely built.
-                    More importantly, package "a" will be marked as depending
-                    on package "b" in a manner that is understood by the
-                    package manager.
+                    (not to be confused with
+                    <link linkend='ref-tasks-compile'><filename>do_compile</filename></link>)
+                    task to the <filename>do_package_write_*</filename>
+                    task of the recipes that build <filename>bar</filename> and
+                    <filename>baz</filename>.
                 </para>
 
                 <para>
@@ -10289,7 +10529,8 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                 <para>
                     Because the <filename>RDEPENDS</filename> variable applies
                     to packages being built, you should always use the variable
-                    in a form with an attached package name.
+                    in a form with an attached package name (remember that a
+                    single recipe can build multiple packages).
                     For example, suppose you are building a development package
                     that depends on the <filename>perl</filename> package.
                     In this case, you would use the following
@@ -10317,41 +10558,18 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                 </para>
 
                 <para>
-                    The package name you attach to the
-                    <filename>RDEPENDS</filename> variable must appear
-                    as it would in the <filename>PACKAGES</filename>
-                    namespace before any renaming of the output package by
-                    classes like
-                    <link linkend='ref-classes-debian'><filename>debian</filename></link>.
-                </para>
-
-                <para>
-                    In many cases you do not need to explicitly add
-                    runtime dependencies using
-                    <filename>RDEPENDS</filename> since some automatic
-                    handling occurs:
-                    <itemizedlist>
-                        <listitem><para><emphasis><filename>shlibdeps</filename></emphasis>:
-                            If a runtime package contains a compiled binary,
-                            the build processes the binary in order to
-                            determine any shared libraries
-                            (<filename>.so</filename> files) to which it is
-                            dynamically linked.
-                            The build process adds the packages containing
-                            these libraries to <filename>RDEPENDS</filename>
-                            when creating the runtime package.
-                            In addition, if the shared library is versioned,
-                            the dependency will have the version appended to it
-                            in order to force an upgrade to the appropriate
-                            version if needed.
-                            </para></listitem>
-                        <listitem><para><emphasis><filename>pcdeps</filename></emphasis>:  If
-                            the package ships a <filename>pkg-config</filename>
-                            information file, the build process uses this file
-                            to add items to the <filename>RDEPENDS</filename>
-                            variable to create the runtime packages.
-                            </para></listitem>
-                    </itemizedlist>
+                    The package names you use with
+                    <filename>RDEPENDS</filename> must appear as they would in
+                    the <filename>PACKAGES</filename> variable.
+                    The
+                    <link linkend='var-PKG'><filename>PKG</filename></link>
+                    variable allows a different name to be used for
+                    the final package (e.g. the
+                    <link linkend='ref-classes-debian'><filename>debian</filename></link>
+                    class uses this to rename packages), but this final package
+                    name cannot be used with <filename>RDEPENDS</filename>,
+                    which makes sense as <filename>RDEPENDS</filename> is meant
+                    to be independent of the package format used.
                 </para>
 
                 <para>
@@ -11064,6 +11282,33 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                         Enabling the variable also slightly increases the size
                         of the extensible SDK.
                     </note>
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-SDK_INCLUDE_TOOLCHAIN'><glossterm>SDK_INCLUDE_TOOLCHAIN</glossterm>
+            <info>
+                SDK_INCLUDE_TOOLCHAIN[doc] = "When set to "1", specifies to include the toolchain in the extensible SDK."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    When set to "1", specifies to include the toolchain in the
+                    extensible SDK.
+                    Including the toolchain is useful particularly when
+                    <link linkend='var-SDK_EXT_TYPE'><filename>SDK_EXT_TYPE</filename></link>
+                    is set to "minimal" to keep the SDK reasonably small
+                    but you still want to provide a usable toolchain.
+                    For example, suppose you want to use the toolchain from an
+                    IDE (e.g. Eclipse) or from other tools and you do not
+                    want to perform additional steps to install the toolchain.
+                </para>
+
+                <para>
+                    The <filename>SDK_INCLUDE_TOOLCHAIN</filename> variable
+                    defaults to "0" if <filename>SDK_EXT_TYPE</filename>
+                    is set to "minimal", and defaults to "1" if
+                    <filename>SDK_EXT_TYPE</filename> is set to "full".
                 </para>
             </glossdef>
         </glossentry>
@@ -12620,6 +12865,13 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                 </para>
 
                 <para>
+                    For information on how BitBake uses stamp files to determine
+                    if a task should be rerun, see the
+                    "<link linkend='stamp-files-and-the-rerunning-of-tasks'>Stamp Files and the Rerunning of Tasks</link>"
+                    section.
+                </para>
+
+                <para>
                     See <link linkend='var-STAMPS_DIR'><filename>STAMPS_DIR</filename></link>,
                     <link linkend='var-MULTIMACH_TARGET_SYS'><filename>MULTIMACH_TARGET_SYS</filename></link>,
                     <link linkend='var-PN'><filename>PN</filename></link>,
@@ -12873,7 +13125,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
                 <para>
                     For information on Systemd-boot, see the
-                    <ulink url='http://freedesktop.org/wiki/Software/systemd-boot/'>Systemd-boot documentation</ulink>.
+                    <ulink url='http://www.freedesktop.org/wiki/Software/systemd/systemd-boot/'>Systemd-boot documentation</ulink>.
                 </para>
             </glossdef>
         </glossentry>
@@ -12903,7 +13155,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
                 <para>
                     For information on Systemd-boot, see the
-                    <ulink url='http://freedesktop.org/wiki/Software/systemd-boot/'>Systemd-boot documentation</ulink>.
+                    <ulink url='http://www.freedesktop.org/wiki/Software/systemd/systemd-boot/'>Systemd-boot documentation</ulink>.
                 </para>
             </glossdef>
         </glossentry>
@@ -12931,7 +13183,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
                 <para>
                     For information on Systemd-boot, see the
-                    <ulink url='http://freedesktop.org/wiki/Software/systemd-boot/'>Systemd-boot documentation</ulink>.
+                    <ulink url='http://www.freedesktop.org/wiki/Software/systemd/systemd-boot/'>Systemd-boot documentation</ulink>.
                 </para>
             </glossdef>
         </glossentry>
@@ -14626,7 +14878,9 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     task.
                     Normally, invalid configure options are simply not passed
                     to the configure script (e.g. should be removed from
-                    <link linkend='var-EXTRA_OECONF'><filename>EXTRA_OECONF</filename></link>).
+                    <link linkend='var-EXTRA_OECONF'><filename>EXTRA_OECONF</filename></link>
+                    or
+                    <link linkend='var-PACKAGECONFIG_CONFARGS'><filename>PACKAGECONFIG_CONFARGS</filename></link>).
                     However, common options, for example, exist that are passed
                     to all configure scripts at a class level that might not
                     be valid for some configure scripts.
