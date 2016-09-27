@@ -200,6 +200,8 @@ do_install() {
 	install -d ${D}${sysconfdir}/udev/rules.d/
 	install -d ${D}${sysconfdir}/tmpfiles.d
 	install -m 0644 ${WORKDIR}/*.rules ${D}${sysconfdir}/udev/rules.d/
+	install -d ${D}${libdir}/pkgconfig
+	install -m 0644 ${B}/src/udev/udev.pc ${D}${libdir}/pkgconfig/
 
 	install -m 0644 ${WORKDIR}/00-create-volatile.conf ${D}${sysconfdir}/tmpfiles.d/
 
@@ -211,8 +213,8 @@ do_install() {
 
 	chown root:systemd-journal ${D}/${localstatedir}/log/journal
 
-        # Delete journal README, as log can be symlinked inside volatile.
-        rm -f ${D}/${localstatedir}/log/README
+	# Delete journal README, as log can be symlinked inside volatile.
+	rm -f ${D}/${localstatedir}/log/README
 
 	install -d ${D}${systemd_unitdir}/system/graphical.target.wants
 	install -d ${D}${systemd_unitdir}/system/multi-user.target.wants

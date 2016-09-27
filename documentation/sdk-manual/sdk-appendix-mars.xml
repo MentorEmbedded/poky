@@ -210,19 +210,6 @@
                             </para></listitem>
                         <listitem><para>Use Git to checkout the correct
                             tag:
-
-                            <note><title>Developer's Note</title>
-                                <para role='writernotes'>
-                                Because the 2.2 tag will not exist until after
-                                the release, I must first do the following
-                                before running the
-                                <filename>git checkout mars/yocto-&DISTRO;</filename>
-                                command in this step:
-                                <literallayout class='monospaced'>
-     $ git tag mars/yocto-2.2 origin/mars-master
-                                </literallayout></para>
-                            </note>
-
                             <literallayout class='monospaced'>
      $ cd ~/eclipse-poky
      $ git checkout mars/yocto-&DISTRO;
@@ -291,15 +278,6 @@
                         <listitem><para>Check the boxes that appear in
                             the installation window to install the
                             following:
-
-                            <note><title>Developer's Note</title>
-                                <para role='writernotes'>
-                                Right now, a check box for BitBake Commander
-                                is appearing.
-                                This probably needs removed.
-                                Do not check this box.</para>
-                            </note>
-
                             <literallayout class='monospaced'>
      Yocto Project SDK Plug-in
      Yocto Project Documentation plug-in
@@ -500,7 +478,7 @@
                             <ulink url='https://wiki.yoctoproject.org/wiki/TipsAndTricks/RunningEclipseAgainstBuiltImage'>wiki</ulink>.
                             In this case, you specify your Build Directory path
                             followed by the image (e.g.
-                            <filename>/home/scottrif/poky/tmp/deploy/images/qemux86/bzImage-qemux86.bin</filename>).
+                            <filename>/home/scottrif/poky/build/tmp/deploy/images/qemux86/bzImage-qemux86.bin</filename>).
                             </para>
                             <para>If you selected the standalone pre-built
                             toolchain, the pre-built image you downloaded is
@@ -812,8 +790,24 @@
                     </para></listitem>
                 <listitem><para>Click "Next".
                     </para></listitem>
-                <listitem><para>Clear out the "host name" field and enter
-                    the IP Address determined earlier (e.g. 192.168.7.2).
+                <listitem><para>Clear out the "Connection name" field and
+                    enter any name you want for the connection.
+                    </para></listitem>
+                <listitem><para>Put the IP address for the connection in
+                    the "Host" field.
+                    For QEMU, the default is <filename>192.168.7.2</filename>.
+                    However, if a previous QEMU session did not exit
+                    cleanly, the IP address increments (e.g.
+                    <filename>192.168.7.3</filename>).
+                    <note>
+                        You can find the IP address for the current QEMU
+                        session by looking in the xterm that opens when
+                        you launch QEMU.
+                    </note>
+                    </para></listitem>
+                <listitem><para>Enter <filename>root</filename>, which
+                    is the default for QEMU, for the "User" field.
+                    Be sure to leave the password field empty.
                     </para></listitem>
                 <listitem><para>Click "Finish" to close the
                     New Connections Dialog.

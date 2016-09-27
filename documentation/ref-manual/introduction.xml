@@ -47,7 +47,7 @@
             <listitem><para><emphasis>
                 <link linkend='usingpoky'>Using the Yocto Project</link>:</emphasis>
                 Provides an overview of the components that make up the Yocto Project
-                followed by information about debugng images created in the Yocto Project.
+                followed by information about debugging images created in the Yocto Project.
                 </para></listitem>
             <listitem><para><emphasis>
                 <link linkend='closer-look'>A Closer Look at the Yocto Project Development Environment</link>:</emphasis>
@@ -306,7 +306,7 @@
                         Packages needed if you are going to run
                         <filename>oe-selftest</filename>:
                         <literallayout class='monospaced'>
-     $ sudo dnf install GitPython
+     $ sudo dnf install python3-GitPython
                         </literallayout>
                         </para></listitem>
                 </itemizedlist>
@@ -422,8 +422,7 @@
             <itemizedlist>
                 <listitem><para>Git 1.8.3.1 or greater</para></listitem>
                 <listitem><para>tar 1.24 or greater</para></listitem>
-                <listitem><para>Python 2.7.3 or greater not including
-                    Python 3.x, which is not supported.</para></listitem>
+                <listitem><para>Python 3.4.0 or greater</para></listitem>
             </itemizedlist>
         </para>
 
