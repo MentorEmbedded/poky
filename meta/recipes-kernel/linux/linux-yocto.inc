@@ -8,6 +8,15 @@ UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>\d+\.\d+(\.\d+)*)"
 
 INC_PR = "r4"
 
+# Skip processing of this recipe if it is not explicitly specified as the
+# PREFERRED_PROVIDER for virtual/kernel. This avoids network access required
+# by the use of AUTOREV SRCREVs, which are the default for this recipe.
+python () {
+    if d.getVar("PREFERRED_PROVIDER_virtual/kernel", True) != d.getVar("PN", True):
+        d.delVar("BB_DONT_CACHE")
+        raise bb.parse.SkipPackage("Set PREFERRED_PROVIDER_virtual/kernel to %s to enable it" % (d.getVar("PN", True)))
+}
+
 DEPENDS += "xz-native bc-native"
 DEPENDS_append_aarch64 = " libgcc"
 KERNEL_CC_append_aarch64 = " ${TOOLCHAIN_OPTIONS}"
@@ -55,7 +64,7 @@ do_install_append(){
 }
 
 # extra tasks
-addtask kernel_version_sanity_check after do_kernel_checkout before do_compile
+addtask kernel_version_sanity_check after do_kernel_metadata do_kernel_checkout before do_compile
 addtask kernel_link_images after do_compile before do_install
 addtask validate_branches before do_patch after do_kernel_checkout
 addtask kernel_configcheck after do_configure before do_compile

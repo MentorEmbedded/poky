@@ -56,6 +56,8 @@ x86_common = [
     'probe of LNXPWRBN:00 failed with error -22',
     'pmd_set_huge: Cannot satisfy',
     'failed to setup card detect gpio',
+    'amd_nb: Cannot enumerate AMD northbridges',
+    'failed to retrieve link info, disabling eDP',
 ] + common_errors
 
 qemux86_common = [
@@ -63,11 +65,7 @@ qemux86_common = [
     "fail to add MMCONFIG information, can't access extended PCI configuration space under this bridge.",
     "can't claim BAR ",
     'amd_nb: Cannot enumerate AMD northbridges',
-    'uvesafb: 5000 ms task timeout error',
-    'detected fb_set_par error, error code: -22',
-    'Getting VBE info block failed',
-    'vbe_init() failed with -22',
-    'uvesafb: mode switch failed',
+    'uvesafb: 5000 ms task timeout, infinitely waiting',
     'tsc: HPET/PMTIMER calibration failed',
 ] + common_errors
 

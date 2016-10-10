@@ -261,9 +261,14 @@ def exec_func(func, d, dirs = None, pythonexception=False):
         else:
             exec_func_shell(func, d, runfile, cwd=adir)
 
-    if oldcwd and os.getcwd() != oldcwd:
+    try:
+        curcwd = os.getcwd()
+    except:
+        curcwd = None
+
+    if oldcwd and curcwd != oldcwd:
         try:
-            bb.warn("Task %s changed cwd to %s" % (func, os.getcwd()))
+            bb.warn("Task %s changed cwd to %s" % (func, curcwd))
             os.chdir(oldcwd)
         except:
             pass
@@ -560,24 +565,32 @@ def _exec_task(fn, task, d, quieterr):
 
     flags = localdata.getVarFlags(task)
 
-    event.fire(TaskStarted(task, logfn, flags, localdata), localdata)
     try:
-        for func in (prefuncs or '').split():
-            exec_func(func, localdata)
-        exec_func(task, localdata)
-        for func in (postfuncs or '').split():
-            exec_func(func, localdata)
-    except FuncFailed as exc:
-        if quieterr:
-            event.fire(TaskFailedSilent(task, logfn, localdata), localdata)
-        else:
-            errprinted = errchk.triggered
+        try:
+            event.fire(TaskStarted(task, logfn, flags, localdata), localdata)
+        except (bb.BBHandledException, SystemExit):
+            return 1
+        except FuncFailed as exc:
             logger.error(str(exc))
-            event.fire(TaskFailed(task, logfn, localdata, errprinted), localdata)
-        return 1
-    except bb.BBHandledException:
-        event.fire(TaskFailed(task, logfn, localdata, True), localdata)
-        return 1
+            return 1
+
+        try:
+            for func in (prefuncs or '').split():
+                exec_func(func, localdata)
+            exec_func(task, localdata)
+            for func in (postfuncs or '').split():
+                exec_func(func, localdata)
+        except FuncFailed as exc:
+            if quieterr:
+                event.fire(TaskFailedSilent(task, logfn, localdata), localdata)
+            else:
+                errprinted = errchk.triggered
+                logger.error(str(exc))
+                event.fire(TaskFailed(task, logfn, localdata, errprinted), localdata)
+            return 1
+        except bb.BBHandledException:
+            event.fire(TaskFailed(task, logfn, localdata, True), localdata)
+            return 1
     finally:
         sys.stdout.flush()
         sys.stderr.flush()
