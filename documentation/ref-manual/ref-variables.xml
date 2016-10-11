@@ -2787,28 +2787,55 @@
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Lists a recipe's build-time dependencies
-                    (i.e. other recipe files).
-                    The system ensures that all the dependencies listed
-                    have been built and have their contents in the appropriate
-                    sysroots before the recipe's configure task is executed.
+                    Lists a recipe's build-time dependencies.
+                    These are dependencies on other recipes whose
+                    contents (e.g. headers and shared libraries) are needed
+                    by the recipe at build time.
                 </para>
 
                 <para>
-                    Consider this simple example for two recipes named "a" and
-                    "b" that produce similarly named packages.
-                    In this example, the <filename>DEPENDS</filename>
-                    statement appears in the "a" recipe:
+                    As an example, consider a recipe <filename>foo</filename>
+                    that contains the following assignment:
                     <literallayout class='monospaced'>
-     DEPENDS = "b"
+     DEPENDS = "bar"
                     </literallayout>
-                    Here, the dependency is such that the
+                    The practical effect of the previous assignment is that
+                    all files installed by bar will be available in the
+                    appropriate staging sysroot, given by the
+                    <link linkend='var-STAGING_DIR'><filename>STAGING_DIR*</filename></link>
+                    variables, by the time the
                     <link linkend='ref-tasks-configure'><filename>do_configure</filename></link>
-                    task for recipe "a" depends on the
+                    task for <filename>foo</filename> runs.
+                    This mechanism is implemented by having
+                    <filename>do_configure</filename> depend on the
                     <link linkend='ref-tasks-populate_sysroot'><filename>do_populate_sysroot</filename></link>
-                    task of recipe "b".
-                    This means anything that recipe "b" puts into sysroot
-                    is available when recipe "a" is configuring itself.
+                    task of each recipe listed in <filename>DEPENDS</filename>,
+                    through a
+                    <filename>[</filename><ulink url='&YOCTO_DOCS_BB_URL;#variable-flags'><filename>deptask</filename></ulink><filename>]</filename>
+                    declaration in the
+                    <link linkend='ref-classes-base'><filename>base</filename></link>
+                    class.
+                    <note>
+                        It seldom is necessary to reference, for example,
+                        <filename>STAGING_DIR_HOST</filename> explicitly.
+                        The standard classes and build-related variables are
+                        configured to automatically use the appropriate staging
+                        sysroots.
+                    </note>
+                    As another example, <filename>DEPENDS</filename> can also
+                    be used to add utilities that run on the build machine
+                    during the build.
+                    For example, a recipe that makes use of a code generator
+                    built by the recipe <filename>codegen</filename> might have
+                    the following:
+                    <literallayout class='monospaced'>
+     DEPENDS = "codegen-native"
+                    </literallayout>
+                    For more information, see the
+                    <link linkend='ref-classes-native'><filename>native</filename></link>
+                    class and the
+                    <link linkend='var-EXTRANATIVEPATH'><filename>EXTRANATIVEPATH</filename></link>
+                    variable.
                     <note>
                         <title>Notes</title>
                         <itemizedlist>
@@ -9297,6 +9324,18 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     for more than one package in <filename>PACKAGES</filename>,
                     it will be assigned to the earliest (leftmost) package.
                 </para>
+
+                <para>
+                    Packages in the variable's list that are empty (i.e. where
+                    none of the patterns in
+                    <filename>FILES_</filename><replaceable>pkg</replaceable>
+                    match any files installed by the
+                    <link linkend='ref-tasks-install'><filename>do_install</filename></link>
+                    task) are not generated, unless generation is forced through
+                    the
+                    <link linkend='var-ALLOW_EMPTY'><filename>ALLOW_EMPTY</filename></link>
+                    variable.
+                </para>
             </glossdef>
         </glossentry>
 
@@ -13052,6 +13091,76 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
                 <para>
                     The class checks for and uses the variable as needed.
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-SYSROOT_DIRS'><glossterm>SYSROOT_DIRS</glossterm>
+            <info>
+                SYSROOT_DIRS[doc] = "Directories that are staged in the sysroot."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Directories that are staged in the sysroot.
+                    By default, the following directories are staged:
+                    <literallayout class='monospaced'>
+     SYSROOT_DIRS = " \
+         ${includedir} \
+         ${libdir} \
+         ${base_libdir} \
+         ${nonarch_base_libdir} \
+         ${datadir} \
+     "
+                    </literallayout>
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-SYSROOT_DIRS_BLACKLIST'><glossterm>SYSROOT_DIRS_BLACKLIST</glossterm>
+            <info>
+                SYSROOT_DIRS_BLACKLIST[doc] = "Directories that should not be staged into sysroot."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Directories that should not be staged into sysroot.
+                    By default, the following directories are not staged:
+                    <literallayout class='monospaced'>
+     SYSROOT_DIRS_BLACKLIST = " \
+         ${mandir} \
+         ${docdir} \
+         ${infodir} \
+         ${datadir}/locale \
+         ${datadir}/applications \
+         ${datadir}/fonts \
+         ${datadir}/pixmaps \
+     "
+                     </literallayout>
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-SYSROOT_DIRS_NATIVE'><glossterm>SYSROOT_DIRS_NATIVE</glossterm>
+            <info>
+                SYSROOT_DIRS_NATIVE[doc] = "Extra directories staged for native into sysroot."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Extra directories staged for native into sysroot.
+                    By default, the following directories are staged:
+                    <literallayout class='monospaced'>
+     SYSROOT_DIRS_NATIVE = " \
+         ${bindir} \
+         ${sbindir} \
+         ${base_bindir} \
+         ${base_sbindir} \
+         ${libexecdir} \
+         ${sysconfdir} \
+         ${localstatedir} \
+     "
+                    </literallayout>
                 </para>
             </glossdef>
         </glossentry>

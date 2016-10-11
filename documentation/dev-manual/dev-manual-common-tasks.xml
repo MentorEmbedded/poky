@@ -1254,27 +1254,57 @@
 
             <para>
                 You can always write a recipe from scratch.
-                However, two choices exist that can help you quickly get a
+                However, three choices exist that can help you quickly get a
                 start on a new recipe:
                 <itemizedlist>
-                    <listitem><para><emphasis><filename>recipetool</filename>:</emphasis>
-                        A tool provided by the Yocto Project that automates
+                    <listitem><para>
+                        <emphasis><filename>devtool add</filename>:</emphasis>
+                        A command that assists in creating a recipe and
+                        an environment conducive to development.
+                        </para></listitem>
+                    <listitem><para>
+                        <emphasis><filename>recipetool create</filename>:</emphasis>
+                        A command provided by the Yocto Project that automates
                         creation of a base recipe based on the source
                         files.
                         </para></listitem>
-                    <listitem><para><emphasis>Existing Recipes:</emphasis>
+                    <listitem><para>
+                        <emphasis>Existing Recipes:</emphasis>
                         Location and modification of an existing recipe that is
                         similar in function to the recipe you need.
                         </para></listitem>
                 </itemizedlist>
             </para>
 
-            <section id='new-recipe-creating-the-base-recipe-using-recipetool'>
-                <title>Creating the Base Recipe Using <filename>recipetool</filename></title>
+            <section id='new-recipe-creating-the-base-recipe-using-devtool'>
+                <title>Creating the Base Recipe Using <filename>devtool add</filename></title>
 
                 <para>
-                    <filename>recipetool</filename> automates creation of
-                    a base recipe given a set of source code files.
+                    The <filename>devtool add</filename> command uses the same
+                    logic for auto-creating the recipe as
+                    <filename>recipetool create</filename>, which is listed
+                    below.
+                    Additionally, however, <filename>devtool add</filename>
+                    sets up an environment that makes it easy for you to
+                    patch the source and to make changes to the recipe as
+                    is often necessary when adding a recipe to build a new
+                    piece of software to be included in a build.
+                </para>
+
+                <para>
+                    You can find a complete description of the
+                    <filename>devtool add</filename> command in the
+                    "<link linkend='use-devtool-to-integrate-new-code'>Use <filename>devtool add</filename> to Add an Application</link>"
+                    section.
+                </para>
+            </section>
+
+            <section id='new-recipe-creating-the-base-recipe-using-recipetool'>
+                <title>Creating the Base Recipe Using <filename>recipetool create</filename></title>
+
+                <para>
+                    <filename>recipetool create</filename> automates creation
+                    of a base recipe given a set of source code files.
                     As long as you can extract or point to the source files,
                     the tool will construct a recipe and automatically
                     configure all pre-build information into the recipe.
@@ -1566,12 +1596,29 @@
                             or tabs after the slash character.
                         </note>
                         </para></listitem>
-                    <listitem><para><emphasis>Using Variables: <filename>${...}</filename></emphasis> -
+                    <listitem><para>
+                        <emphasis>Using Variables: <filename>${...}</filename></emphasis> -
                         Use the <filename>${<replaceable>VARNAME</replaceable>}</filename> syntax to
                         access the contents of a variable:
                         <literallayout class='monospaced'>
      SRC_URI = "${SOURCEFORGE_MIRROR}/libpng/zlib-${PV}.tar.gz"
                         </literallayout>
+                        <note>
+                            It is important to understand that the value of a
+                            variable expressed in this form does not get
+                            substituted automatically.
+                            The expansion of these expressions happens
+                            on-demand later (e.g. usually when a function that
+                            makes reference to the variable executes).
+                            This behavior ensures that the values are most
+                            appropriate for the context in which they are
+                            finally used.
+                            On the rare occasion that you do need the variable
+                            expression to be expanded immediately, you can use
+                            the <filename>:=</filename> operator instead of
+                            <filename>=</filename> when you make the
+                            assignment, but this is not generally needed.
+                        </note>
                         </para></listitem>
                     <listitem><para><emphasis>Quote All Assignments: <filename>"<replaceable>value</replaceable>"</filename></emphasis> -
                         Use double quotes around the value in all variable
@@ -1779,11 +1826,12 @@
             </para>
 
             <para>
-                The per-recipe temporary work directory is constructed as follows and
-                depends on several factors:
+                The path to the per-recipe temporary work directory depends
+                on the context in which it is being built.
+                The quickest way to find this path is to have BitBake return it
+                by running the following:
                 <literallayout class='monospaced'>
-     BASE_WORKDIR ?= "${TMPDIR}/work"
-     WORKDIR = "${BASE_WORKDIR}/${MULTIMACH_TARGET_SYS}/${PN}/${EXTENDPE}${PV}-${PR}"
+     $ bitbake -e <replaceable>basename</replaceable> | grep ^WORKDIR=
                 </literallayout>
                 As an example, assume a Source Directory top-level folder named
                 <filename>poky</filename>, a default Build Directory at
@@ -1816,28 +1864,6 @@
                 You can find more information about the build process in the
                 "<ulink url='&YOCTO_DOCS_REF_URL;#closer-look'>A Closer Look at the Yocto Project Development Environment</ulink>"
                 chapter of the Yocto Project Reference Manual.
-            </para>
-
-            <para>
-                You can also reference the following variables in the
-                Yocto Project Reference Manual's glossary for more information:
-                <itemizedlist>
-                    <listitem><ulink url='&YOCTO_DOCS_REF_URL;#var-TMPDIR'><filename>TMPDIR</filename></ulink>:
-                        The top-level build output directory</listitem>
-                    <listitem><ulink url='&YOCTO_DOCS_REF_URL;#var-MULTIMACH_TARGET_SYS'><filename>MULTIMACH_TARGET_SYS</filename></ulink>:
-                        The target system identifier</listitem>
-                    <listitem><ulink url='&YOCTO_DOCS_REF_URL;#var-PN'><filename>PN</filename></ulink>:
-                        The recipe name</listitem>
-                    <listitem><ulink url='&YOCTO_DOCS_REF_URL;#var-EXTENDPE'><filename>EXTENDPE</filename></ulink>:
-                        The epoch - (if
-                        <ulink url='&YOCTO_DOCS_REF_URL;#var-PE'><filename>PE</filename></ulink>
-                        is not specified, which is usually the case for most
-                        recipes, then <filename>EXTENDPE</filename> is blank)</listitem>
-                    <listitem><ulink url='&YOCTO_DOCS_REF_URL;#var-PV'><filename>PV</filename></ulink>:
-                        The recipe version</listitem>
-                    <listitem><ulink url='&YOCTO_DOCS_REF_URL;#var-PR'><filename>PR</filename></ulink>:
-                        The recipe revision</listitem>
-                </itemizedlist>
             </para>
         </section>
 
@@ -2241,6 +2267,83 @@
 
         </section>
 
+        <section id='new-dependencies'>
+            <title>Dependencies</title>
+
+            <para>
+                Most software packages have a short list of other packages
+                that they require, which are called dependencies.
+                These dependencies fall into two main categories: build-time
+                dependencies, which are required when the software is built;
+                and runtime dependencies, which are required to be installed
+                on the target in order for the software to run.
+            </para>
+
+            <para>
+                Within a recipe, you specify build-time dependencies using the
+                <ulink url='&YOCTO_DOCS_REF_URL;#var-DEPENDS'><filename>DEPENDS</filename></ulink>
+                variable.
+                Although nuances exist, items specified in
+                <filename>DEPENDS</filename> should be names of other recipes.
+                It is important that you specify all build-time dependencies
+                explicitly.
+                If you do not, due to the parallel nature of BitBake's
+                execution, you can end up with a race condition where the
+                dependency is present for one task of a recipe (e.g.
+                <ulink url='&YOCTO_DOCS_REF_URL;#ref-tasks-configure'><filename>do_configure</filename></ulink>)
+                and then gone when the next task runs (e.g.
+                <ulink url='&YOCTO_DOCS_REF_URL;#ref-tasks-compile'><filename>do_compile</filename></ulink>).
+            </para>
+
+            <para>
+                Another consideration is that configure scripts might
+                automatically check for optional dependencies and enable
+                corresponding functionality if those dependencies are found.
+                This behavior means that to ensure deterministic results and
+                thus avoid more race conditions, you need to either explicitly
+                specify these dependencies as well, or tell the configure
+                script explicitly to disable the functionality.
+                If you wish to make a recipe that is more generally useful
+                (e.g. publish the recipe in a layer for others to use),
+                instead of hard-disabling the functionality, you can use the
+                <ulink url='&YOCTO_DOCS_REF_URL;#var-PACKAGECONFIG'><filename>PACKAGECONFIG</filename></ulink>
+                variable to allow functionality and the corresponding
+                dependencies to be enabled and disabled easily by other
+                users of the recipe.
+            </para>
+
+            <para>
+                Similar to build-time dependencies, you specify runtime
+                dependencies through a variable -
+                <ulink url='&YOCTO_DOCS_REF_URL;#var-RDEPENDS'><filename>RDEPENDS</filename></ulink>,
+                which is package-specific.
+                All variables that are package-specific need to have the name
+                of the package added to the end as an override.
+                Since the main package for a recipe has the same name as the
+                recipe, and the recipe's name can be found through the
+                <filename>${</filename><ulink url='&YOCTO_DOCS_REF_URL;#var-PN'><filename>PN</filename></ulink><filename>}</filename>
+                variable, then you specify the dependencies for the main
+                package by setting <filename>RDEPENDS_${PN}</filename>.
+                If the package were named <filename>${PN}-tools</filename>,
+                then you would set <filename>RDEPENDS_${PN}-tools</filename>,
+                and so forth.
+            </para>
+
+            <para>
+                Some runtime dependencies will be set automatically at
+                packaging time.
+                These dependencies include any shared library dependencies
+                (i.e. if a package "example" contains "libexample" and
+                another package "mypackage" contains a binary that links to
+                "libexample" then the OpenEmbedded build system will
+                automatically add a runtime dependency to "mypackage" on
+                "example").
+                See the
+                "<ulink url='&YOCTO_DOCS_REF_URL;#automatically-added-runtime-dependencies'>Automatically Added Runtime Dependencies</ulink>"
+                in the Yocto Project Reference Manual for further details.
+            </para>
+        </section>
+
         <section id='new-recipe-configuring-the-recipe'>
             <title>Configuring the Recipe</title>
 
@@ -2251,7 +2354,7 @@
                 configure script with some options, or by modifying a build
                 configuration file.
                 <note>
-                    As of Yocto Project Release 7.1, some of the core recipes
+                    As of Yocto Project Release 1.7, some of the core recipes
                     that package binary configuration scripts now disable the
                     scripts due to the scripts previously requiring error-prone
                     path substitution.
@@ -2769,6 +2872,56 @@
                         than one target machine.
                         </para></listitem>
                 </itemizedlist>
+            </para>
+        </section>
+
+        <section id='new-sharing-files-between-recipes'>
+            <title>Sharing Files Between Recipes</title>
+
+            <para>
+                Recipes often need to use files provided by other recipes on
+                the build host.
+                For example, an application linking to a common library needs
+                access to the library itself and its associated headers.
+                The way this access is accomplished is by populating sysroot
+                with files.
+                One sysroot exists per "machine" for which the image is
+                being built.
+                In practical terms, this means a sysroot exists for the target
+                machine, and a sysroot exists for the build host.
+                <note>
+                    You could find the term "staging" used within the Yocto
+                    project regarding files populating sysroot.
+                    The term "staging" was used for previous releases of
+                    the Yocto Project.
+                </note>
+            </para>
+
+            <para>
+                Recipes should never populate the sysroot directly (i.e. write
+                files into sysroot).
+                Instead, files should be installed into standard locations
+                during the
+                <ulink url='&YOCTO_DOCS_REF_URL;#ref-tasks-install'><filename>do_install</filename></ulink>
+                task within the
+                <filename>${</filename><ulink url='&YOCTO_DOCS_REF_URL;#var-D'><filename>D</filename></ulink><filename>}</filename>
+                directory.
+                A subset of these files automatically populates the sysroot.
+                The reason for this limitation is that almost all files that
+                populate the sysroot are cataloged in manifests in order to
+                ensure the files can be removed later when a recipe is either
+                modified or removed.
+                Thus, the sysroot is able to remain free from stale files.
+            </para>
+
+            <para>
+                For information on variables you can use to help control how
+                files sysroot is populated, see the
+                <ulink url='&YOCTO_DOCS_REF_URL;#var-SYSROOT_DIRS'><filename>SYSROOT_DIRS</filename></ulink>,
+                <ulink url='&YOCTO_DOCS_REF_URL;#var-SYSROOT_DIRS_NATIVE'><filename>SYSROOT_DIRS_NATIVE</filename></ulink>,
+                and
+                <ulink url='&YOCTO_DOCS_REF_URL;#var-SYSROOT_DIRS_BLACKLIST'><filename>SYSROOT_DIRS_BLACKLIST</filename></ulink>
+                variables.
             </para>
         </section>
 
@@ -3950,9 +4103,8 @@
                         <filename>webkit</filename>).
                         </para></listitem>
                     <listitem><para>
-                        QEMU might not work properly when using QEMU in
-                        usermode and running 64-bit binaries under 32-bit
-                        host machines.
+                        QEMU usermode might not work properly when running
+                        64-bit binaries under 32-bit host machines.
                         In particular, "qemumips64" is known to not work under
                         i686.
                         </para></listitem>
@@ -9718,6 +9870,68 @@
         </section>
     </section>
 
+    <section id='debugging-with-the-gnu-project-debugger-gdb-on-the-target'>
+        <title>Debugging with the GNU Project Debugger (GDB) on the Target</title>
+
+        <para>
+            The previous section addressed using GDB remotely for debugging
+            purposes, which is the most usual case due to the inherent
+            hardware limitations on many embedded devices.
+            However, debugging in the target hardware itself is also possible
+            with more powerful devices.
+            This section describes what you need to do in order to support
+            using GDB to debug on the target hardware.
+        </para>
+
+        <para>
+            To support this kind of debugging, you need do the following:
+            <itemizedlist>
+                <listitem><para>
+                    Ensure that GDB is on the target.
+                    You can do this by adding "gdb" to
+                    <ulink url='&YOCTO_DOCS_REF_URL;#var-IMAGE_INSTALL'><filename>IMAGE_INSTALL</filename></ulink>:
+                    <literallayout class='monospaced'>
+     IMAGE_INSTALL_append = " gdb"
+                    </literallayout>
+                    Alternatively, you can add "tools-debug" to
+                    <ulink url='&YOCTO_DOCS_REF_URL;#var-IMAGE_FEATURES'><filename>IMAGE_FEATURES</filename></ulink>:
+                    <literallayout class='monospaced'>
+     IMAGE_FEATURES = " tools-debug"
+                    </literallayout>
+                    </para></listitem>
+                <listitem><para>
+                    Ensure that debug symbols are present.
+                    You can make sure these symbols are present by installing
+                    <filename>-dbg</filename>:
+                    <literallayout class='monospaced'>
+     IMAGE_INSTALL_append = " <replaceable>packagename</replaceable>-dbg"
+                    </literallayout>
+                    Alternatively, you can do the following to include all the
+                    debug symbols:
+                    <literallayout class='monospaced'>
+     IMAGE_FEATURES = " dbg-pkgs"
+                    </literallayout>
+                    </para></listitem>
+            </itemizedlist>
+            <note>
+                To improve the debug information accuracy, you can reduce the
+                level of optimization used by the compiler.
+                For example, when adding the following line to your
+                <filename>local.conf</filename> file, you will reduce
+                optimization from
+                <ulink url='&YOCTO_DOCS_REF_URL;#var-FULL_OPTIMIZATION'><filename>FULL_OPTIMIZATION</filename></ulink>
+                of "-O2" to
+                <ulink url='&YOCTO_DOCS_REF_URL;#var-DEBUG_OPTIMIZATION'><filename>DEBUG_OPTIMIZATION</filename></ulink>
+                of "-O -fno-omit-frame-pointer":
+                <literallayout class='monospaced'>
+     DEBUG_BUILD = "1"
+                </literallayout>
+                Consider that this will reduce the application's performance
+                and is recommended only for debugging purposes.
+            </note>
+        </para>
+    </section>
+
     <section id='debugging-parallel-make-races'>
         <title>Debugging Parallel Make Races</title>
 
@@ -10377,12 +10591,31 @@
                 tarballs for licenses that require the release of
                 source.
                 Let us assume you are only concerned with GPL code as
-                identified with the following:
+                identified by running the following script:
                 <literallayout class='monospaced'>
-     $ cd poky/build/tmp/deploy/sources
-     $ mkdir ~/gpl_source_release
-     $ for dir in */*GPL*; do cp -r $dir ~/gpl_source_release; done
-                </literallayout>
+     # Script to archive a subset of packages matching specific license(s)
+     # Source and license files are copied into sub folders of package folder
+     # Must be run from build folder
+     #!/bin/bash
+     src_release_dir="source-release"
+     mkdir -p $src_release_dir
+     for a in tmp/deploy/sources/*; do
+        for d in $a/*; do
+           # Get package name from path
+           p=`basename $d`
+           p=${p%-*}
+           p=${p%-*}
+           # Only archive GPL packages (update *GPL* regex for your license check)
+           numfiles=`ls tmp/deploy/licenses/$p/*GPL* 2> /dev/null | wc -l`
+           if [ $numfiles -gt 1 ]; then
+              echo Archiving $p
+              mkdir -p $src_release_dir/$p/source
+              cp $d/* $src_release_dir/$p/source 2> /dev/null
+              mkdir -p $src_release_dir/$p/license
+              cp tmp/deploy/licenses/$p/* source-release/$p/license 2> /dev/null
+           fi
+        done
+     done                </literallayout>
                 At this point, you could create a tarball from the
                 <filename>gpl_source_release</filename> directory and
                 provide that to the end user.
