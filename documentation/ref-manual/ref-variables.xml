@@ -12696,21 +12696,58 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     Specifies the path to the sysroot directory for the system
                     that the component is built to run on (the system that hosts
                     the component).
-                    This sysroot is the one that the recipe's
+                    For most recipes, this sysroot is the one that the recipe's
                     <link linkend='ref-tasks-populate_sysroot'><filename>do_populate_sysroot</filename></link>
                     task copies files into.
+                    Exceptions include <filename>-native</filename> recipes,
+                    where the <filename>do_populate_sysroot</filename> task
+                    instead uses
+                    <link linkend='var-STAGING_DIR_NATIVE'><filename>STAGING_DIR_NATIVE</filename></link>.
                     Depending on the type of recipe and the build target,
                     <filename>STAGING_DIR_HOST</filename> can have the
                     following values:
                     <itemizedlist>
                         <listitem><para>For recipes building for the target
-                           machine, the value is
-                           "${<link linkend='var-STAGING_DIR'>STAGING_DIR</link>}/${<link linkend='var-MACHINE'>MACHINE</link>}".
-                           </para></listitem>
+                            machine, the value is
+                            "${<link linkend='var-STAGING_DIR'>STAGING_DIR</link>}/${<link linkend='var-MACHINE'>MACHINE</link>}".
+                            </para></listitem>
                         <listitem><para>For native recipes building
-                           for the build host, the value is empty given the
-                           assumption that when building for the build host,
-                           the build host's own directories should be used.
+                            for the build host, the value is empty given the
+                            assumption that when building for the build host,
+                            the build host's own directories should be used.
+                            <note><para>
+                                <filename>-native</filename> recipes are not
+                                installed into host paths like such as
+                                <filename>/usr</filename>.
+                                Rather, these recipes are installed into
+                                <filename>STAGING_DIR_NATIVE</filename>.
+                                When compiling <filename>-native</filename>
+                                recipes, standard build environment variables
+                                such as
+                                <link linkend='var-CPPFLAGS'><filename>CPPFLAGS</filename></link>
+                                and
+                                <link linkend='var-CFLAGS'><filename>CFLAGS</filename></link>
+                                are set up so that both host paths and
+                                <filename>STAGING_DIR_NATIVE</filename> are
+                                searched for libraries and headers using, for
+                                example, GCC's <filename>-isystem</filename>
+                                option.</para>
+
+                                <para>This emphasizes that the
+                                <filename>STAGING_DIR*</filename> variables
+                                should be viewed as input variables by tasks
+                                such as
+                                <link linkend='ref-tasks-configure'><filename>do_configure</filename></link>,
+                                <link linkend='ref-tasks-compile'><filename>do_compile</filename></link>,
+                                and
+                                <link linkend='ref-tasks-install'><filename>do_install</filename></link>.
+                                Having the real system root correspond to
+                                <filename>STAGING_DIR_HOST</filename> makes
+                                conceptual sense for
+                                <filename>-native</filename> recipes, as
+                                they make use of host headers and libraries.
+                                </para>
+                                </note>
                            </para></listitem>
                         <listitem><para>For native SDK
                            recipes that build for the SDK
@@ -13097,12 +13134,14 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-SYSROOT_DIRS'><glossterm>SYSROOT_DIRS</glossterm>
             <info>
-                SYSROOT_DIRS[doc] = "Directories that are staged in the sysroot."
+                SYSROOT_DIRS[doc] = "Directories that are staged into the sysroot by the do_populate_sysroot task."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Directories that are staged in the sysroot.
+                    Directories that are staged into the sysroot by the
+                    <link linkend='ref-tasks-populate_sysroot'><filename>do_populate_sysroot</filename></link>
+                    task.
                     By default, the following directories are staged:
                     <literallayout class='monospaced'>
      SYSROOT_DIRS = " \
@@ -13119,12 +13158,18 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-SYSROOT_DIRS_BLACKLIST'><glossterm>SYSROOT_DIRS_BLACKLIST</glossterm>
             <info>
-                SYSROOT_DIRS_BLACKLIST[doc] = "Directories that should not be staged into sysroot."
+                SYSROOT_DIRS_BLACKLIST[doc] = "Directories that are not staged into the sysroot by the do_populate_sysroot task."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Directories that should not be staged into sysroot.
+                    Directories that are not staged into the sysroot by the
+                    <link linkend='ref-tasks-populate_sysroot'><filename>do_populate_sysroot</filename></link>
+                    task.
+                    You can use this variable to exclude certain subdirectories
+                    of directories listed in
+                    <link linkend='var-SYSROOT_DIRS'><filename>SYSROOT_DIRS</filename></link>
+                    from staging.
                     By default, the following directories are not staged:
                     <literallayout class='monospaced'>
      SYSROOT_DIRS_BLACKLIST = " \
@@ -13143,13 +13188,17 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-SYSROOT_DIRS_NATIVE'><glossterm>SYSROOT_DIRS_NATIVE</glossterm>
             <info>
-                SYSROOT_DIRS_NATIVE[doc] = "Extra directories staged for native into sysroot."
+                SYSROOT_DIRS_NATIVE[doc] = "Extra directories staged into the sysroot by the do_populate_sysroot task for -native recipes, in addition to those specified in SYSROOT_DIRS."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Extra directories staged for native into sysroot.
-                    By default, the following directories are staged:
+                    Extra directories staged into the sysroot by the
+                    <link linkend='ref-tasks-populate_sysroot'><filename>do_populate_sysroot</filename></link>
+                    task for <filename>-native</filename> recipes, in addition
+                    to those specified in
+                    <link linkend='var-SYSROOT_DIRS'><filename>SYSROOT_DIRS</filename></link>.
+                    By default, the following extra directories are staged:
                     <literallayout class='monospaced'>
      SYSROOT_DIRS_NATIVE = " \
          ${bindir} \
@@ -13161,6 +13210,13 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
          ${localstatedir} \
      "
                     </literallayout>
+                    <note>
+                        Programs built by <filename>-native</filename> recipes
+                        run directly from the sysroot
+                        (<link linkend='var-STAGING_DIR_NATIVE'><filename>STAGING_DIR_NATIVE</filename></link>),
+                        which is why additional directories containing program
+                        executables and supporting files need to be staged.
+                    </note>
                 </para>
             </glossdef>
         </glossentry>
@@ -15193,16 +15249,18 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-USERADD_ERROR_DYNAMIC'><glossterm>USERADD_ERROR_DYNAMIC</glossterm>
             <info>
-               USERADD_ERROR_DYNAMIC[doc] = "Forces the OpenEmbedded build system to produce an error if the user identification (uid) and group identification (gid) values are not defined in files/passwd and files/group files."
+               USERADD_ERROR_DYNAMIC[doc] = "If set to 'error', forces the OpenEmbedded build system to produce an error if the user identification (uid) and group identification (gid) values are not defined in files/passwd and files/group files. If set to 'warn', a warning will be issued instead."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Forces the OpenEmbedded build system to produce an error
-                    if the user identification (<filename>uid</filename>) and
-                    group identification (<filename>gid</filename>) values
-                    are not defined in <filename>files/passwd</filename>
+                    If set to "error", forces the OpenEmbedded build system to
+                    produce an error if the user identification
+                    (<filename>uid</filename>) and group identification
+                    (<filename>gid</filename>) values are not defined
+                    in <filename>files/passwd</filename>
                     and <filename>files/group</filename> files.
+                    If set to "warn", a warning will be issued instead.
                 </para>
 
                 <para>
@@ -15218,7 +15276,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     your <filename>local.conf</filename> file as
                     follows:
                     <literallayout class='monospaced'>
-     USERADD_ERROR_DYNAMIC = "1"
+     USERADD_ERROR_DYNAMIC = "error"
                     </literallayout>
                     Overriding the default behavior implies you are going to
                     also take steps to set static <filename>uid</filename> and
@@ -15374,7 +15432,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-USERADDEXTENSION'><glossterm>USERADDEXTENSION</glossterm>
             <info>
-               USERADDEXTENSION[doc] = "When set to "useradd-staticids", causes the OpenEmbedded build system to base all user and group additions on a static passwd and group files found in BBPATH."
+               USERADDEXTENSION[doc] = "When set to 'useradd-staticids', causes the OpenEmbedded build system to base all user and group additions on a static passwd and group files found in BBPATH."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
