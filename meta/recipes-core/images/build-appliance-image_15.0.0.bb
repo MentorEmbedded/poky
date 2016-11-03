@@ -22,8 +22,8 @@ IMAGE_FSTYPES = "vmdk"
 
 inherit core-image module-base
 
-SRCREV ?= "4b94b498e21aeba945fe7e72a6b7c4bb0314fb83"
-SRC_URI = "git://git.yoctoproject.org/poky;branch=master \
+SRCREV ?= "746c681be4c744d0c6c2d3225b94550241546f65"
+SRC_URI = "git://git.yoctoproject.org/poky;branch=morty \
            file://Yocto_Build_Appliance.vmx \
            file://Yocto_Build_Appliance.vmxf \
            file://README_VirtualBox_Guest_Additions.txt \
@@ -63,6 +63,9 @@ fakeroot do_populate_poky_src () {
 	# Also save (for reference only) the actual SRCREV used to create this image
 	echo "export BA_SRCREV=${SRCREV}" >> ${IMAGE_ROOTFS}/home/builder/.bashrc
 	echo "" >> ${IMAGE_ROOTFS}/home/builder/.bashrc
+	echo "export PATH=$PATH:/sbin" >> ${IMAGE_ROOTFS}/home/builder/.bashrc
+	echo "" >> ${IMAGE_ROOTFS}/home/builder/.bashrc
+
 	echo "# If working behind a proxy and using the provided oe-git-proxy script" >> ${IMAGE_ROOTFS}/home/builder/.bashrc
 	echo "# you need to set ALL_PROXY based on your proxy settings." >> ${IMAGE_ROOTFS}/home/builder/.bashrc
 	echo "# Example ALL_PROXY values:" >> ${IMAGE_ROOTFS}/home/builder/.bashrc
