@@ -27,7 +27,7 @@ import shutil
 from django.db import transaction
 from django.db.models import Q
 from bldcontrol.models import BuildEnvironment, BRLayer, BRVariable, BRTarget, BRBitbake
-from orm.models import CustomImageRecipe, Layer, Layer_Version, ProjectLayer
+from orm.models import CustomImageRecipe, Layer, Layer_Version, ProjectLayer, ToasterSetting
 import subprocess
 
 from toastermain import settings
@@ -298,20 +298,24 @@ class LocalhostBEController(BuildEnvironmentController):
         builddir = '%s-toaster-%d' % (self.be.builddir, bitbake.req.project.id)
         oe_init = os.path.join(self.pokydirname, 'oe-init-build-env')
         # init build environment
-        self._shellcmd("bash -c 'source %s %s'" % (oe_init, builddir),
+        try:
+            custom_script = ToasterSetting.objects.get(name="CUSTOM_BUILD_INIT_SCRIPT").value
+            custom_script = custom_script.replace("%BUILDDIR%" ,builddir)
+            self._shellcmd("bash -c 'source %s'" % (custom_script))
+        except:
+            self._shellcmd("bash -c 'source %s %s'" % (oe_init, builddir),
                        self.be.sourcedir)
 
         # update bblayers.conf
         bblconfpath = os.path.join(builddir, "conf/bblayers.conf")
         conflines = open(bblconfpath, "r").readlines()
-        skip = False
+        if "# line added by toaster build control\n" in conflines:
+            conflines.pop()
+        #skip = False
         with open(bblconfpath, 'w') as bblayers:
             for line in conflines:
                 if line.startswith("# line added by toaster"):
-                    skip = True
                     continue
-                if skip:
-                    skip = False
                 else:
                     bblayers.write(line)
 
