@@ -876,49 +876,52 @@ def build_mirroruris(origud, mirrors, ld):
     replacements["BASENAME"] = origud.path.split("/")[-1]
     replacements["MIRRORNAME"] = origud.host.replace(':','.') + origud.path.replace('/', '.').replace('*', '.')
 
-    def adduri(ud, uris, uds, mirrors, tarball):
+    def adduri(ud, uris, uds, mirrors, tarballs):
         for line in mirrors:
             try:
                 (find, replace) = line
             except ValueError:
                 continue
-            newuri = uri_replace(ud, find, replace, replacements, ld, tarball)
-            if not newuri or newuri in uris or newuri == origud.url:
-                continue
 
-            if not trusted_network(ld, newuri):
-                logger.debug(1, "Mirror %s not in the list of trusted networks, skipping" %  (newuri))
-                continue
+            for tarball in tarballs:
+                newuri = uri_replace(ud, find, replace, replacements, ld, tarball)
+                if not newuri or newuri in uris or newuri == origud.url:
+                    continue
 
-            # Create a local copy of the mirrors minus the current line
-            # this will prevent us from recursively processing the same line
-            # as well as indirect recursion A -> B -> C -> A
-            localmirrors = list(mirrors)
-            localmirrors.remove(line)
+                if not trusted_network(ld, newuri):
+                    logger.debug(1, "Mirror %s not in the list of trusted networks, skipping" %  (newuri))
+                    continue
 
-            try:
-                newud = FetchData(newuri, ld)
-                newud.setup_localpath(ld)
-            except bb.fetch2.BBFetchException as e:
-                logger.debug(1, "Mirror fetch failure for url %s (original url: %s)" % (newuri, origud.url))
-                logger.debug(1, str(e))
+                # Create a local copy of the mirrors minus the current line
+                # this will prevent us from recursively processing the same line
+                # as well as indirect recursion A -> B -> C -> A
+                localmirrors = list(mirrors)
+                localmirrors.remove(line)
+
                 try:
-                    # setup_localpath of file:// urls may fail, we should still see 
-                    # if mirrors of the url exist
-                    adduri(newud, uris, uds, localmirrors, tarball)
-                except UnboundLocalError:
-                    pass
-                continue
-            uris.append(newuri)
-            uds.append(newud)
+                    newud = FetchData(newuri, ld)
+                    newud.setup_localpath(ld)
+                except bb.fetch2.BBFetchException as e:
+                    logger.debug(1, "Mirror fetch failure for url %s (original url: %s)" % (newuri, origud.url))
+                    logger.debug(1, str(e))
+                    try:
+                        # setup_localpath of file:// urls may fail, we should still see 
+                        # if mirrors of the url exist
+                        adduri(newud, uris, uds, localmirrors, tarballs)
+                    except UnboundLocalError:
+                        pass
+                    continue
+                uris.append(newuri)
+                uds.append(newud)
 
-            adduri(newud, uris, uds, localmirrors, tarball)
+                adduri(newud, uris, uds, localmirrors, tarballs)
 
     if hasattr(origud, 'mirrortarballs'):
-        for tarball in origud.mirrortarballs:
-            adduri(origud, uris, uds, mirrors, tarball)
+        tarballs = origud.mirrortarballs
     else:
-        adduri(origud, uris, uds, mirrors, getattr(origud, 'mirrortarball', None))
+        tarballs = [getattr(origud, 'mirrortarball', None)]
+
+    adduri(origud, uris, uds, mirrors, tarballs)
 
     return uris, uds
 
