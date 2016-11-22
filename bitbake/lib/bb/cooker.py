@@ -1474,6 +1474,9 @@ class BBCooker:
 
 
     def getAllKeysWithFlags(self, flaglist):
+        marshalledObjs = (type(bool), type(0), type(0.0),
+                          type(""), type([]), type(()),
+                          type({}))
         dump = {}
         for k in self.data.keys():
             try:
@@ -1483,13 +1486,16 @@ class BBCooker:
                     expand = False
                 v = self.data.getVar(k, expand)
                 if not k.startswith("__") and not isinstance(v, bb.data_smart.DataSmart):
+                    if not isinstance(k, marshalledObjs) or not isinstance(v, marshalledObjs) or not isinstance(self.data.varhistory.variable(k), marshalledObjs):
+                        continue
                     dump[k] = {
     'v' : v ,
     'history' : self.data.varhistory.variable(k),
                     }
                     for d in flaglist:
                         if flags and d in flags:
-                            dump[k][d] = flags[d]
+                            if isinstance(flags[d], marshalledObjs):
+                                dump[k][d] = flags[d]
                         else:
                             dump[k][d] = None
             except Exception as e:
