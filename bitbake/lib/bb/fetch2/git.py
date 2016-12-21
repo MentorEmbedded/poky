@@ -182,7 +182,6 @@ class Git(FetchMethod):
             ud.cloneflags += " --mirror"
 
         ud.shallow = d.getVar("BB_GIT_SHALLOW", True) == "1"
-        ud.shallow_revs = (d.getVar("BB_GIT_SHALLOW_REVS", True) or "").split()
         ud.shallow_extra_refs = (d.getVar("BB_GIT_SHALLOW_EXTRA_REFS", True) or "").split()
 
         depth_default = d.getVar("BB_GIT_SHALLOW_DEPTH", True)
@@ -195,6 +194,8 @@ class Git(FetchMethod):
             depth_default = 1
         ud.shallow_depths = collections.defaultdict(lambda: depth_default)
 
+        revs_default = d.getVar("BB_GIT_SHALLOW_REVS", True)
+        ud.shallow_revs = []
         ud.branches = {}
         for pos, name in enumerate(ud.names):
             branch = branches[pos]
@@ -211,8 +212,10 @@ class Git(FetchMethod):
                     ud.shallow_depths[name] = shallow_depth
 
             revs = d.getVar("BB_GIT_SHALLOW_REVS_%s" % name, True)
-            if revs:
+            if revs is not None:
                 ud.shallow_revs.extend(revs.split())
+            elif revs_default is not None:
+                ud.shallow_revs.extend(revs_default.split())
 
         if (ud.shallow and
                 not ud.shallow_revs and
