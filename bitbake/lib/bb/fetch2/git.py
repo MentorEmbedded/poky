@@ -274,10 +274,14 @@ class Git(FetchMethod):
                 if depth:
                     tarballname = "%s-%s" % (tarballname, depth)
 
+            shallow_refs = []
             if not ud.nobranch:
-                shallow_refs = list(ud.branches.values())
+                shallow_refs.extend(ud.branches.values())
+            if ud.shallow_extra_refs:
                 shallow_refs.extend(r.replace('refs/heads/', '').replace('*', 'ALL') for r in ud.shallow_extra_refs)
+            if shallow_refs:
                 tarballname = "%s_%s" % (tarballname, "_".join(sorted(shallow_refs)).replace('/', '.'))
+
             ud.shallowtarball = 'gitshallow_%s.tar.gz' % tarballname
             ud.fullshallow = os.path.join(dl_dir, ud.shallowtarball)
             ud.mirrortarballs = [ud.shallowtarball, ud.mirrortarball]
