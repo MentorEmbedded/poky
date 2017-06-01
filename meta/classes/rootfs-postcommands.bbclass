@@ -84,7 +84,9 @@ systemd_create_users () {
 #
 read_only_rootfs_hook () {
 	# Tweak the mount option and fs_passno for rootfs in fstab
-	sed -i -e '/^[#[:space:]]*\/dev\/root/{s/defaults/ro/;s/\([[:space:]]*[[:digit:]]\)\([[:space:]]*\)[[:digit:]]$/\1\20/}' ${IMAGE_ROOTFS}/etc/fstab
+	if [ -f ${IMAGE_ROOTFS}/etc/fstab ]; then
+		sed -i -e '/^[#[:space:]]*\/dev\/root/{s/defaults/ro/;s/\([[:space:]]*[[:digit:]]\)\([[:space:]]*\)[[:digit:]]$/\1\20/}' ${IMAGE_ROOTFS}/etc/fstab
+	fi
 
 	# If we're using openssh and the /etc/ssh directory has no pre-generated keys,
 	# we should configure openssh to use the configuration file /etc/ssh/sshd_config_readonly
@@ -132,7 +134,7 @@ zap_empty_root_password () {
 	if [ -e ${IMAGE_ROOTFS}/etc/passwd ]; then
 		sed -i 's%^root::%root:*:%' ${IMAGE_ROOTFS}/etc/passwd
 	fi
-} 
+}
 
 #
 # allow dropbear/openssh to accept root logins and logins from accounts with an empty password string
@@ -243,7 +245,7 @@ python write_image_manifest () {
         os.symlink(os.path.basename(manifest_name), manifest_link)
 }
 
-# Can be use to create /etc/timestamp during image construction to give a reasonably 
+# Can be use to create /etc/timestamp during image construction to give a reasonably
 # sane default time setting
 rootfs_update_timestamp () {
 	date -u +%4Y%2m%2d%2H%2M%2S >${IMAGE_ROOTFS}/etc/timestamp
@@ -286,6 +288,7 @@ rootfs_sysroot_relativelinks () {
 	sysroot-relativelinks.py ${SDK_OUTPUT}/${SDKTARGETSYSROOT}
 }
 
+
 # Generated test data json file
 python write_image_test_data() {
     from oe.data import export2json
@@ -294,7 +297,8 @@ python write_image_test_data() {
     testdata_link = "%s/%s.testdata.json" % (d.getVar('DEPLOY_DIR_IMAGE'), d.getVar('IMAGE_LINK_NAME'))
 
     bb.utils.mkdirhier(os.path.dirname(testdata))
-    export2json(d, testdata)
+    searchString = "%s/"%(d.getVar("TOPDIR")).replace("//","/")
+    export2json(d, testdata,searchString=searchString,replaceString="")
 
     if os.path.lexists(testdata_link):
        os.remove(testdata_link)

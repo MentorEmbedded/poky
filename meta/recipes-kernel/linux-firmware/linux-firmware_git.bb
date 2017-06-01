@@ -19,6 +19,7 @@ LICENSE = "\
     & Firmware-ene_firmware \
     & Firmware-fw_sst_0f28 \
     & Firmware-go7007 \
+    & Firmware-GPLv2 \
     & Firmware-hfi1_firmware \
     & Firmware-i2400m \
     & Firmware-i915 \
@@ -29,8 +30,8 @@ LICENSE = "\
     & Firmware-kaweth \
     & Firmware-Marvell \
     & Firmware-moxa \
-    & Firmware-mwl8335 \
     & Firmware-myri10ge_firmware \
+    & Firmware-netronome \
     & Firmware-nvidia \
     & Firmware-OLPC \
     & Firmware-ath9k-htc \
@@ -62,7 +63,7 @@ LIC_FILES_CHKSUM = "\
     file://LICENCE.Abilis;md5=b5ee3f410780e56711ad48eadc22b8bc \
     file://LICENCE.adsp_sst;md5=615c45b91a5a4a9fe046d6ab9a2df728 \
     file://LICENCE.agere;md5=af0133de6b4a9b2522defd5f188afd31 \
-    file://LICENSE.amdgpu;md5=3fe8a3430700a518990c3b3d75297209 \
+    file://LICENSE.amdgpu;md5=0aa3c2f3e736af320a08a3aeeccecf29 \
     file://LICENSE.amd-ucode;md5=3a0de451253cc1edbf30a3c621effee3 \
     file://LICENCE.atheros_firmware;md5=30a14c7823beedac9fa39c64fdd01a13 \
     file://LICENSE.atmel;md5=aa74ac0c60595dee4d4e239107ea77a3 \
@@ -76,6 +77,7 @@ LIC_FILES_CHKSUM = "\
     file://LICENCE.ene_firmware;md5=ed67f0f62f8f798130c296720b7d3921 \
     file://LICENCE.fw_sst_0f28;md5=6353931c988ad52818ae733ac61cd293 \
     file://LICENCE.go7007;md5=c0bb9f6aaaba55b0529ee9b30aa66beb \
+    file://GPL-2;md5=b234ee4d69f5fce4486a80fdaf4a4263 \
     file://LICENSE.hfi1_firmware;md5=5e7b6e586ce7339d12689e49931ad444 \
     file://LICENCE.i2400m;md5=14b901969e23c41881327c0d9e4b7d36 \
     file://LICENSE.i915;md5=2b0b2e0d20984affd4490ba2cba02570 \
@@ -86,23 +88,23 @@ LIC_FILES_CHKSUM = "\
     file://LICENCE.kaweth;md5=b1d876e562f4b3b8d391ad8395dfe03f \
     file://LICENCE.Marvell;md5=9ddea1734a4baf3c78d845151f42a37a \
     file://LICENCE.moxa;md5=1086614767d8ccf744a923289d3d4261 \
-    file://LICENCE.mwl8335;md5=9a6271ee0e644404b2ff3c61fd070983 \
     file://LICENCE.myri10ge_firmware;md5=42e32fb89f6b959ca222e25ac8df8fed \
+    file://LICENCE.Netronome;md5=cd2a3e6effe3cdf42731575b8e9477ed \
     file://LICENCE.nvidia;md5=4428a922ed3ba2ceec95f076a488ce07 \
     file://LICENCE.OLPC;md5=5b917f9d8c061991be4f6f5f108719cd \
     file://LICENCE.open-ath9k-htc-firmware;md5=1b33c9f4d17bc4d457bdb23727046837 \
     file://LICENCE.phanfw;md5=954dcec0e051f9409812b561ea743bfa \
     file://LICENCE.qat_firmware;md5=9e7d8bea77612d7cc7d9e9b54b623062 \
     file://LICENCE.qla1280;md5=d6895732e622d950609093223a2c4f5d \
-    file://LICENCE.qla2xxx;md5=f5ce8529ec5c17cb7f911d2721d90e91 \
+    file://LICENCE.qla2xxx;md5=505855e921b75f1be4a437ad9b79dff0 \
     file://LICENSE.QualcommAtheros_ar3k;md5=b5fe244fb2b532311de1472a3bc06da5 \
     file://LICENSE.QualcommAtheros_ath10k;md5=b5fe244fb2b532311de1472a3bc06da5 \
     file://LICENCE.r8a779x_usb3;md5=4c1671656153025d7076105a5da7e498 \
-    file://LICENSE.radeon;md5=69612f4f7b141a97659cb1d609a1bde2 \
+    file://LICENSE.radeon;md5=68ec28bacb3613200bca44f404c69b16 \
     file://LICENCE.ralink_a_mediatek_company_firmware;md5=728f1a85fd53fd67fa8d7afb080bc435 \
     file://LICENCE.ralink-firmware.txt;md5=ab2c269277c45476fb449673911a2dfd \
     file://LICENCE.rtlwifi_firmware.txt;md5=00d06cfd3eddd5a2698948ead2ad54a5 \
-    file://LICENCE.siano;md5=602c79ae3f98f1e73d880fd9f940a418 \
+    file://LICENCE.siano;md5=4556c1bf830067f12ca151ad953ec2a5 \
     file://LICENCE.tda7706-firmware.txt;md5=835997cf5e3c131d0dddd695c7d9103e \
     file://LICENCE.ti-connectivity;md5=c5e02be633f1499c109d1652514d85ec \
     file://LICENCE.ti-keystone;md5=3a86335d32864b0bef996bee26cc0f2c \
@@ -112,7 +114,7 @@ LIC_FILES_CHKSUM = "\
     file://LICENCE.xc4000;md5=0ff51d2dc49fce04814c9155081092f0 \
     file://LICENCE.xc5000;md5=1e170c13175323c32c7f4d0998d53f66 \
     file://LICENCE.xc5000c;md5=12b02efa3049db65d524aeb418dd87ca \
-    file://WHENCE;md5=f514a0c53c5d73c2fe98d5861103f0c6 \
+    file://WHENCE;md5=ad12d0618287e8c10ae3da05fa0edcfb \
 "
 
 # These are not common licenses, set NO_GENERIC_LICENSE for them
@@ -134,6 +136,7 @@ NO_GENERIC_LICENSE[Firmware-e100] = "LICENCE.e100"
 NO_GENERIC_LICENSE[Firmware-ene_firmware] = "LICENCE.ene_firmware"
 NO_GENERIC_LICENSE[Firmware-fw_sst_0f28] = "LICENCE.fw_sst_0f28"
 NO_GENERIC_LICENSE[Firmware-go7007] = "LICENCE.go7007"
+NO_GENERIC_LICENSE[Firmware-GPLv2] = "GPL-2"
 NO_GENERIC_LICENSE[Firmware-hfi1_firmware] = "LICENSE.hfi1_firmware"
 NO_GENERIC_LICENSE[Firmware-i2400m] = "LICENCE.i2400m"
 NO_GENERIC_LICENSE[Firmware-i915] = "LICENSE.i915"
@@ -144,8 +147,8 @@ NO_GENERIC_LICENSE[Firmware-iwlwifi_firmware] = "LICENCE.iwlwifi_firmware"
 NO_GENERIC_LICENSE[Firmware-kaweth] = "LICENCE.kaweth"
 NO_GENERIC_LICENSE[Firmware-Marvell] = "LICENCE.Marvell"
 NO_GENERIC_LICENSE[Firmware-moxa] = "LICENCE.moxa"
-NO_GENERIC_LICENSE[Firmware-mwl8335] = "LICENCE.mwl8335"
 NO_GENERIC_LICENSE[Firmware-myri10ge_firmware] = "LICENCE.myri10ge_firmware"
+NO_GENERIC_LICENSE[Firmware-netronome] = "LICENCE.Netronome"
 NO_GENERIC_LICENSE[Firmware-nvidia] = "LICENCE.nvidia"
 NO_GENERIC_LICENSE[Firmware-OLPC] = "LICENCE.OLPC"
 NO_GENERIC_LICENSE[Firmware-ath9k-htc] = "LICENCE.open-ath9k-htc-firmware"
@@ -172,7 +175,7 @@ NO_GENERIC_LICENSE[Firmware-xc5000] = "LICENCE.xc5000"
 NO_GENERIC_LICENSE[Firmware-xc5000c] = "LICENCE.xc5000c"
 NO_GENERIC_LICENSE[WHENCE] = "WHENCE"
 
-SRCREV = "42ad5367dd38371b2a1bb263b6efa85f9b92fc93"
+SRCREV = "b14134583c2a15d4404695f72cb523daedb877ab"
 PE = "1"
 PV = "0.0+git${SRCPV}"
 
@@ -226,8 +229,9 @@ PACKAGES =+ "${PN}-ralink-license ${PN}-ralink \
              ${PN}-vt6656-license ${PN}-vt6656 \
              ${PN}-rtl-license ${PN}-rtl8188 ${PN}-rtl8192cu ${PN}-rtl8192ce ${PN}-rtl8192su ${PN}-rtl8723 ${PN}-rtl8821 \
              ${PN}-broadcom-license ${PN}-bcm4329 ${PN}-bcm4330 ${PN}-bcm4334 ${PN}-bcm43340 ${PN}-bcm4339 ${PN}-bcm43430 ${PN}-bcm4354 \
-             ${PN}-atheros-license ${PN}-ar9170 ${PN}-carl9170 ${PN}-ath6k ${PN}-ath9k \
-             ${PN}-ar3k-license  ${PN}-ar3k  ${PN}-ath10k-license  ${PN}-ath10k  \
+             ${PN}-atheros-license ${PN}-ar9170 ${PN}-ath6k ${PN}-ath9k \
+             ${PN}-gplv2-license ${PN}-carl9170 \
+             ${PN}-ar3k-license ${PN}-ar3k ${PN}-ath10k-license ${PN}-ath10k ${PN}-qca \
              \
              ${PN}-iwlwifi-license ${PN}-iwlwifi \
              ${PN}-iwlwifi-135-6 \
@@ -242,6 +246,7 @@ PACKAGES =+ "${PN}-ralink-license ${PN}-ralink \
              ${PN}-i915-license ${PN}-i915 \
              ${PN}-adsp-sst-license ${PN}-adsp-sst \
              ${PN}-bnx2-mips \
+             ${PN}-netronome-license ${PN}-netronome \
              ${PN}-whence-license \
              ${PN}-license \
              "
@@ -256,9 +261,6 @@ FILES_${PN}-atheros-license = "${nonarch_base_libdir}/firmware/LICENCE.atheros_f
 FILES_${PN}-ar9170 = " \
   ${nonarch_base_libdir}/firmware/ar9170*.fw \
 "
-FILES_${PN}-carl9170 = " \
-  ${nonarch_base_libdir}/firmware/carl9170*.fw \
-"
 FILES_${PN}-ath6k = " \
   ${nonarch_base_libdir}/firmware/ath6k \
 "
@@ -272,15 +274,26 @@ FILES_${PN}-ath9k = " \
 "
 
 RDEPENDS_${PN}-ar9170 += "${PN}-atheros-license"
-RDEPENDS_${PN}-carl9170 += "${PN}-atheros-license"
 RDEPENDS_${PN}-ath6k += "${PN}-atheros-license"
 RDEPENDS_${PN}-ath9k += "${PN}-atheros-license"
+
+# For carl9170
+LICENSE_${PN}-carl9170 = "Firmware-GPLv2"
+LICENSE_${PN}-gplv2-license = "Firmware-GPLv2"
+
+FILES_${PN}-gplv2-license = "${nonarch_base_libdir}/firmware/GPL-2"
+FILES_${PN}-carl9170 = " \
+  ${nonarch_base_libdir}/firmware/carl9170*.fw \
+"
+
+RDEPENDS_${PN}-carl9170 += "${PN}-gplv2-license"
 
 # For QualCommAthos
 LICENSE_${PN}-ar3k = "Firmware-qualcommAthos_ar3k"
 LICENSE_${PN}-ar3k-license = "Firmware-qualcommAthos_ar3k"
 LICENSE_${PN}-ath10k = "Firmware-qualcommAthos_ath10k"
 LICENSE_${PN}-ath10k-license = "Firmware-qualcommAthos_ath10k"
+LICENSE_${PN}-qca = "Firmware-qualcommAthos_ath10k"
 
 FILES_${PN}-ar3k-license = "${nonarch_base_libdir}/firmware/LICENSE.QualcommAtheros_ar3k"
 FILES_${PN}-ar3k = " \
@@ -292,8 +305,13 @@ FILES_${PN}-ath10k = " \
   ${nonarch_base_libdir}/firmware/ath10k \
 "
 
+FILES_${PN}-qca = " \
+  ${nonarch_base_libdir}/firmware/qca \
+"
+
 RDEPENDS_${PN}-ar3k += "${PN}-ar3k-license"
 RDEPENDS_${PN}-ath10k += "${PN}-ath10k-license"
+RDEPENDS_${PN}-qca += "${PN}-ath10k-license"
 
 # For ralink
 LICENSE_${PN}-ralink = "Firmware-ralink-firmware"
@@ -359,6 +377,21 @@ RDEPENDS_${PN}-sd8797 += "${PN}-marvell-license"
 RDEPENDS_${PN}-sd8801 += "${PN}-marvell-license"
 RDEPENDS_${PN}-sd8887 += "${PN}-marvell-license"
 RDEPENDS_${PN}-sd8897 += "${PN}-marvell-license"
+
+# For netronome
+LICENSE_${PN}-netronome = "Firmware-netronome"
+
+FILES_${PN}-netronome-license = " \
+  ${nonarch_base_libdir}/firmware/LICENCE.Netronome \
+"
+FILES_${PN}-netronome = " \
+  ${nonarch_base_libdir}/firmware/netronome/nic_AMDA0081*.nffw \
+  ${nonarch_base_libdir}/firmware/netronome/nic_AMDA0096*.nffw \
+  ${nonarch_base_libdir}/firmware/netronome/nic_AMDA0097*.nffw \
+  ${nonarch_base_libdir}/firmware/netronome/nic_AMDA0099*.nffw \
+"
+
+RDEPENDS_${PN}-netronome += "${PN}-netronome-license"
 
 # For rtl
 LICENSE_${PN}-rtl8188 = "Firmware-rtlwifi_firmware"
@@ -598,7 +631,6 @@ LICENSE_${PN} = "\
     & Firmware-IntcSST2 \
     & Firmware-kaweth \
     & Firmware-moxa \
-    & Firmware-mwl8335 \
     & Firmware-myri10ge_firmware \
     & Firmware-nvidia \
     & Firmware-OLPC \
@@ -637,3 +669,6 @@ python populate_packages_prepend () {
     iwlwifi_pkgs = filter(lambda x: x.find('-iwlwifi-') != -1, firmware_pkgs)
     d.appendVar('RDEPENDS_linux-firmware-iwlwifi', ' ' + ' '.join(iwlwifi_pkgs))
 }
+
+# Netronome binaries has ELF headers and therefore triggers an arch-specific error.
+INSANE_SKIP_${PN}-netronome = "arch"

@@ -90,12 +90,46 @@ do_install_append_class-native() {
                 RPM_ETCCONFIGDIR=${STAGING_DIR_NATIVE} \
                 MAGIC=${STAGING_DIR_NATIVE}${datadir_native}/misc/magic.mgc \
                 RPM_NO_CHROOT_FOR_SCRIPTS=1
+
+        create_wrapper ${D}/${bindir}/rpm2archive \
+                RPM_CONFIGDIR=${STAGING_LIBDIR_NATIVE}/rpm \
+                RPM_ETCCONFIGDIR=${STAGING_DIR_NATIVE} \
+                MAGIC=${STAGING_DIR_NATIVE}${datadir_native}/misc/magic.mgc \
+                RPM_NO_CHROOT_FOR_SCRIPTS=1
+
+        create_wrapper ${D}/${bindir}/rpm2cpio \
+                RPM_CONFIGDIR=${STAGING_LIBDIR_NATIVE}/rpm \
+                RPM_ETCCONFIGDIR=${STAGING_DIR_NATIVE} \
+                MAGIC=${STAGING_DIR_NATIVE}${datadir_native}/misc/magic.mgc \
+                RPM_NO_CHROOT_FOR_SCRIPTS=1
+
+        create_wrapper ${D}/${bindir}/rpmdb \
+                RPM_CONFIGDIR=${STAGING_LIBDIR_NATIVE}/rpm \
+                RPM_ETCCONFIGDIR=${STAGING_DIR_NATIVE} \
+                MAGIC=${STAGING_DIR_NATIVE}${datadir_native}/misc/magic.mgc \
+                RPM_NO_CHROOT_FOR_SCRIPTS=1
+
+        create_wrapper ${D}/${bindir}/rpmgraph \
+                RPM_CONFIGDIR=${STAGING_LIBDIR_NATIVE}/rpm \
+                RPM_ETCCONFIGDIR=${STAGING_DIR_NATIVE} \
+                MAGIC=${STAGING_DIR_NATIVE}${datadir_native}/misc/magic.mgc \
+                RPM_NO_CHROOT_FOR_SCRIPTS=1
+
+        create_wrapper ${D}/${bindir}/rpmspec \
+                RPM_CONFIGDIR=${STAGING_LIBDIR_NATIVE}/rpm \
+                RPM_ETCCONFIGDIR=${STAGING_DIR_NATIVE} \
+                MAGIC=${STAGING_DIR_NATIVE}${datadir_native}/misc/magic.mgc \
+                RPM_NO_CHROOT_FOR_SCRIPTS=1
 }
 
 
 # Rpm's make install creates var/tmp which clashes with base-files packaging
 do_install_append_class-target() {
     rm -rf ${D}/var
+}
+
+do_install_append () {
+	sed -i -e 's:${HOSTTOOLS_DIR}/::g' ${D}/${libdir}/rpm/macros
 }
 
 FILES_${PN} += "${libdir}/rpm-plugins/*.so \

@@ -484,6 +484,12 @@
                     in your recipe so that it does contain
                     <filename>${SRCPV}</filename>.
                 </para>
+
+                <para>
+                    For more information see the
+                    "<ulink url='&YOCTO_DOCS_DEV_URL;#automatically-incrementing-a-binary-package-revision-number'>Automatically Incrementing a Binary Package Revision Number</ulink>"
+                    section in the Yocto Project Development Manual.
+                    </para>
             </glossdef>
         </glossentry>
 
@@ -2415,12 +2421,11 @@
                 </para>
 
                 <para>
-                    The default value, which is "GPL* LGPL*", for
-                    <filename>COPYLEFT_LICENSE_INCLUDE</filename> is set
-                    by the
+                    The default value is set by the
                     <link linkend='ref-classes-copyleft_filter'><filename>copyleft_filter</filename></link>
                     class, which is inherited by the
                     <filename>archiver</filename> class.
+                    The default value includes "GPL*", "LGPL*", and "AGPL*".
                 </para>
             </glossdef>
         </glossentry>
@@ -3618,6 +3623,47 @@
             </glossdef>
         </glossentry>
 
+        <glossentry id='var-DISTRO_FEATURES_FILTER_NATIVE'><glossterm>DISTRO_FEATURES_FILTER_NATIVE</glossterm>
+            <info>
+                DISTRO_FEATURES_FILTER_NATIVE[doc] = "Specifies a list of features that if present in the target DISTRO_FEATURES value should be included in DISTRO_FEATURES when building native recipes."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Specifies a list of features that if present in
+                    the target
+                    <link linkend='var-DISTRO_FEATURES'><filename>DISTRO_FEATURES</filename></link>
+                    value should be included in
+                    <filename>DISTRO_FEATURES</filename> when building native
+                    recipes.
+                    This variable is used in addition to the features
+                    filtered using the
+                    <link linkend='var-DISTRO_FEATURES_NATIVE'><filename>DISTRO_FEATURES_NATIVE</filename></link>
+                    variable.
+               </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-DISTRO_FEATURES_FILTER_NATIVESDK'><glossterm>DISTRO_FEATURES_FILTER_NATIVESDK</glossterm>
+            <info>
+                DISTRO_FEATURES_FILTER_NATIVESDK[doc] = "Specifies a list of features that if present in the target DISTRO_FEATURES value should be included in DISTRO_FEATURES when building nativesdk recipes."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Specifies a list of features that if present in the target
+                    <link linkend='var-DISTRO_FEATURES'><filename>DISTRO_FEATURES</filename></link>
+                    value should be included in
+                    <filename>DISTRO_FEATURES</filename> when building
+                    nativesdk recipes.
+                    This variable is used in addition to the features
+                    filtered using the
+                    <link linkend='var-DISTRO_FEATURES_NATIVESDK'><filename>DISTRO_FEATURES_NATIVESDK</filename></link>
+                    variable.
+               </para>
+            </glossdef>
+        </glossentry>
+
         <glossentry id='var-DISTRO_FEATURES_LIBC'><glossterm>DISTRO_FEATURES_LIBC</glossterm>
             <info>
                 DISTRO_FEATURES_LIBC[doc] = "Specifies the list of distro features that are specific to the C library (libc)."
@@ -3631,6 +3677,42 @@
                     Typically, these features are prefixed with "libc-" and
                     control which features are enabled at during the build
                     within the C library itself.
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-DISTRO_FEATURES_NATIVE'><glossterm>DISTRO_FEATURES_NATIVE</glossterm>
+            <info>
+                DISTRO_FEATURES_NATIVE[doc] = "Specifies a list of features that should be included in DISTRO_FEATURES when building native recipes."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Specifies a list of features that should be included in
+                    <link linkend='var-DISTRO_FEATURES'><filename>DISTRO_FEATURES</filename></link>
+                    when building native recipes.
+                    This variable is used in addition to the features
+                    filtered using the
+                    <link linkend='var-DISTRO_FEATURES_FILTER_NATIVE'><filename>DISTRO_FEATURES_FILTER_NATIVE</filename></link>
+                    variable.
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-DISTRO_FEATURES_NATIVESDK'><glossterm>DISTRO_FEATURES_NATIVESDK</glossterm>
+            <info>
+                DISTRO_FEATURES_NATIVESDK[doc] = "Specifies a list of features that should be included in DISTRO_FEATURES when building nativesdk recipes."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Specifies a list of features that should be included in
+                    <link linkend='var-DISTRO_FEATURES'><filename>DISTRO_FEATURES</filename></link>
+                    when building nativesdk recipes.
+                    This variable is used in addition to the features
+                    filtered using the
+                    <link linkend='var-DISTRO_FEATURES_FILTER_NATIVESDK'><filename>DISTRO_FEATURES_FILTER_NATIVESDK</filename></link>
+                    variable.
                 </para>
             </glossdef>
         </glossentry>
@@ -3798,7 +3880,9 @@
                 <para>
                     See the
                     <link linkend='ref-classes-systemd-boot'><filename>systemd-boot</filename></link>
-                    class for more information.
+                    and
+                    <link linkend='ref-classes-image-live'><filename>image-live</filename></link>
+                    classes for more information.
                 </para>
             </glossdef>
         </glossentry>
@@ -5109,6 +5193,53 @@
             </glossdef>
         </glossentry>
 
+        <glossentry id='var-HOSTTOOLS'><glossterm>HOSTTOOLS</glossterm>
+            <info>
+                HOSTTOOLS[doc] = "A space-separated list (filter) of tools on the build host that should be allowed to be called from within build tasks."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    A space-separated list (filter) of tools on the build host
+                    that should be allowed to be called from within build tasks.
+                    Using this filter helps reduce the possibility of host
+                    contamination.
+                    If a tool specified in the value of
+                    <filename>HOSTTOOLS</filename> is not found on the
+                    build host, the OpenEmbedded build system produces
+                    an error and the build is not started.
+                </para>
+
+                <para>
+                    For additional information, see
+                    <link linkend='var-HOSTTOOLS_NONFATAL'><filename>HOSTTOOLS_NONFATAL</filename></link>.
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-HOSTTOOLS_NONFATAL'><glossterm>HOSTTOOLS_NONFATAL</glossterm>
+            <info>
+                HOSTTOOLS_NONFATAL[doc] = "A space-separated list (filter) of tools on the build host that should be allowed to be called from within build tasks."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    A space-separated list (filter) of tools on the build host
+                    that should be allowed to be called from within build tasks.
+                    Using this filter helps reduce the possibility of host
+                    contamination.
+                    Unlike
+                    <link linkend='var-HOSTTOOLS'><filename>HOSTTOOLS</filename></link>,
+                    the OpenEmbedded build system does not produce and error
+                    if a tool specified in the value of
+                    <filename>HOSTTOOLS_NONFATAL</filename> is not found on the
+                    build host.
+                    Thus, you can use <filename>HOSTTOOLS_NONFATAL</filename>
+                    to filter optional host tools.
+                </para>
+            </glossdef>
+        </glossentry>
+
         <glossentry id='var-HOST_VENDOR'><glossterm>HOST_VENDOR</glossterm>
             <info>
                 HOST_VENDOR[doc] = "The name of the vendor. Normally same as the TARGET_VENDOR."
@@ -6185,14 +6316,24 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
 
         <glossentry id='var-INHERIT'><glossterm>INHERIT</glossterm>
             <info>
-                INHERIT[doc] = "Causes the named class to be inherited at this point during parsing. The variable is only valid in configuration files."
+                INHERIT[doc] = "Causes the named class or classes to be inherited globally."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
-                    Causes the named class to be inherited at
-                    this point during parsing.
-                    The variable is only valid in configuration files.
+                    Causes the named class or classes to be inherited globally.
+                    Anonymous functions in the class or classes
+                    are not executed for the
+                    base configuration and in each individual recipe.
+                    The OpenEmbedded build system ignores changes to
+                    <filename>INHERIT</filename> in individual recipes.
+                </para>
+
+                <para>
+                    For more information on <filename>INHERIT</filename>, see
+                    the
+                    "<ulink url="&YOCTO_DOCS_BB_URL;#inherit-configuration-directive"><filename>INHERIT</filename> Configuration Directive</ulink>"
+                    section in the Yocto Project Bitbake User Manual.
                 </para>
             </glossdef>
         </glossentry>
@@ -8353,13 +8494,16 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
             </glossdef>
         </glossentry>
 
+<!--
         <glossentry id='var-MULTIMACH_HOST_SYS'><glossterm>MULTIMACH_HOST_SYS</glossterm>
             <info>
                 MULTIMACH_HOST_SYS[doc] = "Separates files for different machines such that you can build for multiple host machines using the same output directories."
             </info>
             <glossdef>
                 <para role="glossdeffirst">
+-->
 <!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+<!--
                     Serves the same purpose as
                     <link linkend='var-MULTIMACH_TARGET_SYS'><filename>MULTIMACH_TARGET_SYS</filename></link>,
                     but for the "HOST" system, in situations that involve a
@@ -8377,6 +8521,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                 </para>
             </glossdef>
         </glossentry>
+-->
 
         <glossentry id='var-MULTIMACH_TARGET_SYS'><glossterm>MULTIMACH_TARGET_SYS</glossterm>
             <info>
@@ -8406,9 +8551,6 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     See the
                     <link linkend='var-STAMP'><filename>STAMP</filename></link>
                     variable for an example.
-                    <link linkend='var-MULTIMACH_HOST_SYS'><filename>MULTIMACH_HOST_SYS</filename></link>
-                    is the corresponding variable for the host system in
-                    situations that involve a "HOST" and a "TARGET" system.
                     See the
                     <link linkend='var-STAGING_DIR_TARGET'><filename>STAGING_DIR_TARGET</filename></link>
                     variable for more information.
@@ -9314,6 +9456,31 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     <link linkend='var-PKGD'><filename>PKGD</filename></link>
                     directory prior to splitting the files out to individual
                     packages.
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-PACKAGE_WRITE_DEPS'><glossterm>PACKAGE_WRITE_DEPS</glossterm>
+            <info>
+                PACKAGE_WRITE_DEPS[doc] = "Specifies post-installation and pre-installation script dependencies on native/cross tools."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Specifies a list of dependencies for post-installation and
+                    pre-installation scripts on native/cross tools.
+                    If your post-installation or pre-installation script can
+                    execute at rootfs creation time rather than on the
+                    target but depends on a native tool in order to execute,
+                    you need to list the tools in
+                    <filename>PACKAGE_WRITE_DEPENDS</filename>.
+                </para>
+
+                <para>
+                    For information on running post-installation scripts, see
+                    the
+                    "<ulink url='&YOCTO_DOCS_DEV_URL;#new-recipe-post-installation-scripts'>Post-Installation Scripts</ulink>"
+                    section in the Yocto Project Development Manual.
                 </para>
             </glossdef>
         </glossentry>
@@ -12654,15 +12821,17 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                     every time BitBake parses your recipe, you should specify
                     a <filename>SRCREV</filename> that is a
                     full revision identifier and not just a tag.
+                    <note>
+                        For information on limitations when inheriting the
+                        latest revision of software using
+                        <filename>SRCREV</filename>, see the
+                        <link linkend='var-AUTOREV'><filename>AUTOREV</filename></link>
+                        variable description and the
+                        "<ulink url='&YOCTO_DOCS_DEV_URL;#automatically-incrementing-a-binary-package-revision-number'>Automatically Incrementing a Binary Package Revision Number</ulink>"
+                        section, which is in the Yocto Project Development Manual.
+                    </note>
                 </para>
 
-                <note>
-                    For information on limitations when inheriting the latest
-                    revision of software using <filename>SRCREV</filename>,
-                    see the
-                    <link linkend='var-AUTOREV'><filename>AUTOREV</filename></link>
-                    variable description.
-                </note>
             </glossdef>
         </glossentry>
 
@@ -12739,6 +12908,35 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
      file://.* http://<replaceable>someserver</replaceable>.tld/share/sstate/PATH;downloadfilename=PATH \n \
      file://.* file:///<replaceable>some-local-dir</replaceable>/sstate/PATH"
                     </literallayout>
+                </para>
+            </glossdef>
+        </glossentry>
+
+        <glossentry id='var-SSTATE_SCAN_FILES'><glossterm>SSTATE_SCAN_FILES</glossterm>
+            <info>
+                SSTATE_SCAN_FILES[doc] = "Controls the list of files the OpenEmbedded build system scans for hardcoded installation paths."
+            </info>
+            <glossdef>
+                <para role="glossdeffirst">
+<!--                <para role="glossdeffirst"><imagedata fileref="figures/define-generic.png" /> -->
+                    Controls the list of files the OpenEmbedded build system
+                    scans for hardcoded installation paths.
+                </para>
+
+                <para>
+                    During a build, the OpenEmbedded build system creates a
+                    shared state (sstate) object during the first stage of
+                    preparing the sysroots.
+                    During the build, the object is scanned for hardcoded paths
+                    for original installation locations.
+                    The list of files that are scanned for paths is controlled
+                    by the <filename>SSTATE_SCAN_FILES</filename> variable.
+                </para>
+
+                <para>
+                    For details on the process, see the
+                    <link linkend='ref-classes-staging'><filename>staging</filename></link>
+                    class.
                 </para>
             </glossdef>
         </glossentry>
@@ -12956,12 +13154,7 @@ recipes-graphics/xorg-font/font-alias_1.0.3.bb:PR = "${INC_PR}.3"
                                 they make use of host headers and libraries.
                                 </para>
                                 </note>
-                           </para></listitem>
-                        <listitem><para>For native SDK
-                           recipes that build for the SDK
-                           (<filename>nativesdk</filename>), the value is
-                           "${STAGING_DIR}/${<link linkend='var-MULTIMACH_HOST_SYS'>MULTIMACH_HOST_SYS</link>}".
-                           </para></listitem>
+                            </para></listitem>
                     </itemizedlist>
                 </para>
             </glossdef>

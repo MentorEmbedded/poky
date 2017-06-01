@@ -111,9 +111,10 @@ def create_filtered_tasklist(d, sdkbasepath, tasklistfile, conf_initpath):
         with open(sdkbasepath + '/conf/local.conf', 'a') as f:
             # Force the use of sstate from the build system
             f.write('\nSSTATE_DIR_forcevariable = "%s"\n' % d.getVar('SSTATE_DIR'))
-            f.write('SSTATE_MIRRORS_forcevariable = ""\n')
+            f.write('SSTATE_MIRRORS_forcevariable = "file://universal/(.*) file://universal-4.9/\\1 file://universal-4.9/(.*) file://universal-4.8/\\1"\n')
             # Ensure TMPDIR is the default so that clean_esdk_builddir() can delete it
             f.write('TMPDIR_forcevariable = "${TOPDIR}/tmp"\n')
+            f.write('TCLIBCAPPEND_forcevariable = ""\n')
             # Drop uninative if the build isn't using it (or else NATIVELSBSTRING will
             # be different and we won't be able to find our native sstate)
             if not bb.data.inherits_class('uninative', d):
@@ -289,6 +290,7 @@ python copy_buildsystem () {
             f.write('\n')
 
             f.write('TMPDIR = "${TOPDIR}/tmp"\n')
+            f.write('TCLIBCAPPEND = ""\n')
             f.write('DL_DIR = "${TOPDIR}/downloads"\n')
 
             f.write('INHERIT += "%s"\n' % 'uninative')
@@ -312,7 +314,7 @@ python copy_buildsystem () {
             f.write('SIGGEN_LOCKEDSIGS_TASKSIG_CHECK = "warn"\n\n')
 
             # Set up whitelist for run on install
-            f.write('BB_SETSCENE_ENFORCE_WHITELIST = "%:* *:do_shared_workdir *:do_rm_work wic-tools:*"\n\n')
+            f.write('BB_SETSCENE_ENFORCE_WHITELIST = "%:* *:do_shared_workdir *:do_rm_work wic-tools:* *:do_addto_recipe_sysroot"\n\n')
 
             # Hide the config information from bitbake output (since it's fixed within the SDK)
             f.write('BUILDCFG_HEADER = ""\n\n')
@@ -575,6 +577,8 @@ sdk_ext_postinst() {
 
 	# Allow bitbake environment setup to be ran as part of this sdk.
 	echo "export OE_SKIP_SDK_CHECK=1" >> $env_setup_script
+	# Work around runqemu not knowing how to get this information within the eSDK
+	echo "export DEPLOY_DIR_IMAGE=$target_sdk_dir/tmp/${@os.path.relpath(d.getVar('DEPLOY_DIR_IMAGE'), d.getVar('TMPDIR'))}" >> $env_setup_script
 
 	# A bit of another hack, but we need this in the path only for devtool
 	# so put it at the end of $PATH.
