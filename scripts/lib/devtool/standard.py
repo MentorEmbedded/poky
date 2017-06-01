@@ -155,18 +155,22 @@ def add(args, config, basepath, workspace):
 
     tempdir = tempfile.mkdtemp(prefix='devtool')
     try:
+        builtnpm = False
         while True:
             try:
                 stdout, _ = exec_build_env_command(config.init_path, basepath, 'recipetool --color=%s create --devtool -o %s \'%s\' %s' % (color, tempdir, source, extracmdopts), watch=True)
             except bb.process.ExecutionError as e:
                 if e.exitcode == 14:
+                    if builtnpm:
+                        raise DevtoolError('Re-running recipetool still failed to find npm')
                     # FIXME this is a horrible hack that is unfortunately
                     # necessary due to the fact that we can't run bitbake from
                     # inside recipetool since recipetool keeps tinfoil active
                     # with references to it throughout the code, so we have
                     # to exit out and come back here to do it.
-                    ensure_npm(config, basepath, args.fixed_setup)
+                    ensure_npm(config, basepath, args.fixed_setup, check_exists=False)
                     logger.info('Re-running recipe creation process after building nodejs')
+                    builtnpm = True
                     continue
                 elif e.exitcode == 15:
                     raise DevtoolError('Could not auto-determine recipe name, please specify it on the command line')
@@ -526,12 +530,12 @@ def _extract_source(srctree, keep_temp, devbranch, sync, d, tinfoil):
 
         tinfoil.set_event_mask(['bb.event.BuildStarted',
                                 'bb.event.BuildCompleted',
-                                'bb.event.TaskStarted',
                                 'logging.LogRecord',
                                 'bb.command.CommandCompleted',
                                 'bb.command.CommandFailed',
                                 'bb.build.TaskStarted',
                                 'bb.build.TaskSucceeded',
+                                'bb.build.TaskFailed',
                                 'bb.build.TaskFailedSilent'])
 
         def runtask(target, task):
@@ -543,6 +547,8 @@ def _extract_source(srctree, keep_temp, devbranch, sync, d, tinfoil):
                             break
                         elif isinstance(event, bb.command.CommandFailed):
                             raise DevtoolError('Task do_%s failed: %s' % (task, event.error))
+                        elif isinstance(event, bb.build.TaskFailed):
+                            raise DevtoolError('Task do_%s failed' % task)
                         elif isinstance(event, bb.build.TaskStarted):
                             logger.info('Executing %s...' % event._task)
                         elif isinstance(event, logging.LogRecord):
@@ -787,7 +793,7 @@ def modify(args, config, basepath, workspace):
         initial_rev = None
         commits = []
         if not args.no_extract:
-            initial_rev = _extract_source(srctree, False, args.branch, False, rd, tinfoil)
+            initial_rev = _extract_source(srctree, args.keep_temp, args.branch, False, rd, tinfoil)
             if not initial_rev:
                 return 1
             logger.info('Source tree extracted to %s' % srctree)
@@ -836,7 +842,10 @@ def modify(args, config, basepath, workspace):
 
             if bb.data.inherits_class('kernel', rd):
                 f.write('SRCTREECOVEREDTASKS = "do_validate_branches do_kernel_checkout '
-                        'do_fetch do_unpack do_patch do_kernel_configme do_kernel_configcheck"\n')
+                        'do_fetch do_unpack do_kernel_configme do_kernel_configcheck"\n')
+                f.write('\ndo_patch() {\n'
+                        '    :\n'
+                        '}\n')
                 f.write('\ndo_configure_append() {\n'
                         '    cp ${B}/.config ${S}/.config.baseline\n'
                         '    ln -sfT ${B}/.config ${S}/.config.new\n'
@@ -1847,6 +1856,7 @@ def register_commands(subparsers, context):
     group.add_argument('--same-dir', '-s', help='Build in same directory as source', action="store_true")
     group.add_argument('--no-same-dir', help='Force build in a separate build directory', action="store_true")
     parser_modify.add_argument('--branch', '-b', default="devtool", help='Name for development branch to checkout (when not using -n/--no-extract) (default "%(default)s")')
+    parser_modify.add_argument('--keep-temp', help='Keep temporary directory (for debugging)', action="store_true")
     parser_modify.set_defaults(func=modify)
 
     parser_extract = subparsers.add_parser('extract', help='Extract the source for an existing recipe',

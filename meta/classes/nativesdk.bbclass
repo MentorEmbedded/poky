@@ -43,6 +43,10 @@ TARGET_PREFIX = "${SDK_PREFIX}"
 TARGET_CC_ARCH = "${SDK_CC_ARCH}"
 TARGET_LD_ARCH = "${SDK_LD_ARCH}"
 TARGET_AS_ARCH = "${SDK_AS_ARCH}"
+TARGET_CPPFLAGS = "${BUILDSDK_CPPFLAGS}"
+TARGET_CFLAGS = "${BUILDSDK_CFLAGS}"
+TARGET_CXXFLAGS = "${BUILDSDK_CXXFLAGS}"
+TARGET_LDFLAGS = "${BUILDSDK_LDFLAGS}"
 TARGET_FPU = ""
 EXTRA_OECONF_GCC_FLOAT = ""
 
@@ -65,6 +69,12 @@ python nativesdk_virtclass_handler () {
     pn = e.data.getVar("PN")
     if not (pn.endswith("-nativesdk") or pn.startswith("nativesdk-")):
         return
+
+    # Set features here to prevent appends and distro features backfill
+    # from modifying nativesdk distro features
+    features = set(d.getVar("DISTRO_FEATURES_NATIVESDK").split())
+    filtered = set(bb.utils.filter("DISTRO_FEATURES", d.getVar("DISTRO_FEATURES_FILTER_NATIVESDK"), d).split())
+    d.setVar("DISTRO_FEATURES", " ".join(features | filtered))
 
     e.data.setVar("MLPREFIX", "nativesdk-")
     e.data.setVar("PN", "nativesdk-" + e.data.getVar("PN").replace("-nativesdk", "").replace("nativesdk-", ""))

@@ -61,22 +61,15 @@ oe_runmake() {
 
 
 def base_dep_prepend(d):
-    #
-    # Ideally this will check a flag so we will operate properly in
-    # the case where host == build == target, for now we don't work in
-    # that case though.
-    #
+    if d.getVar('INHIBIT_DEFAULT_DEPS', False):
+        return ""
+    return "${BASE_DEFAULT_DEPS}"
 
-    deps = ""
-    # INHIBIT_DEFAULT_DEPS doesn't apply to the patch command.  Whether or  not
-    # we need that built is the responsibility of the patch function / class, not
-    # the application.
-    if not d.getVar('INHIBIT_DEFAULT_DEPS', False):
-        if (d.getVar('HOST_SYS') != d.getVar('BUILD_SYS')):
-            deps += " virtual/${TARGET_PREFIX}gcc virtual/${TARGET_PREFIX}compilerlibs virtual/libc "
-    return deps
+BASE_DEFAULT_DEPS = "virtual/${TARGET_PREFIX}gcc virtual/${TARGET_PREFIX}compilerlibs virtual/libc"
 
-BASEDEPENDS = "${@base_dep_prepend(d)}"
+BASEDEPENDS = ""
+BASEDEPENDS_class-target = "${@base_dep_prepend(d)}"
+BASEDEPENDS_class-nativesdk = "${@base_dep_prepend(d)}"
 
 DEPENDS_prepend="${BASEDEPENDS} "
 
@@ -239,8 +232,8 @@ python base_eventhandler() {
         oe.utils.features_backfill("DISTRO_FEATURES", e.data)
         oe.utils.features_backfill("MACHINE_FEATURES", e.data)
         # Works with the line in layer.conf which changes PATH to point here
-        setup_hosttools_dir(d.expand('${TMPDIR}/hosttools'), 'HOSTTOOLS', d)
-        setup_hosttools_dir(d.expand('${TMPDIR}/hosttools'), 'HOSTTOOLS_NONFATAL', d, fatal=False)
+        setup_hosttools_dir(d.getVar('HOSTTOOLS_DIR'), 'HOSTTOOLS', d)
+        setup_hosttools_dir(d.getVar('HOSTTOOLS_DIR'), 'HOSTTOOLS_NONFATAL', d, fatal=False)
 
     if isinstance(e, bb.event.BuildStarted):
         localdata = bb.data.createCopy(e.data)

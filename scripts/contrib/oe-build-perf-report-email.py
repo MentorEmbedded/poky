@@ -21,6 +21,7 @@ import pwd
 import re
 import shutil
 import smtplib
+import socket
 import subprocess
 import sys
 import tempfile
@@ -210,8 +211,10 @@ def send_email(text_fn, html_fn, subject, recipients):
     else:
         raise ReportError("Neither plain text nor html body specified")
 
-    full_name = pwd.getpwuid(os.getuid()).pw_gecos.split(',')[0]
-    email = os.environ.get('EMAIL', os.getlogin())
+    pw_data = pwd.getpwuid(os.getuid())
+    full_name = pw_data.pw_gecos.split(',')[0]
+    email = os.environ.get('EMAIL',
+                           '{}@{}'.format(pw_data.pw_name, socket.getfqdn()))
     msg['From'] = "{} <{}>".format(full_name, email)
     msg['To'] = ', '.join(recipients)
     msg['Subject'] = subject
@@ -243,7 +246,7 @@ def main(argv=None):
         html_report = None
         if args.html:
             scrape_html_report(args.html, outdir, args.phantomjs_args)
-            html_report = os.path.join(outdir, args.html)
+            html_report = os.path.join(outdir, os.path.basename(args.html))
 
         if args.to:
             log.info("Sending email to %s", ', '.join(args.to))

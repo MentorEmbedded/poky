@@ -30,6 +30,9 @@ SRC_URI[sha256sum] = "e8442566256e1be14e51fc18839cd799b966bc5b16c6a1d7a7c35155a8
 inherit autotools gettext pkgconfig texinfo
 BBCLASSEXTEND = "native"
 
+# Fix "Argument list too long" error when len(TMPDIR) = 410
+acpaths = "-I ./m4"
+
 DEPENDS = "libunistring bdwgc gmp libtool libffi ncurses readline"
 # add guile-native only to the target recipe's DEPENDS
 DEPENDS_append_class-target = " guile-native libatomic-ops"
@@ -108,8 +111,8 @@ guile_cross_config() {
 # auto-compile into the prefix even if it can write there, so touch them here as
 # sysroot is managed.
 SSTATEPOSTINSTFUNCS += "guile_sstate_postinst"
-GUILESSTATEDIR = "${STAGING_DIR}-components/${TUNE_PKGARCH}/${PN}/${libdir}/guile/2.0/ccache"
-GUILESSTATEDIR_class-native = "${STAGING_DIR}-components/${BUILD_ARCH}/${PN}/${libdir_native}/guile/2.0/ccache"
+GUILESSTATEDIR = "${COMPONENTS_DIR}/${TUNE_PKGARCH}/${PN}/${libdir}/guile/2.0/ccache"
+GUILESSTATEDIR_class-native = "${COMPONENTS_DIR}/${BUILD_ARCH}/${PN}/${libdir_native}/guile/2.0/ccache"
 guile_sstate_postinst() {
 	if [ "${BB_CURRENTTASK}" = "populate_sysroot" -o "${BB_CURRENTTASK}" = "populate_sysroot_setscene" ]
 	then

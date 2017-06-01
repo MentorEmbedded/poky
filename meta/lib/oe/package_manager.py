@@ -377,15 +377,6 @@ class PackageManager(object, metaclass=ABCMeta):
     installation
     """
     def install_complementary(self, globs=None):
-        # we need to write the list of installed packages to a file because the
-        # oe-pkgdata-util reads it from a file
-        installed_pkgs_file = os.path.join(self.d.getVar('WORKDIR'),
-                                           "installed_pkgs.txt")
-        with open(installed_pkgs_file, "w+") as installed_pkgs:
-            pkgs = self.list_installed()
-            output = oe.utils.format_pkg_list(pkgs, "arch")
-            installed_pkgs.write(output)
-
         if globs is None:
             globs = self.d.getVar('IMAGE_INSTALL_COMPLEMENTARY')
             split_linguas = set()
@@ -402,22 +393,28 @@ class PackageManager(object, metaclass=ABCMeta):
         if globs is None:
             return
 
-        cmd = [bb.utils.which(os.getenv('PATH'), "oe-pkgdata-util"),
-               "-p", self.d.getVar('PKGDATA_DIR'), "glob", installed_pkgs_file,
-               globs]
-        exclude = self.d.getVar('PACKAGE_EXCLUDE_COMPLEMENTARY')
-        if exclude:
-            cmd.extend(['--exclude=' + '|'.join(exclude.split())])
-        try:
-            bb.note("Installing complementary packages ...")
-            bb.note('Running %s' % cmd)
-            complementary_pkgs = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
-        except subprocess.CalledProcessError as e:
-            bb.fatal("Could not compute complementary packages list. Command "
-                     "'%s' returned %d:\n%s" %
-                     (' '.join(cmd), e.returncode, e.output.decode("utf-8")))
-        self.install(complementary_pkgs.split(), attempt_only=True)
-        os.remove(installed_pkgs_file)
+        # we need to write the list of installed packages to a file because the
+        # oe-pkgdata-util reads it from a file
+        with tempfile.NamedTemporaryFile(mode="w+", prefix="installed-pkgs") as installed_pkgs:
+            pkgs = self.list_installed()
+            output = oe.utils.format_pkg_list(pkgs, "arch")
+            installed_pkgs.write(output)
+
+            cmd = [bb.utils.which(os.getenv('PATH'), "oe-pkgdata-util"),
+                   "-p", self.d.getVar('PKGDATA_DIR'), "glob", installed_pkgs.name,
+                   globs]
+            exclude = self.d.getVar('PACKAGE_EXCLUDE_COMPLEMENTARY')
+            if exclude:
+                cmd.extend(['--exclude=' + '|'.join(exclude.split())])
+            try:
+                bb.note("Installing complementary packages ...")
+                bb.note('Running %s' % cmd)
+                complementary_pkgs = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
+            except subprocess.CalledProcessError as e:
+                bb.fatal("Could not compute complementary packages list. Command "
+                         "'%s' returned %d:\n%s" %
+                         (' '.join(cmd), e.returncode, e.output.decode("utf-8")))
+            self.install(complementary_pkgs.split(), attempt_only=True)
 
     def deploy_dir_lock(self):
         if self.deploy_dir is None:
@@ -492,7 +489,7 @@ class RpmPM(PackageManager):
 
     def _configure_dnf(self):
         # libsolv handles 'noarch' internally, we don't need to specify it explicitly
-        archs = [i for i in self.archs.split() if i not in ["any", "all", "noarch"]]
+        archs = [i for i in reversed(self.archs.split()) if i not in ["any", "all", "noarch"]]
         # This prevents accidental matching against libsolv's built-in policies
         if len(archs) <= 1:
             archs = archs + ["bogusarch"]
@@ -550,12 +547,19 @@ class RpmPM(PackageManager):
         bb.utils.mkdirhier(oe.path.join(self.target_rootfs, "etc", "yum.repos.d"))
         remote_uris = self.construct_uris(feed_uris.split(), feed_base_paths.split())
         for uri in remote_uris:
-            repo_name = "oe-remote-repo" + "-".join(urlparse(uri).path.split("/"))
+            repo_base = "oe-remote-repo" + "-".join(urlparse(uri).path.split("/"))
             if feed_archs is not None:
-                repo_uris = [uri + "/" + arch for arch in feed_archs]
+                for arch in feed_archs.split():
+                    repo_uri = uri + "/" + arch
+                    repo_id   = "oe-remote-repo"  + "-".join(urlparse(repo_uri).path.split("/"))
+                    repo_name = "OE Remote Repo:" + " ".join(urlparse(repo_uri).path.split("/"))
+                    open(oe.path.join(self.target_rootfs, "etc", "yum.repos.d", repo_base + ".repo"), 'a').write(
+                             "[%s]\nname=%s\nbaseurl=%s\n\n" % (repo_id, repo_name, repo_uri))
             else:
-                repo_uris = [uri]
-            open(oe.path.join(self.target_rootfs, "etc", "yum.repos.d", repo_name + ".repo"), 'w').write("[%s]\nbaseurl=%s\n" % (repo_name, " ".join(repo_uris)))
+                repo_name = "OE Remote Repo:" + " ".join(urlparse(uri).path.split("/"))
+                repo_uri = uri
+                open(oe.path.join(self.target_rootfs, "etc", "yum.repos.d", repo_base + ".repo"), 'w').write(
+                             "[%s]\nname=%s\nbaseurl=%s\n" % (repo_base, repo_name, repo_uri))
 
     def _prepare_pkg_transaction(self):
         os.environ['D'] = self.target_rootfs

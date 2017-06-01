@@ -130,6 +130,8 @@ PACKAGES_DYNAMIC += "^kernel-firmware-.*"
 
 export OS = "${TARGET_OS}"
 export CROSS_COMPILE = "${TARGET_PREFIX}"
+export KBUILD_BUILD_USER = "oe-user"
+export KBUILD_BUILD_HOST = "oe-host"
 
 KERNEL_PRIORITY ?= "${@int(d.getVar('PV').split('-')[0].split('+')[0].split('.')[0]) * 10000 + \
                        int(d.getVar('PV').split('-')[0].split('+')[0].split('.')[1]) * 100 + \
@@ -539,6 +541,7 @@ do_kernel_link_images() {
 		ln -sf ../../../vmlinuz.bin
 	fi
 }
+addtask kernel_link_images after do_compile before do_strip
 
 do_strip() {
 	if [ -n "${KERNEL_IMAGE_STRIP_EXTRA_SECTIONS}" ]; then

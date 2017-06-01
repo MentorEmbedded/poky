@@ -24,6 +24,7 @@
 """Test cases for wic."""
 
 import os
+import sys
 import unittest
 
 from glob import glob
@@ -77,7 +78,10 @@ class Wic(oeSelfTest):
         # clean up which can result in the native tools built earlier in
         # setUpClass being unavailable.
         if not Wic.image_is_ready:
-            bitbake('wic-tools')
+            if get_bb_var('USE_NLS') == 'yes':
+                bitbake('wic-tools')
+            else:
+                self.skipTest('wic-tools cannot be built due its (intltool|gettext)-native dependency and NLS disable')
 
             bitbake('core-image-minimal')
             Wic.image_is_ready = True
@@ -155,8 +159,7 @@ class Wic(oeSelfTest):
     @testcase(1213)
     def test_unsupported_subcommand(self):
         """Test unsupported subcommand"""
-        self.assertEqual(1, runCmd('wic unsupported',
-                                   ignore_status=True).status)
+        self.assertNotEqual(0, runCmd('wic unsupported', ignore_status=True).status)
 
     @testcase(1214)
     def test_no_command(self):
@@ -610,7 +613,7 @@ part /etc --source rootfs --ondisk mmcblk0 --fstype=ext4 --exclude-path bin/ --r
             cmd = "mount |grep '^/dev/' | cut -f1,3 -d ' '"
             status, output = qemu.run_serial(cmd)
             self.assertEqual(1, status, 'Failed to run command "%s": %s' % (cmd, output))
-            self.assertEqual(output, '/dev/root /\r\n/dev/vda3 /mnt')
+            self.assertEqual(output, '/dev/root /\r\n/dev/sda3 /mnt')
 
     @only_for_arch(['i586', 'i686', 'x86_64'])
     def test_qemu_efi(self):
@@ -622,7 +625,7 @@ part /etc --source rootfs --ondisk mmcblk0 --fstype=ext4 --exclude-path bin/ --r
 
         with runqemu('core-image-minimal', ssh=False,
                      runqemuparams='ovmf', image_fstype='wic') as qemu:
-            cmd = "grep vda. /proc/partitions  |wc -l"
+            cmd = "grep sda. /proc/partitions  |wc -l"
             status, output = qemu.run_serial(cmd)
             self.assertEqual(1, status, 'Failed to run command "%s": %s' % (cmd, output))
             self.assertEqual(output, '3')
@@ -697,7 +700,7 @@ part /etc --source rootfs --ondisk mmcblk0 --fstype=ext4 --exclude-path bin/ --r
             self.remove_config(config)
 
         with runqemu('core-image-minimal', ssh=False, image_fstype='wic') as qemu:
-            cmd = "grep vda. /proc/partitions  |wc -l"
+            cmd = "grep sda. /proc/partitions  |wc -l"
             status, output = qemu.run_serial(cmd)
             self.assertEqual(1, status, 'Failed to run command "%s": %s' % (cmd, output))
             self.assertEqual(output, '2')
@@ -758,3 +761,31 @@ part /etc --source rootfs --ondisk mmcblk0 --fstype=ext4 --exclude-path bin/ --r
         self.assertEqual(0, runCmd(cmd).status)
         self.remove_config(config)
         self.assertEqual(1, len(glob(self.resultdir + "sdimage-bootpart-*direct")))
+
+    def test_sparse_copy(self):
+        """Test sparse_copy with FIEMAP and SEEK_HOLE filemap APIs"""
+        libpath = os.path.join(get_bb_var('COREBASE'), 'scripts', 'lib', 'wic')
+        sys.path.insert(0, libpath)
+        from  filemap import FilemapFiemap, FilemapSeek, sparse_copy, ErrorNotSupp
+        with NamedTemporaryFile("w", suffix=".wic-sparse") as sparse:
+            src_name = sparse.name
+            src_size = 1024 * 10
+            sparse.truncate(src_size)
+            # write one byte to the file
+            with open(src_name, 'r+b') as sfile:
+                sfile.seek(1024 * 4)
+                sfile.write(b'\x00')
+            dest = sparse.name + '.out'
+            # copy src file to dest using different filemap APIs
+            for api in (FilemapFiemap, FilemapSeek, None):
+                if os.path.exists(dest):
+                    os.unlink(dest)
+                try:
+                    sparse_copy(sparse.name, dest, api=api)
+                except ErrorNotSupp:
+                    continue # skip unsupported API
+                dest_stat = os.stat(dest)
+                self.assertEqual(dest_stat.st_size, src_size)
+                # 8 blocks is 4K (physical sector size)
+                self.assertEqual(dest_stat.st_blocks, 8)
+            os.unlink(dest)

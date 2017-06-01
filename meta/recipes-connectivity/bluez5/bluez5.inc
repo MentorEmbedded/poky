@@ -12,10 +12,13 @@ RPROVIDES_${PN} += "bluez-hcidump"
 
 RCONFLICTS_${PN} = "bluez4"
 
-PACKAGECONFIG ??= "obex-profiles readline"
+PACKAGECONFIG ??= "obex-profiles readline ${@bb.utils.filter('DISTRO_FEATURES', 'systemd', d)}"
 PACKAGECONFIG[obex-profiles] = "--enable-obex,--disable-obex,libical"
-PACKAGECONFIG[experimental] = "--enable-experimental,--disable-experimental,"
 PACKAGECONFIG[readline] = "--enable-client,--disable-client,readline,"
+PACKAGECONFIG[testing] = "--enable-testing,--disable-testing"
+PACKAGECONFIG[midi] = "--enable-midi,--disable-midi,alsa-lib"
+PACKAGECONFIG[systemd] = "--enable-systemd,--disable-systemd"
+PACKAGECONFIG[cups] = "--enable-cups,--disable-cups,,cups"
 
 SRC_URI = "\
     ${KERNELORG_MIRROR}/linux/bluetooth/bluez-${PV}.tar.xz \
@@ -31,20 +34,21 @@ inherit autotools pkgconfig systemd update-rc.d distro_features_check ptest
 
 EXTRA_OECONF = "\
   --enable-tools \
-  --disable-cups \
+  --enable-deprecated \
   --enable-test \
   --enable-datafiles \
-  ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '--enable-systemd', '--disable-systemd', d)} \
   --enable-library \
 "
 
 # bluez5 builds a large number of useful utilities but does not
 # install them.  Specify which ones we want put into ${PN}-noinst-tools.
 NOINST_TOOLS_READLINE ??= ""
-NOINST_TOOLS_EXPERIMENTAL ??= ""
+NOINST_TOOLS_TESTING ??= ""
+NOINST_TOOLS_BT ??= ""
 NOINST_TOOLS = " \
     ${@bb.utils.contains('PACKAGECONFIG', 'readline', '${NOINST_TOOLS_READLINE}', '', d)} \
-    ${@bb.utils.contains('PACKAGECONFIG', 'experimental', '${NOINST_TOOLS_EXPERIMENTAL}', '', d)} \
+    ${@bb.utils.contains('PACKAGECONFIG', 'testing', '${NOINST_TOOLS_TESTING}', '', d)} \
+    ${NOINST_TOOLS_BT} \
 "
 
 do_install_append() {
@@ -52,38 +56,36 @@ do_install_append() {
 	install -m 0755 ${WORKDIR}/init ${D}${INIT_D_DIR}/bluetooth
 
 	install -d ${D}${sysconfdir}/bluetooth/
-	if [ -f ${S}/profiles/audio/audio.conf ]; then
-	    install -m 0644 ${S}/profiles/audio/audio.conf ${D}/${sysconfdir}/bluetooth/
-	fi
 	if [ -f ${S}/profiles/network/network.conf ]; then
-	    install -m 0644 ${S}/profiles/network/network.conf ${D}/${sysconfdir}/bluetooth/
+		install -m 0644 ${S}/profiles/network/network.conf ${D}/${sysconfdir}/bluetooth/
 	fi
 	if [ -f ${S}/profiles/input/input.conf ]; then
-	    install -m 0644 ${S}/profiles/input/input.conf ${D}/${sysconfdir}/bluetooth/
+		install -m 0644 ${S}/profiles/input/input.conf ${D}/${sysconfdir}/bluetooth/
 	fi
 
-  if [ -f ${D}/${sysconfdir}/init.d/bluetooth ]; then
-    sed -i -e 's#@LIBEXECDIR@#${libexecdir}#g' ${D}/${sysconfdir}/init.d/bluetooth
-  fi
+	if [ -f ${D}/${sysconfdir}/init.d/bluetooth ]; then
+		sed -i -e 's#@LIBEXECDIR@#${libexecdir}#g' ${D}/${sysconfdir}/init.d/bluetooth
+	fi
 
 	# Install desired tools that upstream leaves in build area
-        for f in ${NOINST_TOOLS} ; do
-	    install -m 755 ${B}/$f ${D}/${bindir}
+	for f in ${NOINST_TOOLS} ; do
+		install -m 755 ${B}/$f ${D}/${bindir}
 	done
 
-        # Patch python tools to use Python 3; they should be source compatible, but
-        # still refer to Python 2 in the shebang
-        sed -i -e '1s,#!.*python.*,#!${bindir}/python3,' ${D}${libdir}/bluez/test/*
+	# Patch python tools to use Python 3; they should be source compatible, but
+	# still refer to Python 2 in the shebang
+	sed -i -e '1s,#!.*python.*,#!${bindir}/python3,' ${D}${libdir}/bluez/test/*
 }
 
-ALLOW_EMPTY_libasound-module-bluez = "1"
-PACKAGES =+ "libasound-module-bluez ${PN}-testtools ${PN}-obex ${PN}-noinst-tools"
+PACKAGES =+ "${PN}-testtools ${PN}-obex ${PN}-noinst-tools"
 
-FILES_libasound-module-bluez = "${libdir}/alsa-lib/lib*.so ${datadir}/alsa"
-FILES_${PN} += "${libdir}/bluetooth/plugins/*.so ${systemd_unitdir}/ ${datadir}/dbus-1"
-FILES_${PN}-dev += "\
-  ${libdir}/bluetooth/plugins/*.la \
-  ${libdir}/alsa-lib/*.la \
+FILES_${PN} += " \
+    ${libdir}/bluetooth/plugins/*.so \
+    ${systemd_unitdir}/ ${datadir}/dbus-1 \
+    ${libdir}/cups \
+"
+FILES_${PN}-dev += " \
+    ${libdir}/bluetooth/plugins/*.la \
 "
 
 FILES_${PN}-obex = "${libexecdir}/bluetooth/obexd \
@@ -113,10 +115,10 @@ INITSCRIPT_NAME_${PN} = "bluetooth"
 EXCLUDE_FROM_WORLD = "1"
 
 do_compile_ptest() {
-        oe_runmake buildtests
+	oe_runmake buildtests
 }
 
 do_install_ptest() {
-        cp -r ${B}/unit/ ${D}${PTEST_PATH}
-        rm -f ${D}${PTEST_PATH}/unit/*.o
+	cp -r ${B}/unit/ ${D}${PTEST_PATH}
+	rm -f ${D}${PTEST_PATH}/unit/*.o
 }

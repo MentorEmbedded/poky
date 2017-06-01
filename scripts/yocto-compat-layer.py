@@ -22,7 +22,7 @@ import scriptpath
 scriptpath.add_oe_lib_path()
 scriptpath.add_bitbake_lib_path()
 
-from compatlayer import LayerType, detect_layers, add_layer, get_signatures
+from compatlayer import LayerType, detect_layers, add_layer, add_layer_dependencies, get_signatures
 from oeqa.utils.commands import get_bb_vars
 
 PROGNAME = 'yocto-compat-layer'
@@ -47,6 +47,12 @@ def main():
             help='Layer to test compatibility with Yocto Project')
     parser.add_argument('-o', '--output-log',
             help='File to output log (optional)', action='store')
+    parser.add_argument('--dependency', nargs="+",
+            help='Layers to process for dependencies', action='store')
+    parser.add_argument('--machines', nargs="+",
+            help='List of MACHINEs to be used during testing', action='store')
+    parser.add_argument('--additional-layers', nargs="+",
+            help='List of additional layers to add during testing', action='store')
     parser.add_argument('-n', '--no-auto', help='Disable auto layer discovery',
             action='store_true')
     parser.add_argument('-d', '--debug', help='Enable debug output',
@@ -80,6 +86,15 @@ def main():
     if not layers:
         logger.error("Fail to detect layers")
         return 1
+    if args.additional_layers:
+        additional_layers = detect_layers(args.additional_layers, args.no_auto)
+    else:
+        additional_layers = []
+    if args.dependency:
+        dep_layers = detect_layers(args.dependency, args.no_auto)
+        dep_layers = dep_layers + layers
+    else:
+        dep_layers = layers
 
     logger.info("Detected layers:")
     for layer in layers:
@@ -107,14 +122,7 @@ def main():
 
     td = {}
     results = collections.OrderedDict()
-
-    logger.info('')
-    logger.info('Getting initial bitbake variables ...')
-    td['bbvars'] = get_bb_vars()
-    logger.info('Getting initial signatures ...')
-    td['builddir'] = builddir
-    td['sigs'] = get_signatures(td['builddir'])
-    logger.info('')
+    results_status = collections.OrderedDict()
 
     layers_tested = 0
     for layer in layers:
@@ -122,22 +130,60 @@ def main():
                 layer['type'] == LayerType.ERROR_BSP_DISTRO:
             continue
 
+        logger.info('')
+        logger.info("Setting up for %s(%s), %s" % (layer['name'], layer['type'],
+            layer['path']))
+
         shutil.copyfile(bblayersconf + '.backup', bblayersconf)
 
-        if not add_layer(bblayersconf, layer, layers, logger):
+        missing_dependencies = not add_layer_dependencies(bblayersconf, layer, dep_layers, logger)
+        if not missing_dependencies:
+            for additional_layer in additional_layers:
+                if not add_layer_dependencies(bblayersconf, additional_layer, dep_layers, logger):
+                    missing_dependencies = True
+                    break
+        if not add_layer_dependencies(bblayersconf, layer, dep_layers, logger) or \
+           any(map(lambda additional_layer: not add_layer_dependencies(bblayersconf, additional_layer, dep_layers, logger),
+                   additional_layers)):
+            logger.info('Skipping %s due to missing dependencies.' % layer['name'])
+            results[layer['name']] = None
+            results_status[layer['name']] = 'SKIPPED (Missing dependencies)'
+            layers_tested = layers_tested + 1
+            continue
+
+        if any(map(lambda additional_layer: not add_layer(bblayersconf, additional_layer, dep_layers, logger),
+                   additional_layers)):
+            logger.info('Skipping %s due to missing additional layers.' % layer['name'])
+            results[layer['name']] = None
+            results_status[layer['name']] = 'SKIPPED (Missing additional layers)'
+            layers_tested = layers_tested + 1
+            continue
+
+        logger.info('Getting initial bitbake variables ...')
+        td['bbvars'] = get_bb_vars()
+        logger.info('Getting initial signatures ...')
+        td['builddir'] = builddir
+        td['sigs'], td['tunetasks'] = get_signatures(td['builddir'])
+        td['machines'] = args.machines
+
+        if not add_layer(bblayersconf, layer, dep_layers, logger):
+            logger.info('Skipping %s ???.' % layer['name'])
+            results[layer['name']] = None
+            results_status[layer['name']] = 'SKIPPED (Unknown)'
+            layers_tested = layers_tested + 1
             continue
 
         result = test_layer_compatibility(td, layer)
         results[layer['name']] = result
+        results_status[layer['name']] = 'PASS' if results[layer['name']].wasSuccessful() else 'FAIL'
         layers_tested = layers_tested + 1
 
     if layers_tested:
         logger.info('')
         logger.info('Summary of results:')
         logger.info('')
-        for layer_name in results:
-            logger.info('%s ... %s' % (layer_name, 'PASS' if \
-                    results[layer_name].wasSuccessful() else 'FAIL'))
+        for layer_name in results_status:
+            logger.info('%s ... %s' % (layer_name, results_status[layer_name]))
 
     cleanup_bblayers(None, None)
 

@@ -201,10 +201,15 @@ do_install () {
 	   ${D}${sysconfdir}/ssl/
 	ln -sf ${sysconfdir}/ssl/certs ${D}${libdir}/ssl/certs
 	ln -sf ${sysconfdir}/ssl/private ${D}${libdir}/ssl/private
+	ln -sf ${sysconfdir}/ssl/openssl.cnf ${D}${libdir}/ssl/openssl.cnf
 }
 
 do_install_ptest () {
 	cp -r -L Makefile.org Makefile test ${D}${PTEST_PATH}
+
+        # Replace the path to native perl with the path to target perl
+        sed -i 's,^PERL=.*,PERL=${bindir}/perl,' ${D}${PTEST_PATH}/Makefile
+
 	cp Configure config e_os.h ${D}${PTEST_PATH}
 	cp -r -L include ${D}${PTEST_PATH}
 	ln -sf ${libdir}/libcrypto.a ${D}${PTEST_PATH}
@@ -242,18 +247,6 @@ do_install_append_class-native() {
 	    SSL_CERT_DIR=${libdir}/ssl/certs \
 	    SSL_CERT_FILE=${libdir}/ssl/cert.pem \
 	    OPENSSL_ENGINES=${libdir}/ssl/engines
-}
-
-pkg_postinst_openssl-conf () {
-#!/bin/sh
-if [ -e $D${libdir}/ssl/openssl.cnf ]; then
-	rm -f $D${libdir}/ssl/openssl.cnf
-fi
-
-# If openssl-conf is installed before openssl, we must ensure that the symlink
-# destination exists
-mkdir -p $D${libdir}/ssl/
-ln -s ${sysconfdir}/ssl/openssl.cnf $D${libdir}/ssl/openssl.cnf
 }
 
 BBCLASSEXTEND = "native nativesdk"

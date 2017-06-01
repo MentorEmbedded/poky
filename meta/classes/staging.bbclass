@@ -201,8 +201,8 @@ do_populate_sysroot[depends] += "${POPULATESYSROOTDEPS}"
 SSTATETASKS += "do_populate_sysroot"
 do_populate_sysroot[cleandirs] = "${SYSROOT_DESTDIR}"
 do_populate_sysroot[sstate-inputdirs] = "${SYSROOT_DESTDIR}"
-do_populate_sysroot[sstate-outputdirs] = "${STAGING_DIR}-components/${PACKAGE_ARCH}/${PN}"
-do_populate_sysroot[sstate-fixmedir] = "${STAGING_DIR}-components/${PACKAGE_ARCH}/${PN}"
+do_populate_sysroot[sstate-outputdirs] = "${COMPONENTS_DIR}/${PACKAGE_ARCH}/${PN}"
+do_populate_sysroot[sstate-fixmedir] = "${COMPONENTS_DIR}/${PACKAGE_ARCH}/${PN}"
 
 python do_populate_sysroot_setscene () {
     sstate_setscene(d)
@@ -249,7 +249,7 @@ def staging_processfixme(fixme, target, recipesysroot, recipesysrootnative, d):
     if not fixme:
         return
     cmd = "sed -e 's:^[^/]*/:%s/:g' %s | xargs sed -i -e 's:FIXMESTAGINGDIRTARGET:%s:g; s:FIXMESTAGINGDIRHOST:%s:g'" % (target, " ".join(fixme), recipesysroot, recipesysrootnative)
-    for fixmevar in ['PKGDATA_DIR']:
+    for fixmevar in ['COMPONENTS_DIR', 'HOSTTOOLS_DIR', 'PKGDATA_DIR']:
         fixme_path = d.getVar(fixmevar)
         cmd += " -e 's:FIXME_%s:%s:g'" % (fixmevar, fixme_path)
     bb.note(cmd)
@@ -331,12 +331,26 @@ python extend_recipe_sysroot() {
 
     taskdepdata = d.getVar("BB_TASKDEPDATA", False)
     mytaskname = d.getVar("BB_RUNTASK")
+    if mytaskname.endswith("_setscene"):
+        mytaskname = mytaskname.replace("_setscene", "")
     workdir = d.getVar("WORKDIR")
     #bb.warn(str(taskdepdata))
     pn = d.getVar("PN")
 
-    if mytaskname.endswith("_setscene"):
-        mytaskname = mytaskname.replace("_setscene", "")
+    stagingdir = d.getVar("STAGING_DIR")
+    sharedmanifests = d.getVar("COMPONENTS_DIR") + "/manifests"
+    recipesysroot = d.getVar("RECIPE_SYSROOT")
+    recipesysrootnative = d.getVar("RECIPE_SYSROOT_NATIVE")
+    current_variant = d.getVar("BBEXTENDVARIANT")
+
+    # Detect bitbake -b usage
+    nodeps = d.getVar("BB_LIMITEDDEPS") or False
+    if nodeps:
+        lock = bb.utils.lockfile(recipesysroot + "/sysroot.lock")
+        staging_populate_sysroot_dir(recipesysroot, recipesysrootnative, True, d)
+        staging_populate_sysroot_dir(recipesysroot, recipesysrootnative, False, d)
+        bb.utils.unlockfile(lock)
+        return
 
     start = None
     configuredeps = []
@@ -440,20 +454,6 @@ python extend_recipe_sysroot() {
         next = new
 
     bb.note("\n".join(msgbuf))
-
-    stagingdir = d.getVar("STAGING_DIR")
-    sharedmanifests = stagingdir + "-components/manifests"
-    recipesysroot = d.getVar("RECIPE_SYSROOT")
-    recipesysrootnative = d.getVar("RECIPE_SYSROOT_NATIVE")
-    current_variant = d.getVar("BBEXTENDVARIANT")
-
-    # Detect bitbake -b usage
-    nodeps = d.getVar("BB_LIMITEDDEPS") or False
-    if nodeps:
-        lock = bb.utils.lockfile(recipesysroot + "/sysroot.lock")
-        staging_populate_sysroot_dir(recipesysroot, recipesysrootnative, True, d)
-        staging_populate_sysroot_dir(recipesysroot, recipesysrootnative, False, d)
-        bb.utils.unlockfile(lock)
 
     depdir = recipesysrootnative + "/installeddeps"
     bb.utils.mkdirhier(depdir)
@@ -639,7 +639,12 @@ python do_prepare_recipe_sysroot () {
 addtask do_prepare_recipe_sysroot before do_configure after do_fetch
 
 # Clean out the recipe specific sysroots before do_fetch
-do_fetch[cleandirs] += "${RECIPE_SYSROOT} ${RECIPE_SYSROOT_NATIVE}"
+# (use a prefunc so we can order before extend_recipe_sysroot if it gets added)
+python clean_recipe_sysroot() {
+    return
+}
+clean_recipe_sysroot[cleandirs] += "${RECIPE_SYSROOT} ${RECIPE_SYSROOT_NATIVE}"
+do_fetch[prefuncs] += "clean_recipe_sysroot"
 
 python staging_taskhandler() {
     bbtasks = e.tasklist

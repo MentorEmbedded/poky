@@ -47,6 +47,11 @@ sstate_install[vardepsexclude] += "buildhistory_emit_pkghistory"
 # then the value added to SSTATEPOSTINSTFUNCS:
 SSTATEPOSTINSTFUNCS[vardepvalueexclude] .= "| buildhistory_emit_pkghistory"
 
+# Similarly for our function that gets the output signatures
+SSTATEPOSTUNPACKFUNCS_append = " buildhistory_emit_outputsigs"
+sstate_installpkgdir[vardepsexclude] += "buildhistory_emit_outputsigs"
+SSTATEPOSTUNPACKFUNCS[vardepvalueexclude] .= "| buildhistory_emit_outputsigs"
+
 # All items excepts those listed here will be removed from a recipe's
 # build history directory by buildhistory_emit_pkghistory(). This is
 # necessary because some of these items (package directories, files that
@@ -290,6 +295,29 @@ python buildhistory_emit_pkghistory() {
 
     # Create files-in-<package-name>.txt files containing a list of files of each recipe's package
     bb.build.exec_func("buildhistory_list_pkg_files", d)
+}
+
+python buildhistory_emit_outputsigs() {
+    if not "task" in (d.getVar('BUILDHISTORY_FEATURES') or "").split():
+        return
+
+    taskoutdir = os.path.join(d.getVar('BUILDHISTORY_DIR'), 'task', 'output')
+    bb.utils.mkdirhier(taskoutdir)
+    currenttask = d.getVar('BB_CURRENTTASK')
+    pn = d.getVar('PN')
+    taskfile = os.path.join(taskoutdir, '%s.%s' % (pn, currenttask))
+
+    cwd = os.getcwd()
+    filesigs = {}
+    for root, _, files in os.walk(cwd):
+        for fname in files:
+            if fname == 'fixmepath':
+                continue
+            fullpath = os.path.join(root, fname)
+            filesigs[os.path.relpath(fullpath, cwd)] = bb.utils.sha256_file(fullpath)
+    with open(taskfile, 'w') as f:
+        for fpath, fsig in sorted(filesigs.items(), key=lambda item: item[0]):
+            f.write('%s %s\n' % (fpath, fsig))
 }
 
 
@@ -579,10 +607,14 @@ python buildhistory_get_extra_sdkinfo() {
 
 # By using ROOTFS_POSTUNINSTALL_COMMAND we get in after uninstallation of
 # unneeded packages but before the removal of packaging files
-ROOTFS_POSTUNINSTALL_COMMAND += " buildhistory_list_installed_image ;\
-                                buildhistory_get_image_installed ; "
+ROOTFS_POSTUNINSTALL_COMMAND += "buildhistory_list_installed_image ;"
+ROOTFS_POSTUNINSTALL_COMMAND += "buildhistory_get_image_installed ;"
+ROOTFS_POSTUNINSTALL_COMMAND[vardepvalueexclude] .= "| buildhistory_list_installed_image ;| buildhistory_get_image_installed ;"
+ROOTFS_POSTUNINSTALL_COMMAND[vardepsexclude] += "buildhistory_list_installed_image buildhistory_get_image_installed"
 
-IMAGE_POSTPROCESS_COMMAND += " buildhistory_get_imageinfo ; "
+IMAGE_POSTPROCESS_COMMAND += "buildhistory_get_imageinfo ;"
+IMAGE_POSTPROCESS_COMMAND[vardepvalueexclude] .= "| buildhistory_get_imageinfo ;"
+IMAGE_POSTPROCESS_COMMAND[vardepsexclude] += "buildhistory_get_imageinfo"
 
 # We want these to be the last run so that we get called after complementary package installation
 POPULATE_SDK_POST_TARGET_COMMAND_append = " buildhistory_list_installed_sdk_target;"
@@ -595,6 +627,17 @@ POPULATE_SDK_POST_HOST_COMMAND[vardepvalueexclude] .= "| buildhistory_list_insta
 
 SDK_POSTPROCESS_COMMAND_append = " buildhistory_get_sdkinfo ; buildhistory_get_extra_sdkinfo; "
 SDK_POSTPROCESS_COMMAND[vardepvalueexclude] .= "| buildhistory_get_sdkinfo ; buildhistory_get_extra_sdkinfo; "
+
+python buildhistory_write_sigs() {
+    if not "task" in (d.getVar('BUILDHISTORY_FEATURES') or "").split():
+        return
+
+    # Create sigs file
+    if hasattr(bb.parse.siggen, 'dump_siglist'):
+        taskoutdir = os.path.join(d.getVar('BUILDHISTORY_DIR'), 'task')
+        bb.utils.mkdirhier(taskoutdir)
+        bb.parse.siggen.dump_siglist(os.path.join(taskoutdir, 'tasksigs.txt'))
+}
 
 def buildhistory_get_build_id(d):
     if d.getVar('BB_WORKERCONTEXT') != '1':
@@ -761,6 +804,7 @@ python buildhistory_eventhandler() {
                 shutil.rmtree(olddir)
             if e.data.getVar("BUILDHISTORY_COMMIT") == "1":
                 bb.note("Writing buildhistory")
+                bb.build.exec_func("buildhistory_write_sigs", d)
                 localdata = bb.data.createCopy(e.data)
                 localdata.setVar('BUILDHISTORY_BUILD_FAILURES', str(e._failures))
                 interrupted = getattr(e, '_interrupted', 0)

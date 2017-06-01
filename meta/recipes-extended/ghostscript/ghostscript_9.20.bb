@@ -31,6 +31,16 @@ SRC_URI = "${SRC_URI_BASE} \
            file://ghostscript-9.02-genarch.patch \
            file://objarch.h \
            file://cups-no-gcrypt.patch \
+           file://CVE-2017-7207.patch \
+           file://CVE-2016-10219.patch \
+           file://CVE-2016-10220.patch \
+           file://CVE-2017-5951.patch \
+           file://CVE-2016-8602.patch \
+           file://CVE-2017-7975.patch \
+           file://CVE-2016-7977.patch \
+           file://CVE-2016-7978.patch \
+           file://CVE-2016-7979.patch \
+           file://CVE-2017-9216.patch \
            "
 
 SRC_URI_class-native = "${SRC_URI_BASE} \
@@ -104,3 +114,6 @@ do_install_class-native () {
 }
 
 BBCLASSEXTEND = "native"
+
+# ghostscript does not supports "arc"
+COMPATIBLE_HOST = "^(?!arc).*"

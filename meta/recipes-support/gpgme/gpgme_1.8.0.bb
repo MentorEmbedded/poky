@@ -14,7 +14,8 @@ SRC_URI = "${GNUPG_MIRROR}/gpgme/${BP}.tar.bz2 \
            file://pkgconfig.patch \
            file://python-lang-config.patch \
            file://0001-Correctly-install-python-modules.patch \
-           file://0001-Avoid-host-contamination-from-gpg-config.patch \
+           file://python-import.patch \
+           file://0001-gpgme-config-skip-all-lib-or-usr-lib-directories-in-.patch \
           "
 
 SRC_URI[md5sum] = "722a4153904b9b5dc15485a22d29263b"
@@ -22,6 +23,9 @@ SRC_URI[sha256sum] = "596097257c2ce22e747741f8ff3d7e24f6e26231fa198a41b2a072e62d
 
 DEPENDS = "libgpg-error libassuan"
 RDEPENDS_${PN}-cpp += "libstdc++"
+
+RDEPENDS_python2-gpg += "python-unixadmin"
+RDEPENDS_python3-gpg += "python3-unixadmin"
 
 BINCONFIG = "${bindir}/gpgme-config"
 
@@ -70,4 +74,3 @@ do_configure_prepend () {
 	rm -f ${S}/m4/gpg-error.m4
 	rm -f ${S}/m4/libassuan.m4
 }
-

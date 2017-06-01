@@ -42,7 +42,6 @@ RDEPENDS_packagegroup-self-hosted-host-tools = "\
     mc-fish \
     mc-helpers \
     mc-helpers-perl \
-    mc-helpers-python \
     parted \
     ${PSEUDO} \
     screen \
@@ -151,7 +150,6 @@ RDEPENDS_packagegroup-self-hosted-extended = "\
     perl-pod \
     python \
     python-modules \
-    python-git \
     python3 \
     python3-modules \
     python3-git \

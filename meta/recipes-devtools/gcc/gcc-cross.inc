@@ -11,6 +11,9 @@ python () {
 
 PN = "gcc-cross-${TARGET_ARCH}"
 
+# Ignore how TARGET_ARCH is computed.
+TARGET_ARCH[vardepvalue] = "${TARGET_ARCH}"
+
 require gcc-configure-common.inc
 
 # While we want the 'gnu' hash style, we explicitly set it to sysv here to
@@ -203,8 +206,8 @@ do_gcc_stash_builddir () {
 addtask do_gcc_stash_builddir after do_compile before do_install
 SSTATETASKS += "do_gcc_stash_builddir"
 do_gcc_stash_builddir[sstate-inputdirs] = "${BUILDDIRSTASH}"
-do_gcc_stash_builddir[sstate-outputdirs] = "${STAGING_DIR}-components/${BUILD_ARCH}/gcc-stashed-builddir${COMPILERINITIAL}-${TARGET_SYS}"
-do_gcc_stash_builddir[sstate-fixmedir] = "${STAGING_DIR}-components/${BUILD_ARCH}/gcc-stashed-builddir${COMPILERINITIAL}-${TARGET_SYS}"
+do_gcc_stash_builddir[sstate-outputdirs] = "${COMPONENTS_DIR}/${BUILD_ARCH}/gcc-stashed-builddir${COMPILERINITIAL}-${TARGET_SYS}"
+do_gcc_stash_builddir[sstate-fixmedir] = "${COMPONENTS_DIR}/${BUILD_ARCH}/gcc-stashed-builddir${COMPILERINITIAL}-${TARGET_SYS}"
 
 python do_gcc_stash_builddir_setscene () {
     sstate_setscene(d)

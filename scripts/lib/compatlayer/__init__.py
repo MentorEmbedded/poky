@@ -4,7 +4,10 @@
 # Released under the MIT license (see COPYING.MIT)
 
 import os
+import subprocess
 from enum import Enum
+
+import bb.tinfoil
 
 class LayerType(Enum):
     BSP = 0
@@ -140,13 +143,10 @@ def _find_layer_depends(depend, layers):
                 return layer
     return None
 
-def add_layer(bblayersconf, layer, layers, logger):
-    logger.info('Adding layer %s' % layer['name'])
-
-    for collection in layer['collections']:
-        depends = layer['collections'][collection]['depends']
-        if not depends:
-            continue
+def add_layer_dependencies(bblayersconf, layer, layers, logger):
+    def recurse_dependencies(depends, layer, layers, logger, ret = []):
+        logger.debug('Processing dependencies %s for layer %s.' % \
+                    (depends, layer['name']))
 
         for depend in depends.split():
             # core (oe-core) is suppose to be provided
@@ -157,19 +157,65 @@ def add_layer(bblayersconf, layer, layers, logger):
             if not layer_depend:
                 logger.error('Layer %s depends on %s and isn\'t found.' % \
                         (layer['name'], depend))
-                return False
+                ret = None
+                continue
 
+            # We keep processing, even if ret is None, this allows us to report
+            # multiple errors at once
+            if ret is not None and layer_depend not in ret:
+                ret.append(layer_depend)
+
+            # Recursively process...
+            if 'collections' not in layer_depend:
+                continue
+
+            for collection in layer_depend['collections']:
+                collect_deps = layer_depend['collections'][collection]['depends']
+                if not collect_deps:
+                    continue
+                ret = recurse_dependencies(collect_deps, layer_depend, layers, logger, ret)
+
+        return ret
+
+    layer_depends = []
+    for collection in layer['collections']:
+        depends = layer['collections'][collection]['depends']
+        if not depends:
+            continue
+
+        layer_depends = recurse_dependencies(depends, layer, layers, logger, layer_depends)
+
+    # Note: [] (empty) is allowed, None is not!
+    if layer_depends is None:
+        return False
+    else:
+        for layer_depend in layer_depends:
             logger.info('Adding layer dependency %s' % layer_depend['name'])
             with open(bblayersconf, 'a+') as f:
                 f.write("\nBBLAYERS += \"%s\"\n" % layer_depend['path'])
+    return True
 
+def add_layer(bblayersconf, layer, layers, logger):
+    logger.info('Adding layer %s' % layer['name'])
     with open(bblayersconf, 'a+') as f:
         f.write("\nBBLAYERS += \"%s\"\n" % layer['path'])
 
     return True
 
-def get_signatures(builddir, failsafe=False):
-    import subprocess
+def check_command(error_msg, cmd):
+    '''
+    Run a command under a shell, capture stdout and stderr in a single stream,
+    throw an error when command returns non-zero exit code. Returns the output.
+    '''
+
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output, _ = p.communicate()
+    if p.returncode:
+        msg = "%s\nCommand: %s\nOutput:\n%s" % (error_msg, cmd, output.decode('utf-8'))
+        raise RuntimeError(msg)
+    return output
+
+def get_signatures(builddir, failsafe=False, machine=None):
     import re
 
     # some recipes needs to be excluded like meta-world-pkgdata
@@ -178,23 +224,40 @@ def get_signatures(builddir, failsafe=False):
     exclude_recipes = ('meta-world-pkgdata',)
 
     sigs = {}
+    tune2tasks = {}
 
-    cmd = 'bitbake '
+    cmd = ''
+    if machine:
+        cmd += 'MACHINE=%s ' % machine
+    cmd += 'bitbake '
     if failsafe:
         cmd += '-k '
     cmd += '-S none world'
-    p = subprocess.Popen(cmd, shell=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output, _ = p.communicate()
-    if p.returncode:
-        msg = "Generating signatures failed. This might be due to some parse error and/or general layer incompatibilities.\nCommand: %s\nOutput:\n%s" % (cmd, output.decode('utf-8'))
-        raise RuntimeError(msg)
     sigs_file = os.path.join(builddir, 'locked-sigs.inc')
+    if os.path.exists(sigs_file):
+        os.unlink(sigs_file)
+    try:
+        check_command('Generating signatures failed. This might be due to some parse error and/or general layer incompatibilities.',
+                      cmd)
+    except RuntimeError as ex:
+        if failsafe and os.path.exists(sigs_file):
+            # Ignore the error here. Most likely some recipes active
+            # in a world build lack some dependencies. There is a
+            # separate test_machine_world_build which exposes the
+            # failure.
+            pass
+        else:
+            raise
 
     sig_regex = re.compile("^(?P<task>.*:.*):(?P<hash>.*) .$")
+    tune_regex = re.compile("(^|\s)SIGGEN_LOCKEDSIGS_t-(?P<tune>\S*)\s*=\s*")
+    current_tune = None
     with open(sigs_file, 'r') as f:
         for line in f.readlines():
             line = line.strip()
+            t = tune_regex.search(line)
+            if t:
+                current_tune = t.group('tune')
             s = sig_regex.match(line)
             if s:
                 exclude = False
@@ -207,8 +270,39 @@ def get_signatures(builddir, failsafe=False):
                     continue
 
                 sigs[s.group('task')] = s.group('hash')
+                tune2tasks.setdefault(current_tune, []).append(s.group('task'))
 
     if not sigs:
         raise RuntimeError('Can\'t load signatures from %s' % sigs_file)
 
-    return sigs
+    return (sigs, tune2tasks)
+
+def get_depgraph(targets=['world']):
+    '''
+    Returns the dependency graph for the given target(s).
+    The dependency graph is taken directly from DepTreeEvent.
+    '''
+    depgraph = None
+    with bb.tinfoil.Tinfoil() as tinfoil:
+        tinfoil.prepare(config_only=False)
+        tinfoil.set_event_mask(['bb.event.NoProvider', 'bb.event.DepTreeGenerated', 'bb.command.CommandCompleted'])
+        if not tinfoil.run_command('generateDepTreeEvent', targets, 'do_build'):
+            raise RuntimeError('starting generateDepTreeEvent failed')
+        while True:
+            event = tinfoil.wait_event(timeout=1000)
+            if event:
+                if isinstance(event, bb.command.CommandFailed):
+                    raise RuntimeError('Generating dependency information failed: %s' % event.error)
+                elif isinstance(event, bb.command.CommandCompleted):
+                    break
+                elif isinstance(event, bb.event.NoProvider):
+                    if event._reasons:
+                        raise RuntimeError('Nothing provides %s: %s' % (event._item, event._reasons))
+                    else:
+                        raise RuntimeError('Nothing provides %s.' % (event._item))
+                elif isinstance(event, bb.event.DepTreeGenerated):
+                    depgraph = event._depgraph
+
+    if depgraph is None:
+        raise RuntimeError('Could not retrieve the depgraph.')
+    return depgraph

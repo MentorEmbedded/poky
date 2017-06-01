@@ -151,6 +151,8 @@ ignore_errors = {
         'failed to read out thermal zone',
         'Bluetooth: hci0: Setting Intel event mask failed',
         'ttyS2 - failed to request DMA',
+        'Bluetooth: hci0: Failed to send firmware data (-38)',
+        'atkbd serio0: Failed to enable keyboard on isa0060/serio0',
         ] + x86_common,
     'crownbay' : x86_common,
     'genericx86' : x86_common,

@@ -1,5 +1,5 @@
 # Path to the CMake file to process.
-OECMAKE_SOURCEPATH ?= "${S}"
+OECMAKE_SOURCEPATH ??= "${S}"
 
 DEPENDS_prepend = "cmake-native "
 B = "${WORKDIR}/build"
@@ -31,6 +31,9 @@ OECMAKE_FIND_ROOT_PATH_MODE_PROGRAM_class-native = "BOTH"
 
 EXTRA_OECMAKE_append = " ${PACKAGECONFIG_CONFARGS}"
 
+EXTRA_OECMAKE_BUILD_prepend_task-compile = "${PARALLEL_MAKE} "
+EXTRA_OECMAKE_BUILD_prepend_task-install = "${PARALLEL_MAKEINST} "
+
 # CMake expects target architectures in the format of uname(2),
 # which do not always match TARGET_ARCH, so all the necessary
 # conversions should happen here.
@@ -42,9 +45,13 @@ def map_target_arch_to_uname_arch(target_arch):
     return target_arch
 
 cmake_do_generate_toolchain_file() {
+	if [ "${BUILD_SYS}" = "${HOST_SYS}" ]; then
+		cmake_crosscompiling="set( CMAKE_CROSSCOMPILING FALSE )"
+	fi
 	cat > ${WORKDIR}/toolchain.cmake <<EOF
 # CMake system name must be something like "Linux".
 # This is important for cross-compiling.
+$cmake_crosscompiling
 set( CMAKE_SYSTEM_NAME `echo ${TARGET_OS} | sed -e 's/^./\u&/' -e 's/^\(Linux\).*/\1/'` )
 set( CMAKE_SYSTEM_PROCESSOR ${@map_target_arch_to_uname_arch(d.getVar('TARGET_ARCH'))} )
 set( CMAKE_C_COMPILER ${OECMAKE_C_COMPILER} )
@@ -103,13 +110,13 @@ cmake_do_configure() {
 
 	# Just like autotools cmake can use a site file to cache result that need generated binaries to run
 	if [ -e ${WORKDIR}/site-file.cmake ] ; then
-		OECMAKE_SITEFILE=" -C ${WORKDIR}/site-file.cmake"
+		oecmake_sitefile="-C ${WORKDIR}/site-file.cmake"
 	else
-		OECMAKE_SITEFILE=""
+		oecmake_sitefile=
 	fi
 
 	cmake \
-	  ${OECMAKE_SITEFILE} \
+	  $oecmake_sitefile \
 	  ${OECMAKE_SOURCEPATH} \
 	  -DCMAKE_INSTALL_PREFIX:PATH=${prefix} \
 	  -DCMAKE_INSTALL_BINDIR:PATH=${@os.path.relpath(d.getVar('bindir'), d.getVar('prefix'))} \
@@ -131,13 +138,13 @@ cmake_do_configure() {
 
 do_compile[progress] = "percent"
 cmake_do_compile()  {
-	cd ${B}
-	base_do_compile VERBOSE=1
+	bbnote VERBOSE=1 cmake --build '${B}' -- ${EXTRA_OECMAKE_BUILD}
+	VERBOSE=1 cmake --build '${B}' -- ${EXTRA_OECMAKE_BUILD}
 }
 
 cmake_do_install() {
-	cd ${B}
-	oe_runmake 'DESTDIR=${D}' install
+	bbnote DESTDIR='${D}' cmake --build '${B}' --target install -- ${EXTRA_OECMAKE_BUILD}
+	DESTDIR='${D}' cmake --build '${B}' --target install -- ${EXTRA_OECMAKE_BUILD}
 }
 
 EXPORT_FUNCTIONS do_configure do_compile do_install do_generate_toolchain_file
