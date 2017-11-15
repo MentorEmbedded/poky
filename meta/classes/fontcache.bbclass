@@ -38,6 +38,10 @@ python () {
 }
 
 python add_fontcache_postinsts() {
+    baselib = d.getVar('BASE_LIB_tune-' + (d.getVar('DEFAULTTUNE', True) or 'INVALID'), True) or \
+              d.getVar('BASELIB', True)
+    d.setVar("baselib", baselib)
+
     for pkg in d.getVar('FONT_PACKAGES', True).split():
         bb.note("adding fonts postinst and postrm scripts to %s" % pkg)
         postinst = d.getVar('pkg_postinst_%s' % pkg, True) or d.getVar('pkg_postinst', True)
