@@ -261,7 +261,7 @@ class DirectImageCreator(BaseImageCreator):
                     if part.disk not in disk_ids:
                         disk_ids[part.disk] = int.from_bytes(os.urandom(4), 'little')
                     disk_id = disk_ids[part.disk]
-                    part.uuid = '%0x-%02d' % (disk_id, self.__get_part_num(num, parts))
+                    part.uuid = '%08x-%02d' % (disk_id, self.__get_part_num(num, parts))
 
         fstab_path = self._write_fstab(self.rootfs_dir.get("ROOTFS_DIR"))
 
