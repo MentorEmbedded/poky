@@ -145,9 +145,12 @@ class DirectImageCreator(BaseImageCreator):
                or part.mountpoint in ("/", "/boot"):
                 continue
 
-            # mmc device partitions are named mmcblk0p1, mmcblk0p2..
-            prefix = 'p' if  part.disk.startswith('mmcblk') else ''
-            device_name = "/dev/%s%s%d" % (part.disk, prefix, pnum)
+            if part.use_uuid:
+                device_name = "PARTUUID=%s" % part.uuid
+            else:
+                # mmc device partitions are named mmcblk0p1, mmcblk0p2..
+                prefix = 'p' if  part.disk.startswith('mmcblk') else ''
+                device_name = "/dev/%s%s%d" % (part.disk, prefix, pnum)
 
             opts = part.fsopts if part.fsopts else "defaults"
             line = "\t".join([device_name, part.mountpoint, part.fstype,
