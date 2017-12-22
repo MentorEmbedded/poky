@@ -145,9 +145,12 @@ class DirectImageCreator(BaseImageCreator):
                or part.mountpoint in ("/", "/boot"):
                 continue
 
-            # mmc device partitions are named mmcblk0p1, mmcblk0p2..
-            prefix = 'p' if  part.disk.startswith('mmcblk') else ''
-            device_name = "/dev/%s%s%d" % (part.disk, prefix, pnum)
+            if part.use_uuid:
+                device_name = "PARTUUID=%s" % part.uuid
+            else:
+                # mmc device partitions are named mmcblk0p1, mmcblk0p2..
+                prefix = 'p' if  part.disk.startswith('mmcblk') else ''
+                device_name = "/dev/%s%s%d" % (part.disk, prefix, pnum)
 
             opts = part.fsopts if part.fsopts else "defaults"
             line = "\t".join([device_name, part.mountpoint, part.fstype,
@@ -258,7 +261,7 @@ class DirectImageCreator(BaseImageCreator):
                     if part.disk not in disk_ids:
                         disk_ids[part.disk] = int.from_bytes(os.urandom(4), 'little')
                     disk_id = disk_ids[part.disk]
-                    part.uuid = '%0x-%02d' % (disk_id, self.__get_part_num(num, parts))
+                    part.uuid = '%08x-%02d' % (disk_id, self.__get_part_num(num, parts))
 
         fstab_path = self._write_fstab(self.rootfs_dir.get("ROOTFS_DIR"))
 
